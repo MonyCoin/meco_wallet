@@ -1,67 +1,79 @@
-import * as SecureStore from 'expo-secure-store';
+const JUPITER_BASE = 'https://quote-api.jup.ag/v6';
 
-const RPC = 'https://api.mainnet-beta.solana.com';
+/**
+ * جلب quote (سعر متوقع)
+ * @param {string} inputMint
+ * @param {string} outputMint
+ * @param {number} amountBaseUnits  // ⚠️ base units فقط
+ */
+export async function fetchQuoteViaRest(
+  inputMint,
+  outputMint,
+  amountBaseUnits
+) {
+  const url =
+    `${JUPITER_BASE}/quote` +
+    `?inputMint=${inputMint}` +
+    `&outputMint=${outputMint}` +
+    `&amount=${amountBaseUnits}` +
+    `&slippageBps=50`;
 
-async function fetchWithTimeout(resource, options = {}) {
-  const { timeout = 10000 } = options; // 10 ثواني مهلة افتراضية
-  const controller = new AbortController();
-  const id = setTimeout(() => controller.abort(), timeout);
-  const response = await fetch(resource, { ...options, signal: controller.signal });
-  clearTimeout(id);
-  return response;
-}
+  const res = await fetch(url);
 
-export async function getJupiterTokens() {
-  try {
-    const response = await fetchWithTimeout('https://tokens.jup.ag/tokens');
-    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-    const tokens = await response.json();
-
-    const filtered = tokens.filter(token =>
-      token.symbol &&
-      token.address &&
-      token.name &&
-      token.logoURI &&
-      typeof token.decimals === 'number'
-    );
-
-    return filtered.slice(0, 50).map(token => ({
-      address: token.address,
-      symbol: token.symbol,
-      name: token.name,
-      logoURI: token.logoURI,
-      decimals: token.decimals,
-    }));
-  } catch (err) {
-    console.error('❌ Failed to fetch Jupiter tokens:', err);
-    return [];
+  if (!res.ok) {
+    throw new Error(`Quote failed: ${res.status}`);
   }
+
+  const data = await res.json();
+
+  if (!data?.data?.length) {
+    throw new Error('No valid route');
+  }
+
+  // نأخذ أفضل route
+  return data.data[0];
 }
 
-export async function getGeckoPrices(symbols = []) {
-  const idsMap = {
-    SOL: 'solana',
-    USDT: 'tether',
-    BTC: 'bitcoin',
-    ETH: 'ethereum',
-    MECO: 'meco-token'
-  };
-
-  const ids = symbols.map(sym => idsMap[sym]).filter(Boolean);
-  if (!ids.length) return [];
-
+/**
+ * تنفيذ swap
+ * @param {object} quote
+ * @param {string} userPublicKey
+ * @param {function} signAndSend
+ */
+export async function executeSwapViaRest(
+  quote,
+  userPublicKey,
+  signAndSend
+) {
   try {
-    const url = `https://api.coingecko.com/api/v3/simple/price?ids=${ids.join(',')}&vs_currencies=usd`;
-    const res = await fetchWithTimeout(url);
-    if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+    const res = await fetch(`${JUPITER_BASE}/swap`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        quoteResponse: quote,
+        userPublicKey,
+        wrapAndUnwrapSol: true,
+      }),
+    });
+
+    if (!res.ok) {
+      throw new Error(`Swap API failed: ${res.status}`);
+    }
+
     const data = await res.json();
 
-    return symbols.map(sym => ({
-      symbol: sym,
-      price: data[idsMap[sym]]?.usd ?? 0,
-    }));
+    if (!data?.swapTransaction) {
+      throw new Error('Invalid swap transaction');
+    }
+
+    const txBuffer = Buffer.from(data.swapTransaction, 'base64');
+    const txid = await signAndSend(txBuffer);
+
+    return { success: true, txid };
   } catch (err) {
-    console.warn('❌ Coingecko price error:', err.message);
-    return symbols.map(sym => ({ symbol: sym, price: 0 }));
+    console.error('❌ Swap error:', err.message);
+    return { success: false, error: err.message };
   }
 }
