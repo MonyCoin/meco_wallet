@@ -18,7 +18,6 @@
       "buildNumber": "7"
     },
     "android": {
-      "jsEngine": "jsc",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
@@ -30,10 +29,7 @@
         "READ_EXTERNAL_STORAGE",
         "WRITE_EXTERNAL_STORAGE",
         "INTERNET",
-        "USE_BIOMETRIC",
-        "USE_FINGERPRINT",
-        "android.permission.USE_BIOMETRIC",
-        "android.permission.USE_FINGERPRINT"
+        "USE_BIOMETRIC"
       ]
     },
     "web": {
