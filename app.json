@@ -31,7 +31,9 @@
         "WRITE_EXTERNAL_STORAGE",
         "INTERNET",
         "USE_BIOMETRIC",
-        "USE_FINGERPRINT"
+        "USE_FINGERPRINT",
+        "android.permission.USE_BIOMETRIC",
+        "android.permission.USE_FINGERPRINT"
       ]
     },
     "web": {
@@ -43,10 +45,10 @@
       "expo-local-authentication",
       "expo-font"
     ],
-    "owner": "saadeh73",
+    "owner": "monycoin",
     "extra": {
       "eas": {
-        "projectId": "7fdd4a86-3554-4398-b32d-a1598b192852"
+        "projectId": "eb1f71ac-516e-4edd-b2a2-2914dad79f93"
       }
     }
   }
