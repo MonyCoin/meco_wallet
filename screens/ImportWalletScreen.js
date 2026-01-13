@@ -7,6 +7,7 @@ import {
   StyleSheet,
   Alert,
   ScrollView,
+  Clipboard
 } from 'react-native';
 
 import * as SecureStore from 'expo-secure-store';
@@ -15,6 +16,7 @@ import * as bip39 from '@scure/bip39';
 import { wordlist } from '@scure/bip39/wordlists/english';
 import { useAppStore } from '../store';
 import { useNavigation } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
 
 export default function ImportWalletScreen() {
   const [mnemonic, setMnemonic] = useState('');
@@ -28,16 +30,12 @@ export default function ImportWalletScreen() {
         .trim()
         .replace(/\s+/g, ' ');
 
-      // ✅ تحقق صحيح مع wordlist
       if (!bip39.validateMnemonic(cleanedMnemonic, wordlist)) {
         Alert.alert('❌ عبارة الاسترداد غير صحيحة');
         return;
       }
 
-      // ✅ توليد Seed
       const seed = await bip39.mnemonicToSeed(cleanedMnemonic);
-
-      // ✅ Solana-compatible deterministic key
       const keypair = Keypair.fromSeed(seed.slice(0, 32));
 
       await SecureStore.setItemAsync('wallet_mnemonic', cleanedMnemonic);
@@ -63,21 +61,43 @@ export default function ImportWalletScreen() {
     }
   };
 
+  const handlePaste = async () => {
+    const text = await Clipboard.getStringAsync();
+    if (text) setMnemonic(text);
+  };
+
+  const wordCount = mnemonic.trim().split(/\s+/).filter(Boolean).length;
+
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={[styles.title, { color: primaryColor }]}>
         استيراد المحفظة
       </Text>
 
-      <TextInput
-        style={styles.input}
-        placeholder="أدخل 12 كلمة مفصولة بمسافة"
-        placeholderTextColor="#999"
-        multiline
-        value={mnemonic}
-        onChangeText={setMnemonic}
-        textAlign="right"
-      />
+      <View style={styles.warningCard}>
+        <Ionicons name="warning-outline" size={24} color="#FFA500" />
+        <Text style={styles.warningText}>
+          ⚠️ احتفظ بالكلمات في مكان آمن. لا يمكن استعادة المحفظة بدونها.
+        </Text>
+      </View>
+
+      <View style={styles.mnemonicCard}>
+        <TextInput
+          style={styles.input}
+          placeholder="أدخل 12 كلمة مفصولة بمسافة"
+          placeholderTextColor="#999"
+          multiline
+          value={mnemonic}
+          onChangeText={setMnemonic}
+          textAlign="right"
+        />
+        <View style={styles.wordCountRow}>
+          <Text style={styles.wordCountText}>{wordCount} / 12 كلمات</Text>
+          <TouchableOpacity onPress={handlePaste} style={styles.pasteButton}>
+            <Text style={{ color: primaryColor }}>لصق</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
 
       <TouchableOpacity
         style={[styles.button, { backgroundColor: primaryColor }]}
@@ -97,27 +117,59 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
   },
   title: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: 'bold',
     marginBottom: 20,
     textAlign: 'center',
   },
-  input: {
-    backgroundColor: '#f2f2f2',
-    padding: 14,
+  warningCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF3CD',
+    padding: 12,
     borderRadius: 10,
+    marginBottom: 20,
+  },
+  warningText: {
+    marginLeft: 8,
+    color: '#856404',
+    fontSize: 14,
+    flex: 1,
+    lineHeight: 20,
+  },
+  mnemonicCard: {
+    backgroundColor: '#F2F2F2',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 20,
+  },
+  input: {
     fontSize: 16,
     lineHeight: 22,
-    marginBottom: 24,
+    minHeight: 100,
+  },
+  wordCountRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  wordCountText: {
+    fontSize: 14,
+    color: '#555',
+  },
+  pasteButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 4,
   },
   button: {
-    padding: 14,
-    borderRadius: 10,
+    padding: 16,
+    borderRadius: 12,
+    alignItems: 'center',
   },
   buttonText: {
     color: '#fff',
-    textAlign: 'center',
-    fontSize: 16,
     fontWeight: 'bold',
+    fontSize: 16,
   },
 });
