@@ -5,13 +5,15 @@ import {
 } from 'react-native';
 import { useAppStore } from '../store';
 import { useTranslation } from 'react-i18next';
-import { getJupiterTokens } from '../services/jupiterService';
+import { getJupiterTokens, fetchQuoteViaRest, baseUnitsToAmount } from '../services/jupiterService';
 import { useNavigation } from '@react-navigation/native';
+
+const USDC_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
 
 export default function MarketScreen() {
   const { t } = useTranslation();
-  const theme = useAppStore((state) => state.theme);
-  const primaryColor = useAppStore((state) => state.primaryColor);
+  const theme = useAppStore(s => s.theme);
+  const primaryColor = useAppStore(s => s.primaryColor);
   const isDark = theme === 'dark';
   const bg = isDark ? '#000' : '#fff';
   const fg = isDark ? '#fff' : '#000';
@@ -21,58 +23,40 @@ export default function MarketScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  const mapSymbolsToGeckoIds = async (tokenList) => {
-    try {
-      const response = await fetch('https://api.coingecko.com/api/v3/coins/list');
-      const geckoList = await response.json();
-
-      return tokenList.map(token => {
-        const found = geckoList.find(
-          g => g.symbol.toLowerCase() === token.symbol.toLowerCase()
-        );
-        return {
-          ...token,
-          geckoId: found?.id || null,
-        };
-      });
-    } catch (err) {
-      console.warn('❌ mapSymbolsToGeckoIds error:', err.message);
-      return tokenList.map(token => ({ ...token, geckoId: null }));
-    }
-  };
-
-  const fetchMarketData = async () => {
+  const fetchMarket = async () => {
     try {
       setLoading(true);
       const list = await getJupiterTokens();
 
-      const cleanedList = list.filter(t =>
-        t.symbol && t.name && t.address && typeof t.decimals === 'number'
-      );
+      const baseList = list
+        .filter(t => t.address && t.decimals != null)
+        .slice(0, 30); // مهم: لا تسعّر 500 عملة
 
-      const withIds = await mapSymbolsToGeckoIds(cleanedList);
-      const ids = withIds.map(t => t.geckoId).filter(Boolean);
+      const priced = [];
 
-      const prices = {};
-      if (ids.length > 0) {
-        const priceRes = await fetch(
-          `https://api.coingecko.com/api/v3/simple/price?ids=${ids.join(',')}&vs_currencies=usd`
-        );
-        const priceJson = await priceRes.json();
+      for (const token of baseList) {
+        try {
+          const amount = Math.pow(10, token.decimals);
+          const quote = await fetchQuoteViaRest(
+            token.address,
+            USDC_MINT,
+            amount
+          );
 
-        ids.forEach(id => {
-          prices[id] = priceJson[id]?.usd ?? 0;
-        });
+          const price = baseUnitsToAmount(
+            Number(quote.outAmount),
+            6
+          );
+
+          priced.push({ ...token, price });
+        } catch {
+          priced.push({ ...token, price: 0 });
+        }
       }
 
-      const tokensWithPrices = withIds.map(token => ({
-        ...token,
-        price: token.geckoId ? prices[token.geckoId] || 0 : 0,
-      }));
-
-      setTokens(tokensWithPrices);
-    } catch (err) {
-      console.warn('📉 Market fetch error:', err.message);
+      setTokens(priced);
+    } catch (e) {
+      console.warn('Market error:', e.message);
       setTokens([]);
     } finally {
       setLoading(false);
@@ -80,29 +64,29 @@ export default function MarketScreen() {
   };
 
   useEffect(() => {
-    fetchMarketData();
+    fetchMarket();
   }, []);
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await fetchMarketData();
+    await fetchMarket();
     setRefreshing(false);
   };
 
   const renderItem = ({ item }) => (
     <TouchableOpacity
-      onPress={() => navigation.navigate('TokenDetails', { token: item })}
+      onPress={() =>
+        navigation.navigate('Swap', {
+          fromToken: item.address,
+        })
+      }
       style={[styles.item, { backgroundColor: isDark ? '#111' : '#f2f2f2' }]}
     >
-      <Image
-        source={{ uri: item.logoURI || 'https://via.placeholder.com/36' }}
-        style={styles.icon}
-      />
+      <Image source={{ uri: item.logoURI }} style={styles.icon} />
       <View style={{ marginLeft: 12 }}>
         <Text style={[styles.symbol, { color: fg }]}>{item.symbol}</Text>
-        <Text style={[styles.name, { color: fg }]}>{item.name}</Text>
         <Text style={[styles.price, { color: primaryColor }]}>
-          ${typeof item.price === 'number' ? item.price.toFixed(4) : '0.0000'}
+          ${item.price ? item.price.toFixed(4) : '—'}
         </Text>
       </View>
     </TouchableOpacity>
@@ -113,14 +97,13 @@ export default function MarketScreen() {
       <Text style={[styles.header, { color: fg }]}>{t('market') || 'السوق'}</Text>
 
       {loading ? (
-        <ActivityIndicator size="large" color={primaryColor} style={{ marginTop: 20 }} />
+        <ActivityIndicator size="large" color={primaryColor} />
       ) : (
         <FlatList
           data={tokens}
-          keyExtractor={(item) => item.address}
+          keyExtractor={i => i.address}
           renderItem={renderItem}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-          contentContainerStyle={{ paddingBottom: 20 }}
         />
       )}
     </View>
@@ -130,20 +113,8 @@ export default function MarketScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 20 },
   header: { fontSize: 24, fontWeight: 'bold', marginBottom: 14, textAlign: 'center' },
-  item: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 14,
-    borderRadius: 10,
-    marginBottom: 10,
-  },
-  icon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#ccc',
-  },
+  item: { flexDirection: 'row', padding: 14, borderRadius: 10, marginBottom: 10 },
+  icon: { width: 36, height: 36, borderRadius: 18 },
   symbol: { fontSize: 16, fontWeight: 'bold' },
-  name: { fontSize: 14, opacity: 0.8 },
-  price: { fontSize: 16, fontWeight: 'bold', marginTop: 4 },
+  price: { marginTop: 4, fontSize: 14 },
 });
