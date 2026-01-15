@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -15,18 +15,21 @@ import { useTranslation } from 'react-i18next';
 import { useAppStore } from '../store';
 import { Ionicons, FontAwesome } from '@expo/vector-icons';
 
+const MECO_MINT = '7hBNyFfwYTv65z3ZudMAyKBw3BLMKxyKXsr5xM51Za4i';
+
 export default function MecoScreen() {
   const { t } = useTranslation();
-  const theme = useAppStore((state) => state.theme);
+  const theme = useAppStore(s => s.theme);
   const isDark = theme === 'dark';
+
   const bg = isDark ? '#000' : '#fff';
   const fg = isDark ? '#fff' : '#000';
+  const cardBg = isDark ? '#111' : '#f6f6f6';
   const green = '#00b97f';
   const linkColor = '#1e90ff';
-  const cardBg = isDark ? '#111' : '#f7f7f7';
 
   const [holders, setHolders] = useState(null);
-  const scaleAnim = new Animated.Value(1);
+  const scaleAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     fetchHolders();
@@ -35,102 +38,135 @@ export default function MecoScreen() {
   const fetchHolders = async () => {
     try {
       const res = await fetch(
-        'https://api.helius.xyz/v0/token-metadata?mint=7hBNyFfwYTv65z3ZudMAyKBw3BLMKxyKXsr5xM51Za4i&api-key=hel1'
+        `https://api.helius.xyz/v0/token-metadata?mint=${MECO_MINT}&api-key=hel1`
       );
       const data = await res.json();
-      setHolders(data?.totalAccounts || 0);
-    } catch (e) {
+      setHolders(data?.totalAccounts ?? '~');
+    } catch {
       setHolders('~');
     }
   };
 
-  const handleShare = () => {
-    Share.share({
-      title: 'Meco Wallet',
-      message: 'جرب أول محفظة رقمية عربية تدعم رمز MECO: https://monycoin1.blogspot.com/',
-    });
-  };
-
-  const openURL = (url) => {
-    Linking.openURL(url).catch(() => {});
-  };
-
-  const animatePress = () => {
+  const pressAnim = () => {
     Animated.sequence([
       Animated.timing(scaleAnim, {
-        toValue: 0.95,
-        duration: 100,
+        toValue: 0.96,
+        duration: 80,
         easing: Easing.out(Easing.ease),
         useNativeDriver: true,
       }),
       Animated.timing(scaleAnim, {
         toValue: 1,
-        duration: 100,
+        duration: 80,
         easing: Easing.out(Easing.ease),
         useNativeDriver: true,
       }),
     ]).start();
   };
 
-  const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
+  const openURL = url => Linking.openURL(url).catch(() => {});
+  const handleShare = () =>
+    Share.share({
+      title: 'MECO Wallet',
+      message:
+        'جرب أول محفظة عربية تدعم رمز MECO 🚀\nhttps://monycoin1.blogspot.com/',
+    });
 
-  const Card = ({ title, value, icon }) => (
-    <Animated.View style={[styles.card, { backgroundColor: cardBg, transform: [{ scale: scaleAnim }] }]}>
-      <Text style={[styles.cardTitle, { color: green }]}>{icon} {title}</Text>
+  const StatCard = ({ title, value, icon }) => (
+    <Animated.View
+      style={[
+        styles.card,
+        { backgroundColor: cardBg, transform: [{ scale: scaleAnim }] },
+      ]}
+    >
+      <Text style={[styles.cardTitle, { color: green }]}>
+        {icon} {title}
+      </Text>
       <Text style={[styles.cardValue, { color: fg }]}>{value}</Text>
     </Animated.View>
   );
 
+  const LinkRow = ({ icon, label, onPress }) => (
+    <TouchableOpacity
+      style={styles.linkRow}
+      onPress={() => {
+        pressAnim();
+        onPress();
+      }}
+      activeOpacity={0.7}
+    >
+      {icon}
+      <Text style={[styles.link, { color: linkColor }]}>{label}</Text>
+    </TouchableOpacity>
+  );
+
   return (
     <ScrollView contentContainerStyle={[styles.container, { backgroundColor: bg }]}>
-      {/* العنوان */}
-      <Text style={[styles.title, { color: fg }]}>{t('meco_title')}</Text>
-      <Text style={[styles.description, { color: fg }]}>{t('meco_description')}</Text>
+      {/* HEADER */}
+      <Text style={[styles.title, { color: fg }]}>MECO Token</Text>
+      <Text style={[styles.description, { color: fg }]}>
+        الرمز الرسمي لتطبيق MECO Wallet – مصمم لدعم السيولة وبناء نظام مالي عربي.
+      </Text>
 
-      {/* بطاقة السعر */}
-      <Card title="السعر الحالي" value="0.006 USDT" icon="💰" />
+      {/* STATS */}
+      <StatCard title="السعر الحالي" value="— USDT" icon="💰" />
 
-      {/* بطاقة المحافظ والرسوم */}
-      <Animated.View style={[styles.card, { backgroundColor: cardBg, transform: [{ scale: scaleAnim }] }]}>
-        <Text style={[styles.cardTitle, { color: green }]}>👥 المحافظ المالكة</Text>
-        {holders === null ? <ActivityIndicator size="small" color={green} /> : <Text style={[styles.cardValue, { color: fg }]}>{holders}</Text>}
-        <Text style={[styles.cardTitle, { color: green, marginTop: 10 }]}>🔁 رسوم التحويل المجمعة</Text>
-        <Text style={[styles.cardValue, { color: fg }]}>0.0008 SOL</Text>
-      </Animated.View>
+      <StatCard
+        title="عدد المحافظ المالكة"
+        value={
+          holders === null ? (
+            <ActivityIndicator size="small" color={green} />
+          ) : (
+            holders
+          )
+        }
+        icon="👥"
+      />
 
-      {/* الروابط */}
-      <View style={styles.card}>
-        <Text style={[styles.cardTitle, { color: green, marginBottom: 10 }]}>روابط مهمة</Text>
+      <StatCard title="الرسوم المجمعة" value="— SOL" icon="🔁" />
 
-        <AnimatedTouchable style={styles.linkRow} onPress={() => { animatePress(); openURL('https://t.me/monycoin1'); }}>
-          <Ionicons name="logo-telegram" size={20} color={linkColor} style={styles.icon} />
-          <Text style={[styles.link, { color: linkColor }]}>قناة تليجرام</Text>
-        </AnimatedTouchable>
+      {/* LINKS */}
+      <View style={[styles.card, { backgroundColor: cardBg }]}>
+        <Text style={[styles.cardTitle, { color: green, marginBottom: 10 }]}>
+          🔗 روابط MECO
+        </Text>
 
-        <AnimatedTouchable style={styles.linkRow} onPress={() => { animatePress(); openURL('https://monycoin1.blogspot.com/'); }}>
-          <FontAwesome name="globe" size={20} color={linkColor} style={styles.icon} />
-          <Text style={[styles.link, { color: linkColor }]}>الموقع الرسمي</Text>
-        </AnimatedTouchable>
+        <LinkRow
+          icon={<FontAwesome name="telegram" size={20} color={linkColor} />}
+          label="قناة Telegram"
+          onPress={() => openURL('https://t.me/monycoin1')}
+        />
 
-        <AnimatedTouchable style={styles.linkRow} onPress={() => { animatePress(); openURL('https://x.com/MoniCoinMECO'); }}>
-          <FontAwesome name="twitter" size={20} color={linkColor} style={styles.icon} />
-          <Text style={[styles.link, { color: linkColor }]}>تابعنا على X</Text>
-        </AnimatedTouchable>
+        <LinkRow
+          icon={<FontAwesome name="globe" size={20} color={linkColor} />}
+          label="الموقع الرسمي"
+          onPress={() => openURL('https://monycoin1.blogspot.com/')}
+        />
 
-        <AnimatedTouchable style={styles.linkRow} onPress={() => { animatePress(); openURL('https://www.facebook.com/MonyCoim?mibextid=ZbWKwL'); }}>
-          <FontAwesome name="facebook" size={20} color={linkColor} style={styles.icon} />
-          <Text style={[styles.link, { color: linkColor }]}>تابعنا على فيسبوك</Text>
-        </AnimatedTouchable>
+        <LinkRow
+          icon={<FontAwesome name="twitter" size={20} color={linkColor} />}
+          label="تابعنا على X"
+          onPress={() => openURL('https://x.com/MoniCoinMECO')}
+        />
 
-        <AnimatedTouchable style={styles.linkRow} onPress={() => { animatePress(); handleShare(); }}>
-          <Ionicons name="share-social" size={20} color={linkColor} style={styles.icon} />
-          <Text style={[styles.link, { color: linkColor }]}>شارك التطبيق</Text>
-        </AnimatedTouchable>
+        <LinkRow
+          icon={<FontAwesome name="facebook" size={20} color={linkColor} />}
+          label="فيسبوك"
+          onPress={() =>
+            openURL('https://www.facebook.com/MonyCoim?mibextid=ZbWKwL')
+          }
+        />
+
+        <LinkRow
+          icon={<Ionicons name="share-social" size={20} color={linkColor} />}
+          label="مشاركة التطبيق"
+          onPress={handleShare}
+        />
       </View>
 
-      {/* ملاحظة وخطة مستقبلية */}
+      {/* FOOTER NOTE */}
       <Text style={[styles.note, { color: fg }]}>
-        قريبا: إمكانية تتبع الرسوم وتحليلات مباشرة من داخل التطبيق، مع تحديثات MECO على X وفيسبوك.
+        قريبًا: عرض الرسوم المباشرة، تحليلات السيولة، وتتبع نمو MECO من داخل التطبيق.
       </Text>
     </ScrollView>
   );
@@ -143,7 +179,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   title: {
-    fontSize: 24,
+    fontSize: 26,
     fontWeight: 'bold',
     marginBottom: 6,
     textAlign: 'center',
@@ -151,17 +187,15 @@ const styles = StyleSheet.create({
   description: {
     fontSize: 15,
     lineHeight: 22,
-    marginBottom: 20,
+    marginBottom: 22,
     textAlign: 'center',
+    opacity: 0.9,
   },
   card: {
     width: '100%',
-    padding: 15,
+    padding: 16,
     borderRadius: 14,
-    marginBottom: 15,
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
+    marginBottom: 14,
     elevation: 3,
   },
   cardTitle: {
@@ -169,22 +203,15 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   cardValue: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: 'bold',
-    marginTop: 4,
-  },
-  links: {
-    width: '100%',
+    marginTop: 6,
   },
   linkRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    marginBottom: 10,
-  },
-  icon: {
-    width: 24,
-    textAlign: 'center',
+    gap: 12,
+    marginBottom: 12,
   },
   link: {
     fontSize: 16,
@@ -195,6 +222,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontStyle: 'italic',
     textAlign: 'center',
-    marginTop: 10,
+    marginTop: 12,
+    opacity: 0.8,
   },
 });
