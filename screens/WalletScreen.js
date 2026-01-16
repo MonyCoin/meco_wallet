@@ -9,6 +9,8 @@ import {
   RefreshControl,
   TextInput,
   Modal,
+  Dimensions,
+  Animated,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import * as SecureStore from 'expo-secure-store';
@@ -19,9 +21,9 @@ import { useAppStore } from '../store';
 import { Ionicons } from '@expo/vector-icons';
 import { getSolBalance, getTokenAccounts } from '../services/heliusService';
 
+const { width } = Dimensions.get('window');
 const CURRENCIES = ['SOL', 'USDT', 'USDC', 'MECO'];
 const CG_IDS = { SOL: 'solana', USDT: 'tether', USDC: 'usd-coin', MECO: null };
-
 const TOKEN_MINTS = {
   'Es9vMFrzaCERc8Foa8XfRduKiSfrhEL5c7qr2WXXBWY5': 'USDT',
   'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v': 'USDC',
@@ -34,17 +36,45 @@ export default function WalletScreen() {
   const theme = useAppStore(state => state.theme);
   const primaryColor = useAppStore(state => state.primaryColor);
   const isDark = theme === 'dark';
-  const bg = isDark ? '#000' : '#fff';
-  const fg = isDark ? '#fff' : '#000';
+  
+  // ألوان ثيم داكن
+  const colors = {
+    background: isDark ? '#0A0A0F' : '#FFFFFF',
+    card: isDark ? '#1A1A2E' : '#F8FAFD',
+    text: isDark ? '#FFFFFF' : '#1A1A2E',
+    textSecondary: isDark ? '#A0A0B0' : '#6B7280',
+    border: isDark ? '#2A2A3E' : '#E5E7EB',
+    gradientStart: primaryColor,
+    gradientEnd: isDark ? '#2A2A3E' : '#FFFFFF',
+  };
 
   const [walletAddress, setWalletAddress] = useState('');
-  const [walletName, setWalletName] = useState('');
+  const [walletName, setWalletName] = useState(t('my_wallet'));
   const [currency, setCurrency] = useState('SOL');
   const [prices, setPrices] = useState({});
   const [showCurrencyList, setShowCurrencyList] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [balances, setBalances] = useState({ SOL: 0, USDT: 0, USDC: 0, MECO: 0 });
+  const [fadeAnim] = useState(new Animated.Value(0));
+  const [slideAnim] = useState(new Animated.Value(50));
+
+  // تأثيرات عند التحميل
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        tension: 60,
+        friction: 8,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
 
   const loadPrices = async () => {
     try {
@@ -98,8 +128,14 @@ export default function WalletScreen() {
 
   const displayBalance = () => {
     const value = balances[currency];
-    if (value == null) return '...';
+    if (value == null) return '0.0000';
     return `${value.toFixed(4)} ${currency}`;
+  };
+
+  const getBalanceValue = () => {
+    const value = balances[currency];
+    if (!value || !prices[currency]) return '0.00';
+    return (value * prices[currency]).toFixed(2);
   };
 
   const copyToClipboard = () => {
@@ -120,88 +156,216 @@ export default function WalletScreen() {
 
   return (
     <ScrollView
-      style={{ backgroundColor: bg, flex: 1 }}
+      style={{ backgroundColor: colors.background, flex: 1 }}
       contentContainerStyle={styles.scrollContent}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
+      showsVerticalScrollIndicator={false}
+      refreshControl={
+        <RefreshControl 
+          refreshing={refreshing} 
+          onRefresh={handleRefresh}
+          tintColor={primaryColor}
+          colors={[primaryColor]}
+        />
+      }
     >
-      <View style={[styles.card, { backgroundColor: isDark ? '#1e1e1e' : '#f5f5f5' }]}>
+      {/* Card الرئيسي */}
+      <Animated.View 
+        style={[
+          styles.card, 
+          { 
+            backgroundColor: colors.card,
+            opacity: fadeAnim,
+            transform: [{ translateY: slideAnim }],
+          }
+        ]}
+      >
+        {/* Header مع زر الإعدادات */}
         <View style={styles.headerRow}>
-          <Text style={[styles.title, { color: fg }]}>{t('balance')}</Text>
-          <TouchableOpacity onPress={() => setModalVisible(true)}>
-            <Ionicons name="ellipsis-vertical" size={22} color={fg} />
+          <View>
+            <Text style={[styles.title, { color: colors.textSecondary }]}>{t('your_balance')}</Text>
+          </View>
+          <TouchableOpacity 
+            onPress={() => setModalVisible(true)}
+            style={[styles.iconButton, { backgroundColor: isDark ? '#2A2A3E' : '#F1F5F9' }]}
+          >
+            <Ionicons name="settings-outline" size={22} color={colors.text} />
           </TouchableOpacity>
         </View>
 
-        <Text style={[styles.balanceValue, { color: primaryColor }]}>
-          {displayBalance()}
-        </Text>
-
-        <View style={styles.currencyRow}>
-          <TouchableOpacity onPress={() => setShowCurrencyList(prev => !prev)}>
-            <Ionicons name="chevron-down-circle-outline" size={20} color={fg} />
-          </TouchableOpacity>
-          <Text style={[styles.currencyLabel, { color: fg }]}>{currency}</Text>
+        {/* الرصيد الرئيسي فقط */}
+        <View style={styles.balanceSection}>
+          <Text style={[styles.balanceValue, { color: primaryColor }]}>
+            {displayBalance()}
+          </Text>
+          <Text style={[styles.usdValue, { color: colors.textSecondary }]}>
+            ≈ ${getBalanceValue()} USD
+          </Text>
         </View>
 
+        {/* محدد العملة */}
+        <TouchableOpacity 
+          onPress={() => setShowCurrencyList(prev => !prev)}
+          style={[styles.currencySelector, { backgroundColor: isDark ? '#2A2A3E' : '#F1F5F9' }]}
+        >
+          <View style={styles.currencyBadge}>
+            <Text style={[styles.currencyText, { color: '#FFFFFF' }]}>{currency}</Text>
+          </View>
+          <View style={styles.currencyInfo}>
+            <Text style={[styles.currencyLabel, { color: colors.text }]}>{t('change_currency')}</Text>
+            <Ionicons 
+              name={showCurrencyList ? "chevron-up" : "chevron-down"} 
+              size={16} 
+              color={colors.textSecondary} 
+            />
+          </View>
+        </TouchableOpacity>
+
+        {/* قائمة العملات المنسدلة */}
         {showCurrencyList && (
-          <View style={[styles.currencyList, { backgroundColor: isDark ? '#1e1e1e' : '#eee' }]}>
+          <View style={[styles.currencyList, { backgroundColor: colors.card, borderColor: colors.border }]}>
             {CURRENCIES.map(cur => (
               <TouchableOpacity
                 key={cur}
-                style={styles.currencyItem}
+                style={[
+                  styles.currencyItem,
+                  currency === cur && { backgroundColor: isDark ? '#2A2A3E' : '#F1F5F9' }
+                ]}
                 onPress={() => {
                   setCurrency(cur);
                   setShowCurrencyList(false);
                 }}
               >
-                <Text style={[styles.currencyText, { color: fg }]}>{cur}</Text>
+                <View style={styles.currencyItemContent}>
+                  <View style={[styles.currencyBadge, { backgroundColor: primaryColor }]}>
+                    <Text style={styles.currencyBadgeText}>{cur.charAt(0)}</Text>
+                  </View>
+                  <View style={styles.currencyInfo}>
+                    <Text style={[styles.currencyName, { color: colors.text }]}>{cur}</Text>
+                    <Text style={[styles.currencyAmount, { color: colors.textSecondary }]}>
+                      {balances[cur]?.toFixed(4) || '0.0000'}
+                    </Text>
+                  </View>
+                </View>
               </TouchableOpacity>
             ))}
           </View>
         )}
 
-        <View style={styles.walletInfo}>
-          <Text style={[styles.walletName, { color: fg }]}>{walletName || t('my_wallet')}</Text>
+        {/* معلومات المحفظة */}
+        <View style={styles.walletInfoSection}>
+          <View style={styles.walletHeader}>
+            <Ionicons name="wallet-outline" size={20} color={primaryColor} />
+            <Text style={[styles.walletName, { color: colors.text, marginLeft: 8 }]}>
+              {walletName}
+            </Text>
+          </View>
+          
           {walletAddress && (
-            <TouchableOpacity onPress={copyToClipboard} style={{ marginLeft: 6 }}>
-              <Ionicons name="copy-outline" size={18} color={primaryColor} />
+            <TouchableOpacity 
+              style={[styles.addressContainer, { backgroundColor: isDark ? '#2A2A3E' : '#F1F5F9' }]}
+              onPress={copyToClipboard}
+            >
+              <Text style={[styles.walletAddress, { color: colors.textSecondary }]}>
+                {walletAddress.substring(0, 6)}...{walletAddress.substring(walletAddress.length - 4)}
+              </Text>
+              <Ionicons name="copy-outline" size={16} color={primaryColor} />
             </TouchableOpacity>
           )}
         </View>
-      </View>
+      </Animated.View>
 
-      <View style={styles.actions}>
-        {['Send', 'Receive', 'Swap'].map((screen, i) => (
+      {/* أزرار الإجراءات */}
+      <View style={styles.actionsSection}>
+        {[
+          { icon: 'arrow-up-outline', label: t('send'), screen: 'Send' },
+          { icon: 'arrow-down-outline', label: t('receive'), screen: 'Receive' },
+          { icon: 'swap-horizontal', label: t('swap'), screen: 'Swap' },
+        ].map((action, i) => (
           <TouchableOpacity
             key={i}
-            style={[styles.squareButton, { backgroundColor: primaryColor }]}
-            onPress={() => navigation.navigate(screen)}
+            style={styles.actionButton}
+            onPress={() => navigation.navigate(action.screen)}
           >
-            <Ionicons
-              name={screen === 'Send' ? 'arrow-up' : screen === 'Receive' ? 'arrow-down' : 'swap-horizontal'}
-              size={26}
-              color="#fff"
-            />
-            <Text style={styles.actionText}>{t(screen.toLowerCase())}</Text>
+            <View style={[styles.actionIcon, { backgroundColor: primaryColor + '20' }]}>
+              <Ionicons name={action.icon} size={24} color={primaryColor} />
+            </View>
+            <Text style={[styles.actionLabel, { color: colors.text }]}>{action.label}</Text>
           </TouchableOpacity>
         ))}
       </View>
 
-      <Modal visible={modalVisible} transparent animationType="slide">
-        <View style={styles.modalContainer}>
-          <View style={[styles.modalContent, { backgroundColor: isDark ? '#1e1e1e' : '#fff' }]}>
-            <Text style={{ marginBottom: 10, color: fg }}>{t('enter_wallet_name')}</Text>
+      {/* المعاملات الأخيرة */}
+      <View style={styles.transactionsSection}>
+        <View style={styles.sectionHeader}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('recent_transactions')}</Text>
+          <TouchableOpacity>
+            <Text style={[styles.viewAllText, { color: primaryColor }]}>{t('view_all')}</Text>
+          </TouchableOpacity>
+        </View>
+        <View style={[styles.transactionsPlaceholder, { backgroundColor: colors.card }]}>
+          <Ionicons name="receipt-outline" size={48} color={colors.textSecondary} />
+          <Text style={[styles.placeholderText, { color: colors.textSecondary }]}>
+            {t('no_transactions_yet')}
+          </Text>
+          <Text style={[styles.placeholderSubtext, { color: colors.textSecondary }]}>
+            {t('your_transactions_will_appear_here')}
+          </Text>
+        </View>
+      </View>
+
+      {/* مودال تعديل اسم المحفظة */}
+      <Modal visible={modalVisible} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <Animated.View 
+            style={[
+              styles.modalContainer,
+              { 
+                backgroundColor: colors.card,
+                transform: [{ scale: fadeAnim }]
+              }
+            ]}
+          >
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>{t('edit_wallet_name')}</Text>
+              <TouchableOpacity onPress={() => setModalVisible(false)}>
+                <Ionicons name="close" size={24} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+            
+            <Text style={[styles.modalDescription, { color: colors.textSecondary }]}>
+              {t('enter_a_custom_name_for_your_wallet')}
+            </Text>
+            
             <TextInput
-              style={[styles.input, { color: fg, borderColor: fg }]}
+              style={[styles.input, { 
+                color: colors.text, 
+                borderColor: colors.border,
+                backgroundColor: isDark ? '#2A2A3E' : '#F1F5F9'
+              }]}
               value={walletName}
               onChangeText={setWalletName}
-              placeholder={t('wallet_name_placeholder') || 'My Wallet'}
-              placeholderTextColor="#888"
+              placeholder={t('enter_wallet_name')}
+              placeholderTextColor={colors.textSecondary}
+              autoFocus
+              maxLength={20}
             />
-            <TouchableOpacity style={[styles.modalButton, { backgroundColor: primaryColor }]} onPress={handleSaveWalletName}>
-              <Text style={{ color: '#fff' }}>{t('save')}</Text>
-            </TouchableOpacity>
-          </View>
+            
+            <View style={styles.modalButtons}>
+              <TouchableOpacity 
+                style={[styles.modalButton, styles.cancelButton, { borderColor: colors.border }]}
+                onPress={() => setModalVisible(false)}
+              >
+                <Text style={[styles.cancelButtonText, { color: colors.text }]}>{t('cancel')}</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={[styles.modalButton, styles.saveButton, { backgroundColor: primaryColor }]}
+                onPress={handleSaveWalletName}
+              >
+                <Text style={styles.saveButtonText}>{t('save_changes')}</Text>
+              </TouchableOpacity>
+            </View>
+          </Animated.View>
         </View>
       </Modal>
     </ScrollView>
@@ -209,86 +373,254 @@ export default function WalletScreen() {
 }
 
 const styles = StyleSheet.create({
-  scrollContent: { padding: 20, paddingBottom: 40, alignItems: 'center' },
-  card: {
-    width: '100%',
-    borderRadius: 16,
+  scrollContent: { 
     padding: 20,
-    marginBottom: 30,
-    alignItems: 'center',
-    elevation: 4,
+    paddingBottom: 40,
+  },
+  card: {
+    borderRadius: 24,
+    padding: 24,
+    marginBottom: 24,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.15,
+    shadowRadius: 24,
+    elevation: 8,
   },
   headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    width: '100%',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  title: {
+    fontSize: 14,
+    fontWeight: '500',
+    letterSpacing: 0.5,
+  },
+  iconButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    justifyContent: 'center',
     alignItems: 'center',
   },
-  title: { fontSize: 18, fontWeight: 'bold' },
-  balanceValue: { fontSize: 28, fontWeight: 'bold', marginVertical: 12 },
-  currencyRow: {
+  balanceSection: {
+    alignItems: 'center',
+    marginVertical: 20,
+  },
+  balanceValue: {
+    fontSize: 40,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+    marginBottom: 8,
+  },
+  usdValue: {
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  currencySelector: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 16,
+    marginBottom: 16,
+  },
+  currencyBadge: {
+    backgroundColor: '#3B82F6',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    minWidth: 60,
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  currencyText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  currencyInfo: {
+    flex: 1,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  currencyLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  currencyList: {
+    borderRadius: 16,
+    borderWidth: 1,
+    marginBottom: 16,
+    padding: 8,
+  },
+  currencyItem: {
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+  },
+  currencyItemContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  currencyName: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  currencyAmount: {
+    fontSize: 12,
+  },
+  walletInfoSection: {
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.1)',
+  },
+  walletHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 8,
   },
-  currencyLabel: { fontSize: 16, marginLeft: 6 },
-  currencyList: {
-    width: '60%',
-    borderRadius: 8,
-    marginBottom: 12,
+  walletName: {
+    fontSize: 18,
+    fontWeight: '600',
   },
-  currencyItem: {
-    padding: 8,
+  addressContainer: {
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
   },
-  currencyText: { fontSize: 14 },
-  walletInfo: { flexDirection: 'row', alignItems: 'center' },
-  walletName: { fontSize: 16, fontWeight: 'bold' },
-
-  actions: {
+  walletAddress: {
+    fontSize: 14,
+    fontFamily: 'monospace',
+    flex: 1,
+  },
+  actionsSection: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    width: '100%',
-    marginTop: 10,
+    marginBottom: 32,
   },
-  squareButton: {
-    width: 80,
-    height: 80,
-    borderRadius: 16,
+  actionButton: {
+    alignItems: 'center',
+    width: (width - 80) / 3,
+  },
+  actionIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
-    marginHorizontal: 10,
+    marginBottom: 8,
   },
-  actionText: {
+  actionLabel: {
     fontSize: 12,
-    color: '#fff',
-    fontWeight: 'bold',
-    marginTop: 4,
+    fontWeight: '500',
   },
-
-  modalContainer: {
-    flex: 1,
+  transactionsSection: {
+    marginTop: 8,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  viewAllText: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  transactionsPlaceholder: {
+    borderRadius: 20,
+    padding: 40,
+    alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#000000aa',
+  },
+  placeholderText: {
+    fontSize: 16,
+    marginTop: 16,
+    fontWeight: '500',
+  },
+  placeholderSubtext: {
+    fontSize: 14,
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
     padding: 20,
   },
-  modalContent: {
-    padding: 20,
-    borderRadius: 12,
+  modalContainer: {
+    width: '100%',
+    borderRadius: 24,
+    padding: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 20 },
+    shadowOpacity: 0.25,
+    shadowRadius: 40,
+    elevation: 10,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+  },
+  modalDescription: {
+    fontSize: 14,
+    marginBottom: 20,
+    lineHeight: 20,
   },
   input: {
     borderWidth: 1,
-    padding: 10,
-    borderRadius: 8,
-    marginBottom: 10,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 16,
+    marginBottom: 24,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: 12,
   },
   modalButton: {
-    padding: 12,
-    borderRadius: 8,
+    flex: 1,
+    borderRadius: 12,
+    paddingVertical: 16,
     alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cancelButton: {
+    borderWidth: 1,
+  },
+  saveButton: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  cancelButtonText: {
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  saveButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
 });
