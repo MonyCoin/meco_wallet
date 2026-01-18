@@ -179,10 +179,16 @@ export default function WalletScreen() {
           }
         ]}
       >
-        {/* Header مع زر الإعدادات */}
+        {/* Header مع اسم المحفظة وأيقونة النسخ */}
         <View style={styles.headerRow}>
-          <View>
-            <Text style={[styles.title, { color: colors.textSecondary }]}>{t('your_balance')}</Text>
+          <View style={styles.walletHeader}>
+            <Text style={[styles.walletName, { color: colors.text }]}>{walletName}</Text>
+            <TouchableOpacity 
+              onPress={copyToClipboard}
+              style={[styles.copyButton, { backgroundColor: isDark ? '#2A2A3E' : '#F1F5F9' }]}
+            >
+              <Ionicons name="copy-outline" size={18} color={primaryColor} />
+            </TouchableOpacity>
           </View>
           <TouchableOpacity 
             onPress={() => setModalVisible(true)}
@@ -192,8 +198,11 @@ export default function WalletScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* الرصيد الرئيسي فقط */}
+        {/* الرصيد الرئيسي */}
         <View style={styles.balanceSection}>
+          <Text style={[styles.balanceTitle, { color: colors.textSecondary }]}>
+            {t('your_balance')}
+          </Text>
           <Text style={[styles.balanceValue, { color: primaryColor }]}>
             {displayBalance()}
           </Text>
@@ -207,7 +216,7 @@ export default function WalletScreen() {
           onPress={() => setShowCurrencyList(prev => !prev)}
           style={[styles.currencySelector, { backgroundColor: isDark ? '#2A2A3E' : '#F1F5F9' }]}
         >
-          <View style={styles.currencyBadge}>
+          <View style={[styles.currencyBadge, { backgroundColor: primaryColor }]}>
             <Text style={[styles.currencyText, { color: '#FFFFFF' }]}>{currency}</Text>
           </View>
           <View style={styles.currencyInfo}>
@@ -250,28 +259,6 @@ export default function WalletScreen() {
             ))}
           </View>
         )}
-
-        {/* معلومات المحفظة */}
-        <View style={styles.walletInfoSection}>
-          <View style={styles.walletHeader}>
-            <Ionicons name="wallet-outline" size={20} color={primaryColor} />
-            <Text style={[styles.walletName, { color: colors.text, marginLeft: 8 }]}>
-              {walletName}
-            </Text>
-          </View>
-          
-          {walletAddress && (
-            <TouchableOpacity 
-              style={[styles.addressContainer, { backgroundColor: isDark ? '#2A2A3E' : '#F1F5F9' }]}
-              onPress={copyToClipboard}
-            >
-              <Text style={[styles.walletAddress, { color: colors.textSecondary }]}>
-                {walletAddress.substring(0, 6)}...{walletAddress.substring(walletAddress.length - 4)}
-              </Text>
-              <Ionicons name="copy-outline" size={16} color={primaryColor} />
-            </TouchableOpacity>
-          )}
-        </View>
       </Animated.View>
 
       {/* أزرار الإجراءات */}
@@ -298,7 +285,7 @@ export default function WalletScreen() {
       <View style={styles.transactionsSection}>
         <View style={styles.sectionHeader}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('recent_transactions')}</Text>
-          <TouchableOpacity>
+          <TouchableOpacity onPress={() => navigation.navigate('TransactionHistory')}>
             <Text style={[styles.viewAllText, { color: primaryColor }]}>{t('view_all')}</Text>
           </TouchableOpacity>
         </View>
@@ -374,29 +361,41 @@ export default function WalletScreen() {
 
 const styles = StyleSheet.create({
   scrollContent: { 
-    padding: 20,
+    padding: 16,
     paddingBottom: 40,
   },
   card: {
-    borderRadius: 24,
-    padding: 24,
-    marginBottom: 24,
+    borderRadius: 20,
+    padding: 20,
+    marginBottom: 20,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.15,
-    shadowRadius: 24,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
+    elevation: 6,
   },
   headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
+    alignItems: 'flex-start',
+    marginBottom: 24,
   },
-  title: {
-    fontSize: 14,
-    fontWeight: '500',
-    letterSpacing: 0.5,
+  walletHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  walletName: {
+    fontSize: 20,
+    fontWeight: '700',
+    marginRight: 10,
+  },
+  copyButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   iconButton: {
     width: 44,
@@ -407,13 +406,19 @@ const styles = StyleSheet.create({
   },
   balanceSection: {
     alignItems: 'center',
-    marginVertical: 20,
+    marginVertical: 16,
+  },
+  balanceTitle: {
+    fontSize: 14,
+    fontWeight: '500',
+    letterSpacing: 0.5,
+    marginBottom: 4,
   },
   balanceValue: {
-    fontSize: 40,
+    fontSize: 36,
     fontWeight: '700',
     letterSpacing: 0.5,
-    marginBottom: 8,
+    marginBottom: 6,
   },
   usdValue: {
     fontSize: 16,
@@ -465,6 +470,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
+  currencyBadgeText: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+    fontSize: 14,
+  },
   currencyName: {
     fontSize: 16,
     fontWeight: '600',
@@ -472,41 +482,14 @@ const styles = StyleSheet.create({
   currencyAmount: {
     fontSize: 12,
   },
-  walletInfoSection: {
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.1)',
-  },
-  walletHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  walletName: {
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  addressContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 12,
-  },
-  walletAddress: {
-    fontSize: 14,
-    fontFamily: 'monospace',
-    flex: 1,
-  },
   actionsSection: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 32,
+    marginBottom: 28,
   },
   actionButton: {
     alignItems: 'center',
-    width: (width - 80) / 3,
+    width: (width - 64) / 3,
   },
   actionIcon: {
     width: 56,
@@ -521,7 +504,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   transactionsSection: {
-    marginTop: 8,
+    marginTop: 4,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -539,7 +522,7 @@ const styles = StyleSheet.create({
   },
   transactionsPlaceholder: {
     borderRadius: 20,
-    padding: 40,
+    padding: 32,
     alignItems: 'center',
     justifyContent: 'center',
   },

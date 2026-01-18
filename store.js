@@ -3,7 +3,7 @@ import * as SecureStore from 'expo-secure-store';
 
 export const useAppStore = create((set) => ({
   // ====== إعداداتك الأصلية ======
-  theme: 'light',
+  theme: 'dark', // تم تغيير القيمة من 'light' إلى 'dark'
   toggleTheme: () =>
     set((state) => ({
       theme: state.theme === 'light' ? 'dark' : 'light',

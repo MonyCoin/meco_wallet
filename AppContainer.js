@@ -23,7 +23,7 @@ import BackupScreen from './screens/BackupScreen';
 import TransactionHistoryScreen from './screens/TransactionHistoryScreen';
 import MecoScreen from './screens/MecoScreen';
 import MarketScreen from './screens/MarketScreen';
-import TokenDetailsScreen from './screens/TokenDetailsScreen';
+// تم إزالة استيراد TokenDetailsScreen
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -144,7 +144,7 @@ export default function AppContainer() {
         <Stack.Screen name="Swap" component={SwapScreen} options={{ title: 'مبادلة' }} />
         <Stack.Screen name="Backup" component={BackupScreen} options={{ title: 'نسخ احتياطي' }} />
         <Stack.Screen name="TransactionHistory" component={TransactionHistoryScreen} options={{ title: 'السجل' }} />
-        <Stack.Screen name="TokenDetails" component={TokenDetailsScreen} options={{ title: 'تفاصيل العملة' }} />
+        {/* تم إزالة TokenDetailsScreen من Stack.Navigator */}
       </Stack.Navigator>
     </NavigationContainer>
   );
