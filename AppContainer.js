@@ -23,7 +23,7 @@ import BackupScreen from './screens/BackupScreen';
 import TransactionHistoryScreen from './screens/TransactionHistoryScreen';
 import MecoScreen from './screens/MecoScreen';
 import MarketScreen from './screens/MarketScreen';
-// تم إزالة استيراد TokenDetailsScreen
+import StakingScreen from './screens/StakingScreen';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -84,49 +84,41 @@ export default function AppContainer() {
         if (initialized === 'true') {
           const loadWallet = useAppStore.getState().loadWallet;
           const ok = await loadWallet();
-
           if (ok) {
             const hasHardware = await LocalAuthentication.hasHardwareAsync();
             const hasBiometrics = await LocalAuthentication.isEnrolledAsync();
-
             if (hasHardware && hasBiometrics) {
               const result = await LocalAuthentication.authenticateAsync({
                 promptMessage: 'تأكيد الهوية بالبصمة',
                 cancelLabel: 'إلغاء',
                 disableDeviceFallback: true,
               });
-
               if (!result.success) {
                 setInitialRoute('Home');
                 return;
               }
             }
-
             setInitialRoute('BottomTabs');
             return;
           }
         }
-
         setInitialRoute('Home');
       } catch (err) {
         console.warn('⚠️ Auth error:', err.message);
         setInitialRoute('Home');
       }
     };
-
     init();
   }, []);
 
   if (!initialRoute) {
     return (
-      <View
-        style={{
-          flex: 1,
-          justifyContent: 'center',
-          alignItems: 'center',
-          backgroundColor: theme === 'dark' ? '#000' : '#fff',
-        }}
-      >
+      <View style={{
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: theme === 'dark' ? '#000' : '#fff',
+      }}>
         <ActivityIndicator size="large" color={primaryColor} />
       </View>
     );
@@ -142,9 +134,9 @@ export default function AppContainer() {
         <Stack.Screen name="Send" component={SendScreen} options={{ title: 'إرسال' }} />
         <Stack.Screen name="Receive" component={ReceiveScreen} options={{ title: 'استقبال' }} />
         <Stack.Screen name="Swap" component={SwapScreen} options={{ title: 'مبادلة' }} />
+        <Stack.Screen name="Staking" component={StakingScreen} options={{ title: 'Staking' }} />
         <Stack.Screen name="Backup" component={BackupScreen} options={{ title: 'نسخ احتياطي' }} />
         <Stack.Screen name="TransactionHistory" component={TransactionHistoryScreen} options={{ title: 'السجل' }} />
-        {/* تم إزالة TokenDetailsScreen من Stack.Navigator */}
       </Stack.Navigator>
     </NavigationContainer>
   );

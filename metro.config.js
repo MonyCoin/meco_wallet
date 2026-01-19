@@ -1,16 +1,20 @@
-// ✅ metro.config.js - متوافق 100% مع Expo وبيئة Termux
 const { getDefaultConfig } = require('expo/metro-config');
 
 module.exports = (() => {
   const defaultConfig = getDefaultConfig(__dirname);
-  const { resolver: { assetExts, sourceExts } } = defaultConfig;
-
+  
   return {
     ...defaultConfig,
     resolver: {
       ...defaultConfig.resolver,
-      assetExts: [...assetExts, 'png', 'jpg', 'jpeg', 'gif', 'svg'],
-      sourceExts: [...sourceExts, 'cjs', 'mjs'],
+      assetExts: [...defaultConfig.resolver.assetExts, 'png', 'jpg', 'jpeg', 'gif', 'svg'],
+      sourceExts: [...defaultConfig.resolver.sourceExts, 'cjs', 'mjs'],
+      extraNodeModules: {
+        'crypto': require.resolve('expo-crypto'),
+        'stream': require.resolve('stream-browserify'),
+        'vm': require.resolve('vm-browserify'),
+        'buffer': require.resolve('buffer'),
+      }
     },
   };
 })();

@@ -1,5 +1,11 @@
 import 'react-native-get-random-values';
 import { Buffer } from 'buffer';
+import * as Crypto from 'expo-crypto';
+
+// حل مشكلة crypto الرئيسية
+if (typeof global.crypto === 'undefined') {
+  global.crypto = Crypto;
+}
 
 // Polyfills آمنة لجميع البيئات
 if (typeof global.Buffer === 'undefined') {

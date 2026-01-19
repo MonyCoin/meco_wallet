@@ -267,6 +267,7 @@ export default function WalletScreen() {
           { icon: 'arrow-up-outline', label: t('send'), screen: 'Send' },
           { icon: 'arrow-down-outline', label: t('receive'), screen: 'Receive' },
           { icon: 'swap-horizontal', label: t('swap'), screen: 'Swap' },
+          { icon: 'trending-up-outline', label: t('staking'), screen: 'Staking' }, // ⬅️ تمت الإضافة هنا
         ].map((action, i) => (
           <TouchableOpacity
             key={i}
@@ -489,7 +490,7 @@ const styles = StyleSheet.create({
   },
   actionButton: {
     alignItems: 'center',
-    width: (width - 64) / 3,
+    width: (width - 80) / 4, // ⬅️ تم التعديل ليتناسب مع 4 أزرار
   },
   actionIcon: {
     width: 56,
