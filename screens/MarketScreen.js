@@ -1,4 +1,3 @@
-// screens/MarketScreen.js - النسخة المعدلة
 import React, { useEffect, useState } from 'react';
 import {
   View,
@@ -14,6 +13,7 @@ import {
   ActivityIndicator
 } from 'react-native';
 import { useAppStore } from '../store';
+import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { 
   getTokens,
@@ -33,6 +33,7 @@ const MECO_TOKEN = {
 };
 
 export default function MarketScreen() {
+  const { t } = useTranslation();
   const theme = useAppStore(s => s.theme);
   const primaryColor = useAppStore(s => s.primaryColor);
   const walletBalances = useAppStore(s => s.balances);
@@ -199,8 +200,6 @@ export default function MarketScreen() {
       <TouchableOpacity 
         key={`${token.symbol}-${index}`}
         style={[styles.tokenCard, { backgroundColor: cardBg, borderColor }]}
-        // تم إزالة الرابط من الضغط على بطاقة MECO
-        // يمكن إضافة وظيفة أخرى هنا لاحقاً إذا لزم الأمر
       >
         <View style={styles.tokenRow}>
           <View style={styles.tokenInfo}>
@@ -265,7 +264,7 @@ export default function MarketScreen() {
           {tokenBalance > 0 && (
             <View style={styles.balanceContainer}>
               <Text style={[styles.balanceText, { color: textColor }]}>
-                رصيدك: {tokenBalance.toFixed(4)}
+                {t('your_balance')}: {tokenBalance.toFixed(4)}
               </Text>
               <Text style={[styles.balanceValue, { color: secondaryText }]}>
                 ≈ ${usdValue.toFixed(2)}
@@ -277,44 +276,48 @@ export default function MarketScreen() {
     );
   };
 
-  const renderTabs = () => (
-    <ScrollView 
-      horizontal 
-      showsHorizontalScrollIndicator={false}
-      style={styles.tabsContainer}
-    >
-      {[
-        { id: 'all', label: 'جميع العملات' },
-        { id: 'solana', label: 'سولانا' },
-        { id: 'stable', label: 'مستقرة' },
-        { id: 'gainers', label: 'الأعلى ربحاً' },
-        { id: 'trending', label: 'رائجة' }
-      ].map(tab => (
-        <TouchableOpacity
-          key={tab.id}
-          style={[
-            styles.tabButton,
-            activeTab === tab.id && [styles.activeTab, { backgroundColor: primaryColor }]
-          ]}
-          onPress={() => setActiveTab(tab.id)}
-        >
-          <Text style={[
-            styles.tabText,
-            { color: activeTab === tab.id ? '#FFFFFF' : secondaryText }
-          ]}>
-            {tab.label}
-          </Text>
-        </TouchableOpacity>
-      ))}
-    </ScrollView>
-  );
+  const renderTabs = () => {
+    const tabs = [
+      { id: 'all', label: t('all_tokens') },
+      { id: 'solana', label: t('solana_tokens') },
+      { id: 'stable', label: t('stablecoins') },
+      { id: 'gainers', label: t('gainers') },
+      { id: 'trending', label: t('trending') }
+    ];
+
+    return (
+      <ScrollView 
+        horizontal 
+        showsHorizontalScrollIndicator={false}
+        style={styles.tabsContainer}
+      >
+        {tabs.map(tab => (
+          <TouchableOpacity
+            key={tab.id}
+            style={[
+              styles.tabButton,
+              activeTab === tab.id && [styles.activeTab, { backgroundColor: primaryColor }]
+            ]}
+            onPress={() => setActiveTab(tab.id)}
+          >
+            <Text style={[
+              styles.tabText,
+              { color: activeTab === tab.id ? '#FFFFFF' : secondaryText }
+            ]}>
+              {tab.label}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+    );
+  };
 
   if (loading) {
     return (
       <View style={[styles.loadingContainer, { backgroundColor: bg }]}>
         <ActivityIndicator size="large" color={primaryColor} />
         <Text style={[styles.loadingText, { color: textColor }]}>
-          جاري تحميل بيانات السوق...
+          {t('loading_market_data')}
         </Text>
       </View>
     );
@@ -344,14 +347,14 @@ export default function MarketScreen() {
         {/* الهيدر */}
         <View style={styles.header}>
           <View>
-            <Text style={[styles.title, { color: textColor }]}>سوق العملات</Text>
+            <Text style={[styles.title, { color: textColor }]}>{t('market')}</Text>
             <Text style={[styles.subtitle, { color: secondaryText }]}>
-              أسعار حقيقية • تحديث مباشر
+              {t('market_subtitle')}
             </Text>
           </View>
           <View style={styles.headerStats}>
             <Text style={[styles.statsText, { color: secondaryText }]}>
-              {tokens.length} عملة
+              {t('tokens_count', { count: tokens.length })}
             </Text>
             <TouchableOpacity 
               style={styles.refreshButton}
@@ -368,9 +371,8 @@ export default function MarketScreen() {
         {/* قائمة العملات */}
         <View style={styles.sectionHeader}>
           <Text style={[styles.sectionTitle, { color: textColor }]}>
-            الأسعار الحالية
+            {t('current_prices')}
           </Text>
-          {/* تم إزالة رابط MECO هنا */}
         </View>
 
         <View style={styles.tokensList}>
@@ -382,14 +384,13 @@ export default function MarketScreen() {
           <Ionicons name="alert-circle-outline" size={20} color={primaryColor} />
           <View style={styles.noteContent}>
             <Text style={[styles.noteTitle, { color: textColor }]}>
-              ملاحظة هامة
+              {t('important_note')}
             </Text>
             <Text style={[styles.noteText, { color: secondaryText }]}>
-              الأسعار يتم تحديثها تلقائياً من مصادر موثوقة. 
-              أسعار العملات قابلة للتغير باستمرار.
+              {t('prices_auto_updated')}
               {'\n'}
               <Text style={{ color: primaryColor, fontWeight: 'bold' }}>
-                MECO: ${MECO_TOKEN.currentPrice}
+                {t('meco_price_note', { price: MECO_TOKEN.currentPrice })}
               </Text>
             </Text>
           </View>

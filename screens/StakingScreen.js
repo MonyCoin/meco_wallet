@@ -19,7 +19,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as SecureStore from 'expo-secure-store';
 
 // 🔄 SOLANA/ANCHOR INTEGRATION - UPDATED IMPORTS
-import { Connection, PublicKey, clusterApiUrl } from '@solana/web3.js';
+import { Connection, PublicKey, clusterApiUrl, Keypair } from '@solana/web3.js';
 import { Program, AnchorProvider, web3 } from '@coral-xyz/anchor';
 import { TOKEN_PROGRAM_ID } from '@solana/spl-token';
 
@@ -41,10 +41,10 @@ export default function StakingScreen() {
   const { t } = useTranslation();
   const theme = useAppStore(state => state.theme);
   const primaryColor = useAppStore(state => state.primaryColor);
-  const walletAddress = useAppStore(state => state.walletAddress);
-  const wallet = useAppStore(state => state.wallet); // Make sure this exists in your store
+  const walletAddress = useAppStore(state => state.walletPublicKey);
+  const walletPrivateKey = useAppStore(state => state.walletPrivateKey);
   const isDark = theme === 'dark';
-  
+
   const colors = {
     background: isDark ? '#0A0A0F' : '#F8FAFD',
     card: isDark ? '#1A1A2E' : '#FFFFFF',
@@ -67,7 +67,7 @@ export default function StakingScreen() {
   const [unstakeAmount, setUnstakeAmount] = useState('');
   const [fadeAnim] = useState(new Animated.Value(0));
   const [slideAnim] = useState(new Animated.Value(30));
-  
+
   // Anchor Program Instance
   const [program, setProgram] = useState(null);
   const [connection, setConnection] = useState(null);
@@ -76,7 +76,7 @@ export default function StakingScreen() {
 
   useEffect(() => {
     initSolanaConnection();
-    
+
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
@@ -95,61 +95,132 @@ export default function StakingScreen() {
     return () => clearInterval(interval);
   }, []);
 
+  // إنشاء wallet من المفتاح الخاص
+  const createWalletFromPrivateKey = () => {
+    try {
+      if (!walletPrivateKey) {
+        console.warn('❌ walletPrivateKey غير موجود');
+        return null;
+      }
+
+      let secretKey;
+      try {
+        // محاولة تحويل المفتاح من JSON string
+        secretKey = Uint8Array.from(JSON.parse(walletPrivateKey));
+      } catch (e) {
+        console.warn('❌ فشل تحويل المفتاح الخاص:', e.message);
+        return null;
+      }
+
+      const keypair = Keypair.fromSecretKey(secretKey);
+      
+      console.log('✅ Wallet created successfully:', {
+        publicKey: keypair.publicKey.toBase58(),
+        secretKeyLength: secretKey.length
+      });
+
+      return {
+        publicKey: keypair.publicKey,
+        signTransaction: async (tx) => {
+          tx.partialSign(keypair);
+          return tx;
+        },
+        signAllTransactions: async (txs) => {
+          return txs.map(tx => {
+            tx.partialSign(keypair);
+            return tx;
+          });
+        },
+      };
+    } catch (error) {
+      console.error('❌ فشل إنشاء wallet:', error);
+      return null;
+    }
+  };
+
   // Initialize Solana Connection
   const initSolanaConnection = async () => {
     try {
       setLoading(true);
-      
+      console.log('🔗 بدء اتصال Solana...');
+
       // Setup connection (Devnet for now)
       const conn = new Connection(clusterApiUrl('devnet'), 'confirmed');
       setConnection(conn);
-      
+      console.log('✅ اتصال Solana جاهز');
+
       // Check if wallet is available
-      if (!walletAddress || !wallet) {
-        console.warn('Wallet not connected, using mock data');
+      if (!walletAddress || !walletPrivateKey) {
+        console.warn('❌ Wallet not connected, using mock data');
         setBalance(1000);
         setStakedAmount(500);
         setRewards(25.5);
         setLoading(false);
         return;
       }
-      
+
+      console.log('👛 معلومات المحفظة:', {
+        walletAddress,
+        walletPrivateKeyExists: !!walletPrivateKey
+      });
+
+      // إنشاء wallet
+      const userWallet = createWalletFromPrivateKey();
+
+      if (!userWallet) {
+        console.warn('❌ فشل إنشاء wallet، استخدام بيانات تجريبية');
+        setBalance(1000);
+        setStakedAmount(500);
+        setRewards(25.5);
+        setLoading(false);
+        return;
+      }
+
       // Create provider
       const provider = new AnchorProvider(
         conn,
-        wallet,
+        userWallet,
         { commitment: 'confirmed' }
       );
-      
+
+      console.log('✅ AnchorProvider جاهز');
+
       // Create program instance with IDL
       const programId = new PublicKey(PROGRAM_ID);
       const prog = new Program(MECO_STAKING_IDL, programId, provider);
       setProgram(prog);
-      
+
+      console.log('✅ Program instance جاهز');
+
       // Find PDAs
       const [poolPDA] = PublicKey.findProgramAddressSync(
         [Buffer.from('staking-pool')],
         programId
       );
-      
+
       const [userPDA] = PublicKey.findProgramAddressSync(
         [Buffer.from('stake-account'), new PublicKey(walletAddress).toBuffer()],
         programId
       );
-      
+
       setStakingPDA(poolPDA);
       setUserStakePDA(userPDA);
-      
+
+      console.log('📍 PDAs:', {
+        poolPDA: poolPDA.toBase58(),
+        userPDA: userPDA.toBase58()
+      });
+
       // Load real data from blockchain
       await loadStakingData(conn, prog, poolPDA, userPDA);
-      
+
     } catch (error) {
-      console.error('Connection error:', error);
+      console.error('❌ Connection error:', error);
       // Fallback to mock data
       setBalance(1000);
       setStakedAmount(500);
       setRewards(25.5);
-      Alert.alert('Info', 'Using demo mode. Connect wallet for real transactions.');
+      Alert.alert(t('info'), t('using_demo_mode'));
     } finally {
       setLoading(false);
     }
@@ -158,45 +229,51 @@ export default function StakingScreen() {
   // Load Staking Data from Blockchain
   const loadStakingData = async (conn, prog, poolPDA, userPDA) => {
     try {
+      console.log('📊 جلب بيانات Staking...');
+
       // 1. Get MECO balance
       const tokenAccounts = await conn.getParsedTokenAccountsByOwner(
         new PublicKey(walletAddress),
         { programId: TOKEN_PROGRAM_ID }
       );
-      
-      const mecoAccount = tokenAccounts.value.find(acc => 
+
+      const mecoAccount = tokenAccounts.value.find(acc =>
         acc.account.data.parsed.info.mint === MECO_MINT
       );
-      
-      const mecoBalance = mecoAccount 
-        ? mecoAccount.account.data.parsed.info.tokenAmount.uiAmount 
+
+      const mecoBalance = mecoAccount
+        ? mecoAccount.account.data.parsed.info.tokenAmount.uiAmount
         : 0;
       setBalance(mecoBalance);
+      console.log('💰 رصيد MECO:', mecoBalance);
 
       // 2. Get staking pool data
       try {
         const poolData = await prog.account.stakingPool.fetch(poolPDA);
         const totalStaked = Number(poolData.totalStaked) / 1e9;
         setStakedAmount(totalStaked);
-        
+        console.log('🏦 إجمالي Staked:', totalStaked);
+
         // 3. Get user stake data
         const userStakeData = await prog.account.stakeAccount.fetch(userPDA);
         const userAmount = Number(userStakeData.amount) / 1e9;
-        
+        console.log('👤 مبلغ المستخدم Staked:', userAmount);
+
         // Calculate rewards
         const timeStaked = Math.floor(Date.now() / 1000) - Number(userStakeData.stakeTime);
         const dailyReward = (userAmount * STAKING_CONFIG.APR) / 365 / 100;
         const earnedRewards = dailyReward * (timeStaked / (24 * 60 * 60));
         setRewards(earnedRewards);
-        
+        console.log('🎁 المكافآت المحسوبة:', earnedRewards);
+
       } catch (e) {
-        console.log('No staking data found:', e.message);
+        console.log('ℹ️ No staking data found:', e.message);
         setStakedAmount(0);
         setRewards(0);
       }
-      
+
     } catch (error) {
-      console.error('Load data error:', error);
+      console.error('❌ Load data error:', error);
       // Use mock data as fallback
       setBalance(1000);
       setStakedAmount(500);
@@ -216,7 +293,7 @@ export default function StakingScreen() {
     const daily = (amount * STAKING_CONFIG.APR) / 365 / 100;
     const monthly = daily * 30;
     const yearly = daily * 365;
-    
+
     return {
       daily: daily.toFixed(4),
       monthly: monthly.toFixed(2),
@@ -227,38 +304,38 @@ export default function StakingScreen() {
   const handleStake = async () => {
     try {
       const amount = parseFloat(stakeAmount);
-      
+
       if (!amount || amount <= 0) {
-        Alert.alert('Error', 'Please enter a valid amount');
+        Alert.alert(t('error'), t('fill_fields'));
         return;
       }
-      
+
       if (amount < STAKING_CONFIG.MIN_STAKE) {
-        Alert.alert('Error', `Minimum stake amount is ${STAKING_CONFIG.MIN_STAKE} MECO`);
+        Alert.alert(t('error'), t('minimum_stake_amount', { amount: STAKING_CONFIG.MIN_STAKE }));
         return;
       }
-      
+
       if (amount > balance) {
-        Alert.alert('Error', 'Insufficient balance');
+        Alert.alert(t('error'), t('insufficient_balance'));
         return;
       }
-      
+
       if (!program || !userStakePDA || !stakingPDA || !walletAddress) {
-        Alert.alert('Error', 'Wallet not properly connected');
+        Alert.alert(t('error'), t('wallet_not_connected'));
         return;
       }
-      
+
       Alert.alert(
-        'Confirm Stake',
-        `Stake ${amount} MECO at ${STAKING_CONFIG.APR}% APR?`,
+        t('confirm_stake_title'),
+        t('confirm_stake_message', { amount, apr: STAKING_CONFIG.APR }),
         [
-          { text: 'Cancel', style: 'cancel' },
-          { 
-            text: 'Confirm', 
+          { text: t('cancel'), style: 'cancel' },
+          {
+            text: t('confirm'),
             onPress: async () => {
               try {
                 setLoading(true);
-                
+
                 const amountLamports = Math.floor(amount * 1e9);
                 const tx = await program.methods
                   .stake(new web3.BN(amountLamports))
@@ -269,30 +346,30 @@ export default function StakingScreen() {
                     systemProgram: web3.SystemProgram.programId,
                   })
                   .rpc();
-                
+
                 console.log('✅ Stake TX:', tx);
-                
+
                 // Update UI state
                 setStakedAmount(prev => prev + amount);
                 setBalance(prev => prev - amount);
                 setStakeModalVisible(false);
                 setStakeAmount('');
-                
+
                 Alert.alert(
-                  'Success',
-                  `${amount} MECO staked successfully!\nTransaction: ${tx.slice(0, 10)}...`
+                  t('success'),
+                  t('stake_success', { amount, tx: tx.slice(0, 10) })
                 );
-                
+
                 // Refresh data
                 await loadStakingData(connection, program, stakingPDA, userStakePDA);
-                
+
               } catch (error) {
                 console.error('❌ Stake transaction error:', error);
                 Alert.alert(
-                  'Error',
+                  t('error'),
                   error.message?.includes('insufficient funds')
-                    ? 'Insufficient SOL for transaction fee'
-                    : 'Stake transaction failed'
+                    ? t('insufficient_sol_for_fee')
+                    : t('stake_transaction_failed')
                 );
               } finally {
                 setLoading(false);
@@ -301,43 +378,43 @@ export default function StakingScreen() {
           }
         ]
       );
-      
+
     } catch (error) {
       console.error('Stake error:', error);
-      Alert.alert('Error', 'Stake transaction failed');
+      Alert.alert(t('error'), t('stake_transaction_failed'));
     }
   };
 
   const handleUnstake = async () => {
     try {
       const amount = parseFloat(unstakeAmount);
-      
+
       if (!amount || amount <= 0) {
-        Alert.alert('Error', 'Please enter a valid amount');
+        Alert.alert(t('error'), t('fill_fields'));
         return;
       }
-      
+
       if (amount > stakedAmount) {
-        Alert.alert('Error', 'Amount exceeds staked balance');
+        Alert.alert(t('error'), t('amount_exceeds_staked'));
         return;
       }
-      
+
       if (!program || !userStakePDA || !stakingPDA || !walletAddress) {
-        Alert.alert('Error', 'Wallet not properly connected');
+        Alert.alert(t('error'), t('wallet_not_connected'));
         return;
       }
-      
+
       Alert.alert(
-        'Confirm Unstake',
-        `Unstake ${amount} MECO?\n\nNote: Funds will be available after ${STAKING_CONFIG.UNSTAKE_PERIOD} days`,
+        t('confirm_unstake_title'),
+        t('confirm_unstake_message', { amount, days: STAKING_CONFIG.UNSTAKE_PERIOD }),
         [
-          { text: 'Cancel', style: 'cancel' },
-          { 
-            text: 'Confirm', 
+          { text: t('cancel'), style: 'cancel' },
+          {
+            text: t('confirm'),
             onPress: async () => {
               try {
                 setLoading(true);
-                
+
                 const amountLamports = Math.floor(amount * 1e9);
                 const tx = await program.methods
                   .unstake(new web3.BN(amountLamports))
@@ -347,34 +424,34 @@ export default function StakingScreen() {
                     stakingPool: stakingPDA,
                   })
                   .rpc();
-                
+
                 console.log('✅ Unstake TX:', tx);
-                
+
                 // Update UI state
                 setStakedAmount(prev => prev - amount);
                 setBalance(prev => prev + amount);
                 setUnstakeModalVisible(false);
                 setUnstakeAmount('');
-                
+
                 Alert.alert(
-                  'Success',
-                  `${amount} MECO unstake requested!\nYou will receive it in ${STAKING_CONFIG.UNSTAKE_PERIOD} days\nTransaction: ${tx.slice(0, 10)}...`
+                  t('success'),
+                  t('unstake_success', { amount, days: STAKING_CONFIG.UNSTAKE_PERIOD, tx: tx.slice(0, 10) })
                 );
-                
+
                 // Refresh data
                 await loadStakingData(connection, program, stakingPDA, userStakePDA);
-                
+
               } catch (error) {
                 console.error('❌ Unstake transaction error:', error);
                 if (error.message?.includes('UnstakePeriod')) {
                   Alert.alert(
-                    'Warning',
-                    'Unstake period not passed yet (3 days required)'
+                    t('warning'),
+                    t('unstake_period_not_passed', { days: STAKING_CONFIG.UNSTAKE_PERIOD })
                   );
                 } else if (error.message?.includes('insufficient funds')) {
-                  Alert.alert('Error', 'Insufficient SOL for transaction fee');
+                  Alert.alert(t('error'), t('insufficient_sol_for_fee'));
                 } else {
-                  Alert.alert('Error', 'Unstake transaction failed');
+                  Alert.alert(t('error'), t('unstake_transaction_failed'));
                 }
               } finally {
                 setLoading(false);
@@ -383,35 +460,35 @@ export default function StakingScreen() {
           }
         ]
       );
-      
+
     } catch (error) {
       console.error('Unstake error:', error);
-      Alert.alert('Error', 'Unstake transaction failed');
+      Alert.alert(t('error'), t('unstake_transaction_failed'));
     }
   };
 
   const handleClaimRewards = async () => {
     if (rewards <= 0) {
-      Alert.alert('Warning', 'No rewards available to claim');
+      Alert.alert(t('warning'), t('no_rewards_to_claim'));
       return;
     }
-    
+
     if (!program || !userStakePDA || !walletAddress) {
-      Alert.alert('Error', 'Wallet not properly connected');
+      Alert.alert(t('error'), t('wallet_not_connected'));
       return;
     }
-    
+
     Alert.alert(
-      'Claim Rewards',
-      `Claim ${rewards.toFixed(4)} MECO rewards?`,
+      t('claim_rewards_title'),
+      t('claim_rewards_message', { amount: rewards.toFixed(4) }),
       [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Claim', 
+        { text: t('cancel'), style: 'cancel' },
+        {
+          text: t('claim'),
           onPress: async () => {
             try {
               setLoading(true);
-              
+
               const tx = await program.methods
                 .claimRewards()
                 .accounts({
@@ -419,24 +496,24 @@ export default function StakingScreen() {
                   user: new PublicKey(walletAddress),
                 })
                 .rpc();
-              
+
               console.log('✅ Claim TX:', tx);
-              
+
               const claimed = rewards;
               setBalance(prev => prev + claimed);
               setRewards(0);
-              
+
               Alert.alert(
-                'Success',
-                `${claimed.toFixed(4)} MECO claimed successfully!\nTransaction: ${tx.slice(0, 10)}...`
+                t('success'),
+                t('claim_success', { amount: claimed.toFixed(4), tx: tx.slice(0, 10) })
               );
-              
+
             } catch (error) {
               console.error('❌ Claim error:', error);
               if (error.message?.includes('insufficient funds')) {
-                Alert.alert('Error', 'Insufficient SOL for transaction fee');
+                Alert.alert(t('error'), t('insufficient_sol_for_fee'));
               } else {
-                Alert.alert('Error', 'Claim transaction failed');
+                Alert.alert(t('error'), t('claim_transaction_failed'));
               }
             } finally {
               setLoading(false);
@@ -453,15 +530,15 @@ export default function StakingScreen() {
   // Test connection function
   const testConnection = async () => {
     if (!connection) return;
-    
+
     try {
       const version = await connection.getVersion();
       console.log('✅ Solana Connection:', version);
-      
+
       const programId = new PublicKey(PROGRAM_ID);
       const programInfo = await connection.getAccountInfo(programId);
       console.log('✅ Program Exists:', programInfo !== null);
-      
+
       return programInfo !== null;
     } catch (error) {
       console.error('❌ Test connection error:', error);
@@ -474,7 +551,7 @@ export default function StakingScreen() {
       <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
         <ActivityIndicator size="large" color={primaryColor} />
         <Text style={[styles.loadingText, { color: colors.text }]}>
-          Loading staking data...
+          {t('loading_staking_data')}
         </Text>
       </View>
     );
@@ -482,14 +559,14 @@ export default function StakingScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-      <ScrollView 
+      <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        <Animated.View 
+        <Animated.View
           style={[
-            styles.container, 
-            { 
+            styles.container,
+            {
               opacity: fadeAnim,
               transform: [{ translateY: slideAnim }]
             }
@@ -498,79 +575,79 @@ export default function StakingScreen() {
           <View style={styles.header}>
             <Ionicons name="trending-up" size={32} color={primaryColor} />
             <Text style={[styles.title, { color: colors.text }]}>
-              Staking MECO
+              {t('stake_title')}
             </Text>
             <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-              Earn passive income & support MECO network
+              {t('stake_subtitle')}
             </Text>
-            
+
             {!walletAddress && (
               <View style={[styles.warningBox, { backgroundColor: colors.warning + '20', marginTop: 10 }]}>
                 <Ionicons name="warning" size={16} color={colors.warning} />
                 <Text style={[styles.warningText, { color: colors.warning }]}>
-                  Connect wallet for real transactions
+                  {t('connect_wallet_real_transactions')}
                 </Text>
               </View>
             )}
           </View>
 
           <View style={[styles.aprCard, { backgroundColor: primaryColor }]}>
-            <Text style={styles.aprLabel}>Annual Percentage Rate</Text>
+            <Text style={styles.aprLabel}>{t('annual_percentage_rate')}</Text>
             <Text style={styles.aprValue}>{STAKING_CONFIG.APR}%</Text>
-            <Text style={styles.aprDescription}>Higher than most traditional banks</Text>
-            
-            <TouchableOpacity 
+            <Text style={styles.aprDescription}>{t('apr_description')}</Text>
+
+            <TouchableOpacity
               style={styles.testButton}
               onPress={testConnection}
             >
-              <Text style={styles.testButtonText}>Test Connection</Text>
+              <Text style={styles.testButtonText}>{t('test_connection')}</Text>
             </TouchableOpacity>
           </View>
 
           <View style={[styles.stakingCard, { backgroundColor: colors.card }]}>
             <View style={styles.cardHeader}>
               <Text style={[styles.cardTitle, { color: colors.text }]}>
-                Staking Wallet
+                {t('staking_wallet')}
               </Text>
               <TouchableOpacity onPress={() => initSolanaConnection()}>
                 <Ionicons name="refresh-outline" size={20} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
-            
+
             <View style={styles.statsGrid}>
               <View style={styles.statItem}>
                 <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
-                  Staked Amount
+                  {t('staked_amount')}
                 </Text>
                 <Text style={[styles.statValue, { color: colors.text }]}>
                   {stakedAmount.toFixed(2)} MECO
                 </Text>
               </View>
-              
+
               <View style={styles.statItem}>
                 <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
-                  Accumulated Rewards
+                  {t('accumulated_rewards')}
                 </Text>
                 <Text style={[styles.statValue, { color: colors.success }]}>
                   {rewards.toFixed(4)} MECO
                 </Text>
               </View>
             </View>
-            
+
             <View style={styles.balanceInfo}>
               <Text style={[styles.balanceLabel, { color: colors.textSecondary }]}>
-                Available MECO Balance:
+                {t('available_meco_balance')}:
               </Text>
               <Text style={[styles.balanceValue, { color: colors.text }]}>
                 {balance.toFixed(2)} MECO
               </Text>
             </View>
-            
+
             {program && (
               <View style={[styles.connectionStatus, { backgroundColor: colors.success + '20' }]}>
                 <Ionicons name="checkmark-circle" size={16} color={colors.success} />
                 <Text style={[styles.connectionText, { color: colors.success }]}>
-                  Connected to Smart Contract
+                  {t('connected_to_smart_contract')}
                 </Text>
               </View>
             )}
@@ -578,7 +655,7 @@ export default function StakingScreen() {
 
           <View style={styles.actionsContainer}>
             <TouchableOpacity
-              style={[styles.actionButton, { 
+              style={[styles.actionButton, {
                 backgroundColor: balance <= 0 ? colors.border : primaryColor,
                 opacity: balance <= 0 ? 0.6 : 1
               }]}
@@ -586,11 +663,11 @@ export default function StakingScreen() {
               disabled={balance <= 0}
             >
               <Ionicons name="arrow-up-circle" size={24} color="#FFFFFF" />
-              <Text style={styles.actionButtonText}>Stake</Text>
+              <Text style={styles.actionButtonText}>{t('stake_button')}</Text>
             </TouchableOpacity>
-            
+
             <TouchableOpacity
-              style={[styles.actionButton, { 
+              style={[styles.actionButton, {
                 backgroundColor: stakedAmount <= 0 ? colors.border : colors.card,
                 borderColor: colors.border,
                 opacity: stakedAmount <= 0 ? 0.6 : 1
@@ -599,11 +676,11 @@ export default function StakingScreen() {
               disabled={stakedAmount <= 0}
             >
               <Ionicons name="arrow-down-circle" size={24} color={colors.text} />
-              <Text style={[styles.actionButtonText, { color: colors.text }]}>Unstake</Text>
+              <Text style={[styles.actionButtonText, { color: colors.text }]}>{t('unstake_button')}</Text>
             </TouchableOpacity>
-            
+
             <TouchableOpacity
-              style={[styles.actionButton, { 
+              style={[styles.actionButton, {
                 backgroundColor: rewards <= 0 ? colors.border : colors.success,
                 opacity: rewards <= 0 ? 0.6 : 1
               }]}
@@ -611,40 +688,40 @@ export default function StakingScreen() {
               disabled={rewards <= 0}
             >
               <Ionicons name="gift" size={24} color="#FFFFFF" />
-              <Text style={styles.actionButtonText}>Claim Rewards</Text>
+              <Text style={styles.actionButtonText}>{t('claim_rewards')}</Text>
             </TouchableOpacity>
           </View>
 
           <View style={[styles.rewardsCard, { backgroundColor: colors.card }]}>
             <Text style={[styles.rewardsTitle, { color: colors.text }]}>
-              📈 Estimated Rewards
+              📈 {t('estimated_rewards')}
             </Text>
-            
+
             <View style={styles.rewardsGrid}>
               <View style={styles.rewardItem}>
                 <Text style={[styles.rewardValue, { color: colors.success }]}>
                   {calculateEstimatedRewards(stakedAmount).daily}
                 </Text>
                 <Text style={[styles.rewardLabel, { color: colors.textSecondary }]}>
-                  MECO Daily
+                  MECO {t('daily')}
                 </Text>
               </View>
-              
+
               <View style={styles.rewardItem}>
                 <Text style={[styles.rewardValue, { color: colors.success }]}>
                   {calculateEstimatedRewards(stakedAmount).monthly}
                 </Text>
                 <Text style={[styles.rewardLabel, { color: colors.textSecondary }]}>
-                  MECO Monthly
+                  MECO {t('monthly')}
                 </Text>
               </View>
-              
+
               <View style={styles.rewardItem}>
                 <Text style={[styles.rewardValue, { color: colors.success }]}>
                   {calculateEstimatedRewards(stakedAmount).yearly}
                 </Text>
                 <Text style={[styles.rewardLabel, { color: colors.textSecondary }]}>
-                  MECO Yearly
+                  MECO {t('yearly')}
                 </Text>
               </View>
             </View>
@@ -654,23 +731,23 @@ export default function StakingScreen() {
             <View style={styles.notesHeader}>
               <Ionicons name="shield-checkmark" size={20} color={colors.warning} />
               <Text style={[styles.notesTitle, { color: colors.text }]}>
-                Important Notes
+                {t('important_notes')}
               </Text>
             </View>
-            
+
             <Text style={[styles.noteText, { color: colors.textSecondary }]}>
-              • Rewards are distributed daily automatically
-              {'\n'}• Minimum stake amount: {STAKING_CONFIG.MIN_STAKE} MECO
-              {'\n'}• Unstake waiting period: {STAKING_CONFIG.UNSTAKE_PERIOD} days
-              {'\n'}• You need SOL for transaction fees
-              {'\n'}• Rates may change based on network conditions
+              • {t('rewards_distributed_daily')}
+              {'\n'}• {t('minimum_stake_amount', { amount: STAKING_CONFIG.MIN_STAKE })}
+              {'\n'}• {t('unstake_waiting_period', { days: STAKING_CONFIG.UNSTAKE_PERIOD })}
+              {'\n'}• {t('need_sol_for_fees')}
+              {'\n'}• {t('rates_may_change')}
             </Text>
           </View>
         </Animated.View>
       </ScrollView>
 
       {/* Modals */}
-      <StakeModal 
+      <StakeModal
         visible={stakeModalVisible}
         onClose={() => setStakeModalVisible(false)}
         colors={colors}
@@ -681,9 +758,10 @@ export default function StakingScreen() {
         onStake={handleStake}
         onMax={handleMaxStake}
         calculateEstimatedRewards={calculateEstimatedRewards}
+        t={t}
       />
-      
-      <UnstakeModal 
+
+      <UnstakeModal
         visible={unstakeModalVisible}
         onClose={() => setUnstakeModalVisible(false)}
         colors={colors}
@@ -694,32 +772,33 @@ export default function StakingScreen() {
         onUnstake={handleUnstake}
         onMax={handleMaxUnstake}
         unstakePeriod={STAKING_CONFIG.UNSTAKE_PERIOD}
+        t={t}
       />
     </SafeAreaView>
   );
 }
 
 // 🪟 Stake Modal Component
-const StakeModal = ({ 
-  visible, onClose, colors, primaryColor, balance, 
-  stakeAmount, setStakeAmount, onStake, onMax, calculateEstimatedRewards 
+const StakeModal = ({
+  visible, onClose, colors, primaryColor, balance,
+  stakeAmount, setStakeAmount, onStake, onMax, calculateEstimatedRewards, t
 }) => (
   <Modal visible={visible} transparent animationType="slide">
     <View style={styles.modalOverlay}>
       <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
         <View style={styles.modalHeader}>
           <Text style={[styles.modalTitle, { color: colors.text }]}>
-            Stake MECO
+            {t('stake_modal_title')}
           </Text>
           <TouchableOpacity onPress={onClose}>
             <Ionicons name="close" size={24} color={colors.text} />
           </TouchableOpacity>
         </View>
-        
+
         <Text style={[styles.modalDescription, { color: colors.textSecondary }]}>
-          Enter the amount of MECO you want to stake
+          {t('stake_modal_description')}
         </Text>
-        
+
         <View style={[styles.amountInputContainer, { backgroundColor: colors.background }]}>
           <TextInput
             style={[styles.amountInput, { color: colors.text }]}
@@ -734,23 +813,23 @@ const StakeModal = ({
           </Text>
           <TouchableOpacity onPress={onMax}>
             <Text style={[styles.maxButton, { color: primaryColor }]}>
-              MAX
+              {t('max')}
             </Text>
           </TouchableOpacity>
         </View>
-        
+
         <Text style={[styles.balanceText, { color: colors.textSecondary }]}>
-          Available balance: {balance.toFixed(2)} MECO
+          {t('available_balance')}: {balance.toFixed(2)} MECO
         </Text>
-        
+
         {stakeAmount && parseFloat(stakeAmount) > 0 && (
           <View style={styles.rewardsEstimation}>
             <Text style={[styles.estimationTitle, { color: colors.text }]}>
-              📊 Estimated Rewards:
+              📊 {t('estimated_rewards')}:
             </Text>
             <View style={styles.estimationRow}>
               <Text style={[styles.estimationLabel, { color: colors.textSecondary }]}>
-                Daily:
+                {t('daily')}:
               </Text>
               <Text style={[styles.estimationValue, { color: colors.success }]}>
                 {calculateEstimatedRewards(parseFloat(stakeAmount)).daily} MECO
@@ -758,7 +837,7 @@ const StakeModal = ({
             </View>
             <View style={styles.estimationRow}>
               <Text style={[styles.estimationLabel, { color: colors.textSecondary }]}>
-                Monthly:
+                {t('monthly')}:
               </Text>
               <Text style={[styles.estimationValue, { color: colors.success }]}>
                 {calculateEstimatedRewards(parseFloat(stakeAmount)).monthly} MECO
@@ -766,7 +845,7 @@ const StakeModal = ({
             </View>
             <View style={styles.estimationRow}>
               <Text style={[styles.estimationLabel, { color: colors.textSecondary }]}>
-                Yearly:
+                {t('yearly')}:
               </Text>
               <Text style={[styles.estimationValue, { color: colors.success }]}>
                 {calculateEstimatedRewards(parseFloat(stakeAmount)).yearly} MECO
@@ -774,16 +853,16 @@ const StakeModal = ({
             </View>
           </View>
         )}
-        
+
         <TouchableOpacity
-          style={[styles.modalButton, { 
-            backgroundColor: parseFloat(stakeAmount) > 0 ? primaryColor : colors.border 
+          style={[styles.modalButton, {
+            backgroundColor: parseFloat(stakeAmount) > 0 ? primaryColor : colors.border
           }]}
           onPress={onStake}
           disabled={!stakeAmount || parseFloat(stakeAmount) <= 0}
         >
           <Text style={styles.modalButtonText}>
-            Confirm Stake
+            {t('confirm_stake_button')}
           </Text>
         </TouchableOpacity>
       </View>
@@ -792,26 +871,26 @@ const StakeModal = ({
 );
 
 // 🪟 Unstake Modal Component
-const UnstakeModal = ({ 
-  visible, onClose, colors, primaryColor, stakedAmount, 
-  unstakeAmount, setUnstakeAmount, onUnstake, onMax, unstakePeriod 
+const UnstakeModal = ({
+  visible, onClose, colors, primaryColor, stakedAmount,
+  unstakeAmount, setUnstakeAmount, onUnstake, onMax, unstakePeriod, t
 }) => (
   <Modal visible={visible} transparent animationType="slide">
     <View style={styles.modalOverlay}>
       <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
         <View style={styles.modalHeader}>
           <Text style={[styles.modalTitle, { color: colors.text }]}>
-            Unstake MECO
+            {t('unstake_modal_title')}
           </Text>
           <TouchableOpacity onPress={onClose}>
             <Ionicons name="close" size={24} color={colors.text} />
           </TouchableOpacity>
         </View>
-        
+
         <Text style={[styles.modalDescription, { color: colors.textSecondary }]}>
-          Enter the amount of MECO you want to unstake
+          {t('unstake_modal_description')}
         </Text>
-        
+
         <View style={[styles.amountInputContainer, { backgroundColor: colors.background }]}>
           <TextInput
             style={[styles.amountInput, { color: colors.text }]}
@@ -826,31 +905,31 @@ const UnstakeModal = ({
           </Text>
           <TouchableOpacity onPress={onMax}>
             <Text style={[styles.maxButton, { color: primaryColor }]}>
-              MAX
+              {t('max')}
             </Text>
           </TouchableOpacity>
         </View>
-        
+
         <Text style={[styles.balanceText, { color: colors.textSecondary }]}>
-          Staked amount: {stakedAmount.toFixed(2)} MECO
+          {t('staked_amount')}: {stakedAmount.toFixed(2)} MECO
         </Text>
-        
+
         <View style={styles.unstakeWarning}>
           <Ionicons name="warning-outline" size={20} color={colors.warning} />
           <Text style={[styles.warningText, { color: colors.warning }]}>
-            Note: Funds will be available after {unstakePeriod} days
+            {t('unstake_warning', { days: unstakePeriod })}
           </Text>
         </View>
-        
+
         <TouchableOpacity
-          style={[styles.modalButton, { 
-            backgroundColor: parseFloat(unstakeAmount) > 0 ? colors.error : colors.border 
+          style={[styles.modalButton, {
+            backgroundColor: parseFloat(unstakeAmount) > 0 ? colors.error : colors.border
           }]}
           onPress={onUnstake}
           disabled={!unstakeAmount || parseFloat(unstakeAmount) <= 0}
         >
           <Text style={styles.modalButtonText}>
-            Confirm Unstake
+            {t('confirm_unstake_button')}
           </Text>
         </TouchableOpacity>
       </View>
