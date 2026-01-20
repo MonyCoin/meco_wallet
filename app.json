@@ -30,6 +30,38 @@
         "WRITE_EXTERNAL_STORAGE",
         "INTERNET",
         "USE_BIOMETRIC"
+{
+  "expo": {
+    "name": "meco wallet",
+    "slug": "meco_wallet",
+    "version": "1.0.0",
+    "scheme": "meco-wallet",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/logo.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.meco.wallet",
+      "buildNumber": "1"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "package": "com.meco.wallet",
+      "versionCode": 1,
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "INTERNET",
+        "USE_BIOMETRIC"
       ]
     },
     "web": {

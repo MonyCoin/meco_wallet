@@ -1,15 +1,12 @@
-import 'react-native-get-random-values';
-import './shim';
+// App.js - النسخة البسيطة والمستقرة
+import './polyfill';
 import './i18n';
 import React from 'react';
-import { useKeepAwake } from 'expo-keep-awake';
 import AppContainer from './AppContainer';
 
-export default function App() {
-  if (__DEV__) {
-    useKeepAwake();
-  }
+// اختبار سريع عند البدء
+console.log('🚀 MECO Wallet starting...');
 
+export default function App() {
   return <AppContainer />;
 }
-// sync checkpoint Wed Jan  7 01:25:22 EET 2026

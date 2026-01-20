@@ -12,8 +12,16 @@ module.exports = (() => {
       extraNodeModules: {
         'crypto': require.resolve('expo-crypto'),
         'stream': require.resolve('stream-browserify'),
-        'vm': require.resolve('vm-browserify'),
         'buffer': require.resolve('buffer'),
+        'process': require.resolve('process/browser'),
+        'url': require.resolve('url'),
+        'assert': require.resolve('assert'),
+        'util': require.resolve('util'),
+        'events': require.resolve('events/'),
+        'fs': false,
+        'child_process': false,
+        'net': false,
+        'tls': false,
       }
     },
   };

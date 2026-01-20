@@ -12,18 +12,37 @@ import {
   Share,
   Dimensions,
   RefreshControl,
+  TextInput,
+  Alert,
+  Clipboard,
+  Modal,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useAppStore } from '../store';
 import { Ionicons, FontAwesome, MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { PublicKey } from '@solana/web3.js';
+
+import {
+  PRESALE_WALLET_ADDRESS,
+  sendSOLTransaction,
+  getSOLBalance,
+  isValidSolanaAddress,
+  getRealTransactionFee,
+  buyMECOTransaction,
+  getSolscanLink,
+  getPresaleStats
+} from '../services/solanaService';
 
 const { width } = Dimensions.get('window');
 const MECO_MINT = '7hBNyFfwYTv65z3ZudMAyKBw3BLMKxyKXsr5xM51Za4i';
+
+const SOLSCAN_LINK = getSolscanLink(PRESALE_WALLET_ADDRESS);
 
 export default function MecoScreen() {
   const { t } = useTranslation();
   const theme = useAppStore(s => s.theme);
   const primaryColor = useAppStore(state => state.primaryColor);
+  const currentWallet = useAppStore(state => state.currentWallet);
   const isDark = theme === 'dark';
 
   const colors = {
@@ -48,6 +67,21 @@ export default function MecoScreen() {
 
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [transactionLoading, setTransactionLoading] = useState(false);
+  const [solAmount, setSolAmount] = useState('0.1');
+  const [mecoAmount, setMecoAmount] = useState(25000);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [userSOLBalance, setUserSOLBalance] = useState(0);
+  const [transactionFee, setTransactionFee] = useState(0.000005);
+  const [transactionResult, setTransactionResult] = useState(null);
+
+  const [presaleData, setPresaleData] = useState({
+    totalTokens: 50000000,
+    soldTokens: 0,
+    minSOL: 0.05,
+    maxSOL: 1,
+    rate: 250000,
+  });
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const rotationAnim = useRef(new Animated.Value(0)).current;
@@ -67,17 +101,73 @@ export default function MecoScreen() {
         useNativeDriver: true,
       })
     );
-    
+
     rotationAnimation.start();
-    
+
     return () => {
       rotationAnimation.stop();
     };
   }, []);
 
+  // حساب MECO بناءً على SOL المدخل
+  const calculateMECO = (solValue) => {
+    const sol = parseFloat(solValue) || 0;
+    if (sol >= presaleData.minSOL && sol <= presaleData.maxSOL) {
+      const calculatedMECO = sol * presaleData.rate;
+      setMecoAmount(Math.floor(calculatedMECO));
+    } else {
+      // إذا كانت خارج الحدود، احسب مع الإشعار
+      const calculatedMECO = sol * presaleData.rate;
+      setMecoAmount(Math.floor(calculatedMECO));
+    }
+  };
+
+  useEffect(() => {
+    calculateMECO(solAmount);
+  }, [solAmount]);
+
+  useEffect(() => {
+    fetchUserBalance();
+    fetchTransactionFee();
+    fetchPresaleData();
+  }, [currentWallet]);
+
+  const fetchUserBalance = async () => {
+    const balance = await getSOLBalance(currentWallet);
+    setUserSOLBalance(balance);
+  };
+
+  const fetchTransactionFee = async () => {
+    const fee = await getRealTransactionFee();
+    setTransactionFee(fee);
+  };
+
+  const fetchPresaleData = async () => {
+    try {
+      const stats = await getPresaleStats();
+      setPresaleData(prev => ({
+        ...prev,
+        totalTokens: stats.totalTokens || 50000000,
+        soldTokens: stats.soldTokens || 0,
+        rate: stats.rate || 250000,
+      }));
+    } catch (error) {
+      console.error('Error fetching presale data:', error);
+      setPresaleData(prev => ({
+        ...prev,
+        totalTokens: 50000000,
+        soldTokens: 0,
+        rate: 250000,
+      }));
+    }
+  };
+
   const fetchTokenInfo = async () => {
     try {
       setLoading(true);
+      await fetchUserBalance();
+      await fetchTransactionFee();
+      await fetchPresaleData();
       setTokenInfo({
         name: 'MECO',
         symbol: 'MECO',
@@ -103,8 +193,6 @@ export default function MecoScreen() {
       const supported = await Linking.canOpenURL(url);
       if (supported) {
         await Linking.openURL(url);
-      } else {
-        console.error(`Cannot open URL: ${url}`);
       }
     } catch (error) {
       console.error('Error opening URL:', error);
@@ -115,21 +203,103 @@ export default function MecoScreen() {
     try {
       await Share.share({
         title: t('share_title'),
-        message: `${t('meco_token_on_solana')}\n\n${t('token_address')}: ${MECO_MINT}\n${t('trade_on')}: https://www.dextools.io/app/solana/pair-explorer/7RLEub4zyQBkrbwXCnwSEttCKE2mX4ssh8GJotgucNL8`,
+        message: `${t('meco_token_on_solana')}\n\n${t('token_address')}: ${MECO_MINT}`,
       });
     } catch (error) {
       console.error('Error sharing:', error);
     }
   };
 
-  const rotatingLogo = rotationAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['0deg', '360deg']
-  });
+  const copyToClipboard = (text) => {
+    Clipboard.setString(text);
+    Alert.alert(t('copied'), t('address_copied'));
+  };
+
+  const handleBuyPress = () => {
+    const sol = parseFloat(solAmount) || 0;
+    const totalWithFee = sol + transactionFee;
+
+    if (!currentWallet) {
+      Alert.alert(t('error'), t('connect_wallet_first'));
+      return;
+    }
+
+    // التحقق من الحد الأدنى (0.05 SOL)
+    if (sol < 0.05) {
+      Alert.alert(t('error'), `${t('minimum_amount')}: 0.05 SOL`);
+      return;
+    }
+
+    // التحقق من الحد الأقصى (1 SOL)
+    if (sol > 1) {
+      Alert.alert(t('error'), `${t('maximum_amount')}: 1 SOL`);
+      return;
+    }
+
+    if (totalWithFee > userSOLBalance) {
+      Alert.alert(
+        t('error'),
+        `${t('insufficient_balance')}\n${t('you_need')} ${totalWithFee.toFixed(6)} SOL`
+      );
+      return;
+    }
+
+    if (!isValidSolanaAddress(PRESALE_WALLET_ADDRESS)) {
+      Alert.alert(t('error'), t('invalid_presale_address'));
+      return;
+    }
+
+    setTransactionResult(null);
+    setShowConfirmModal(true);
+  };
+
+  const confirmPurchase = async () => {
+    setTransactionLoading(true);
+
+    try {
+      const result = await buyMECOTransaction(
+        { publicKey: new PublicKey(currentWallet) },
+        parseFloat(solAmount)
+      );
+
+      setTransactionResult(result);
+
+      if (result.success) {
+        await fetchUserBalance();
+        await fetchPresaleData();
+
+        Alert.alert(
+          t('success'),
+          `${t('purchase_confirmed')}\n\n${t('transaction_sent')}\n\nتم شراء: ${result.mecoReceived?.toLocaleString()} MECO`,
+          [
+            {
+              text: t('view_on_solscan'),
+              onPress: () => openURL(SOLSCAN_LINK),
+            },
+            {
+              text: t('ok'),
+              onPress: () => {
+                setShowConfirmModal(false);
+                setTransactionLoading(false);
+              }
+            }
+          ]
+        );
+      } else {
+        Alert.alert(t('error'), result.message || t('transaction_failed'));
+      }
+
+    } catch (error) {
+      console.error('Transaction error:', error);
+      Alert.alert(t('error'), error.message || t('transaction_failed'));
+    } finally {
+      setTransactionLoading(false);
+    }
+  };
 
   const formatNumber = (num) => {
     if (num === null || num === undefined) return t('not_available');
-    
+
     const absNum = Math.abs(num);
     if (absNum >= 1000000000) {
       return (num / 1000000000).toFixed(2) + 'B';
@@ -138,40 +308,20 @@ export default function MecoScreen() {
     } else if (absNum >= 1000) {
       return (num / 1000).toFixed(2) + 'K';
     }
-    return num.toLocaleString('en-US', { 
-      maximumFractionDigits: 2,
-      minimumFractionDigits: 0 
+    return num.toLocaleString('en-US', {
+      maximumFractionDigits: 6,
+      minimumFractionDigits: 0
     });
   };
 
-  const InfoBox = ({ title, value, icon, color = colors.info }) => (
-    <View style={[styles.infoBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
-      <View style={[styles.iconCircle, { backgroundColor: color + '20' }]}>
-        {icon}
-      </View>
-      <View style={styles.infoContent}>
-        <Text style={[styles.infoTitle, { color: colors.textSecondary }]}>{title}</Text>
-        <Text style={[styles.infoValue, { color: colors.text }]}>{value}</Text>
-      </View>
-    </View>
-  );
+  const rotatingLogo = rotationAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '360deg']
+  });
 
-  const LinkButton = ({ icon, title, subtitle, onPress, color = colors.info }) => (
-    <TouchableOpacity
-      onPress={onPress}
-      style={[styles.linkButton, { backgroundColor: colors.card, borderColor: colors.border }]}
-      activeOpacity={0.7}
-    >
-      <View style={[styles.linkIconCircle, { backgroundColor: color + '20' }]}>
-        {icon}
-      </View>
-      <View style={styles.linkContent}>
-        <Text style={[styles.linkTitle, { color: colors.text }]}>{title}</Text>
-        <Text style={[styles.linkSubtitle, { color: colors.textSecondary }]}>{subtitle}</Text>
-      </View>
-      <Ionicons name="chevron-forward" size={24} color={colors.textSecondary} />
-    </TouchableOpacity>
-  );
+  const progress = (presaleData.soldTokens / presaleData.totalTokens) * 100;
+  const remainingTokens = presaleData.totalTokens - presaleData.soldTokens;
+  const totalWithFee = (parseFloat(solAmount) || 0) + transactionFee;
 
   return (
     <ScrollView
@@ -203,8 +353,8 @@ export default function MecoScreen() {
           </View>
         </View>
 
-        <TouchableOpacity 
-          onPress={handleShare} 
+        <TouchableOpacity
+          onPress={handleShare}
           style={[styles.shareButton, { backgroundColor: colors.card }]}
           activeOpacity={0.7}
         >
@@ -212,147 +362,321 @@ export default function MecoScreen() {
         </TouchableOpacity>
       </Animated.View>
 
-      {/* Trade Card */}
-      <Animated.View style={[styles.tradeCard, {
+      {currentWallet && (
+        <View style={[styles.balanceCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={styles.balanceHeader}>
+            <MaterialCommunityIcons name="wallet" size={24} color={colors.success} />
+            <Text style={[styles.balanceTitle, { color: colors.text }]}>{t('your_balance')}</Text>
+          </View>
+          <Text style={[styles.balanceAmount, { color: colors.text }]}>
+            {formatNumber(userSOLBalance)} SOL
+          </Text>
+          <TouchableOpacity
+            onPress={fetchUserBalance}
+            style={[styles.refreshButton, { backgroundColor: colors.background }]}
+          >
+            <Ionicons name="refresh" size={16} color={colors.textSecondary} />
+            <Text style={[styles.refreshText, { color: colors.textSecondary }]}>{t('refresh')}</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      <Animated.View style={[styles.presaleCard, {
         backgroundColor: colors.card,
         borderColor: colors.border,
         opacity: fadeAnim,
       }]}>
-        <View style={styles.tradeHeader}>
+        <View style={styles.presaleHeader}>
           <View>
-            <Text style={[styles.tradeLabel, { color: colors.text }]}>
-              {t('trade_meco')}
+            <Text style={[styles.presaleLabel, { color: colors.text }]}>
+              {t('buy_meco')}
             </Text>
             <View style={styles.sourceBadge}>
-              <MaterialCommunityIcons name="chart-line" size={12} color={colors.success} />
+              <MaterialCommunityIcons name="sale" size={12} color={colors.success} />
               <Text style={[styles.sourceText, { color: colors.success }]}>
-                {t('live_charts')}
+                {t('presale')}
               </Text>
             </View>
           </View>
 
-          <View style={[styles.priceChange, { backgroundColor: colors.success + '20' }]}>
-            <Text style={[styles.priceChangeText, { color: colors.success }]}>
-              📊 {t('advanced_charts')}
+          <View style={[styles.priceBadge, { backgroundColor: colors.warning + '20' }]}>
+            <Text style={[styles.priceBadgeText, { color: colors.warning }]}>
+              1 SOL = 250,000 MECO
             </Text>
           </View>
         </View>
 
-        <Text style={[styles.tradeTitle, { color: colors.text }]}>
-          {t('analyze_on_dextools')}
-        </Text>
-
-        <View style={styles.tradeDetails}>
-          <View style={styles.tradeDetail}>
-            <MaterialCommunityIcons name="chart-timeline" size={20} color={colors.solana} />
-            <Text style={[styles.tradeDetailText, { color: colors.textSecondary }]}>
-              {t('live_trading_charts')}
+        <View style={styles.progressSection}>
+          <View style={styles.progressHeader}>
+            <Text style={[styles.progressText, { color: colors.text }]}>
+              {t('presale_progress')}
+            </Text>
+            <Text style={[styles.progressText, { color: colors.text }]}>
+              {progress.toFixed(1)}%
             </Text>
           </View>
-          <View style={styles.tradeDetail}>
-            <MaterialIcons name="analytics" size={20} color={colors.success} />
-            <Text style={[styles.tradeDetailText, { color: colors.textSecondary }]}>
-              {t('market_analysis')}
+          <View style={[styles.progressBar, { backgroundColor: colors.border }]}>
+            <View
+              style={[
+                styles.progressFill,
+                {
+                  width: `${progress}%`,
+                  backgroundColor: primaryColor
+                }
+              ]}
+            />
+          </View>
+          <View style={styles.progressStats}>
+            <Text style={[styles.progressStat, { color: colors.textSecondary }]}>
+              {t('sold')}: {formatNumber(presaleData.soldTokens)} MECO
+            </Text>
+            <Text style={[styles.progressStat, { color: colors.textSecondary }]}>
+              {t('remaining')}: {formatNumber(remainingTokens)} MECO
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.amountSection}>
+          <Text style={[styles.amountLabel, { color: colors.text }]}>
+            {t('enter_sol_amount')}
+          </Text>
+          <View style={[styles.inputContainer, { borderColor: colors.border }]}>
+            <TextInput
+              style={[styles.input, { color: colors.text }]}
+              value={solAmount}
+              onChangeText={(value) => {
+                // التحقق من أن المدخل رقمي فقط
+                const numericValue = value.replace(/[^0-9.]/g, '');
+                // التحقق من نقطة عشرية واحدة فقط
+                const parts = numericValue.split('.');
+                if (parts.length > 2) {
+                  setSolAmount(parts[0] + '.' + parts.slice(1).join(''));
+                } else {
+                  setSolAmount(numericValue);
+                }
+              }}
+              keyboardType="decimal-pad"
+              placeholder="0.1"
+              placeholderTextColor={colors.textSecondary}
+            />
+            <View style={styles.solBadge}>
+              <Text style={[styles.solText, { color: colors.text }]}>SOL</Text>
+            </View>
+          </View>
+          <View style={styles.limitContainer}>
+            <TouchableOpacity onPress={() => {
+              setSolAmount('0.05');
+              calculateMECO('0.05');
+            }}>
+              <Text style={[styles.limitText, { color: colors.textSecondary }]}>
+                {t('minimum_amount')}: 0.05 SOL
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => {
+              setSolAmount('1');
+              calculateMECO('1');
+            }}>
+              <Text style={[styles.limitText, { color: colors.textSecondary }]}>
+                {t('maximum_amount')}: 1 SOL
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <View style={[styles.calculationSection, { backgroundColor: colors.info + '10' }]}>
+          <View style={styles.calculationRow}>
+            <Text style={[styles.calculationLabel, { color: colors.text }]}>
+              {t('you_send')}:
+            </Text>
+            <Text style={[styles.calculationValue, { color: colors.text }]}>
+              {solAmount} SOL
+            </Text>
+          </View>
+          <View style={styles.calculationRow}>
+            <Text style={[styles.calculationLabel, { color: colors.text }]}>
+              {t('transaction_fee')}:
+            </Text>
+            <Text style={[styles.calculationValue, { color: colors.warning }]}>
+              {formatNumber(transactionFee)} SOL
+            </Text>
+          </View>
+          <View style={[styles.separator, { backgroundColor: colors.border }]} />
+          <View style={styles.calculationRow}>
+            <Text style={[styles.calculationLabel, { color: colors.text }]}>
+              {t('you_receive')}:
+            </Text>
+            <Text style={[styles.calculationValue, { color: primaryColor, fontSize: 20 }]}>
+              {mecoAmount.toLocaleString()} MECO
+            </Text>
+          </View>
+          <View style={styles.calculationRow}>
+            <Text style={[styles.calculationLabel, { color: colors.textSecondary, fontSize: 12 }]}>
+              {t('rate')}:
+            </Text>
+            <Text style={[styles.calculationValue, { color: colors.textSecondary, fontSize: 12 }]}>
+              1 SOL = 250,000 MECO
             </Text>
           </View>
         </View>
 
         <TouchableOpacity
-          style={[styles.tradeButton, { backgroundColor: '#FF6B35' }]}
-          onPress={() => openURL('https://www.dextools.io/app/solana/pair-explorer/7RLEub4zyQBkrbwXCnwSEttCKE2mX4ssh8GJotgucNL8')}
+          style={[styles.walletSection, { backgroundColor: colors.background }]}
+          onPress={() => copyToClipboard(PRESALE_WALLET_ADDRESS)}
         >
-          <MaterialCommunityIcons name="chart-box" size={24} color="#FFFFFF" />
-          <Text style={styles.tradeButtonText}>{t('view_on_dextools')}</Text>
+          <View style={styles.walletHeader}>
+            <MaterialCommunityIcons name="wallet" size={20} color={colors.textSecondary} />
+            <Text style={[styles.walletTitle, { color: colors.text }]}>
+              {t('presale_wallet_address')}
+            </Text>
+          </View>
+          <Text style={[styles.walletAddress, { color: colors.textSecondary }]}>
+            {PRESALE_WALLET_ADDRESS.substring(0, 20)}...
+          </Text>
+          <TouchableOpacity
+            style={styles.verifyButton}
+            onPress={() => openURL(SOLSCAN_LINK)}
+          >
+            <Text style={[styles.verifyButtonText, { color: colors.info }]}>
+              {t('verify_on_solscan')}
+            </Text>
+            <Ionicons name="open-outline" size={14} color={colors.info} style={{ marginLeft: 4 }} />
+          </TouchableOpacity>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.buyButton, {
+            backgroundColor: currentWallet ? primaryColor : colors.textSecondary,
+            opacity: currentWallet ? 1 : 0.6
+          }]}
+          onPress={handleBuyPress}
+          disabled={!currentWallet || transactionLoading}
+        >
+          {transactionLoading ? (
+            <ActivityIndicator color="#FFFFFF" />
+          ) : (
+            <>
+              <MaterialCommunityIcons name="shopping" size={24} color="#FFFFFF" />
+              <Text style={styles.buyButtonText}>
+                {currentWallet ? t('buy_meco_now') : t('connect_wallet_to_buy')}
+              </Text>
+            </>
+          )}
         </TouchableOpacity>
       </Animated.View>
 
-      {/* Token Statistics */}
       <View style={styles.statsSection}>
         <Text style={[styles.sectionTitle, { color: colors.text }]}>
           {t('token_statistics')}
         </Text>
-        
-        <View style={styles.statsGrid}>
-          <InfoBox
-            title={t('circulating_supply')}
-            value={formatNumber(tokenInfo.supply)}
-            icon={<MaterialIcons name="account-balance-wallet" size={20} color={colors.info} />}
-            color={colors.info}
-          />
-          <InfoBox
-            title={t('decimals')}
-            value={tokenInfo.decimals.toString()}
-            icon={<MaterialIcons name="numbers" size={20} color={colors.warning} />}
-            color={colors.warning}
-          />
-        </View>
 
         <View style={styles.statsGrid}>
-          <InfoBox
-            title={t('token_address')}
-            value={`${MECO_MINT.substring(0, 8)}...`}
-            icon={<MaterialCommunityIcons name="key" size={20} color={colors.success} />}
-            color={colors.success}
-          />
-          <InfoBox
-            title={t('network')}
-            value="Solana"
-            icon={<MaterialCommunityIcons name="link" size={20} color={primaryColor} />}
-            color={primaryColor}
-          />
+          <View style={[styles.infoBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={[styles.iconCircle, { backgroundColor: colors.info + '20' }]}>
+              <MaterialIcons name="account-balance-wallet" size={20} color={colors.info} />
+            </View>
+            <View style={styles.infoContent}>
+              <Text style={[styles.infoTitle, { color: colors.textSecondary }]}>{t('circulating_supply')}</Text>
+              <Text style={[styles.infoValue, { color: colors.text }]}>{formatNumber(tokenInfo.supply)}</Text>
+            </View>
+          </View>
+
+          <View style={[styles.infoBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={[styles.iconCircle, { backgroundColor: colors.warning + '20' }]}>
+              <MaterialIcons name="numbers" size={20} color={colors.warning} />
+            </View>
+            <View style={styles.infoContent}>
+              <Text style={[styles.infoTitle, { color: colors.textSecondary }]}>{t('decimals')}</Text>
+              <Text style={[styles.infoValue, { color: colors.text }]}>{tokenInfo.decimals}</Text>
+            </View>
+          </View>
         </View>
       </View>
 
-      {/* Official Links */}
       <View style={styles.linksSection}>
         <Text style={[styles.sectionTitle, { color: colors.text }]}>
           {t('official_links')}
         </Text>
 
         <View style={[styles.linksCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <LinkButton
-            icon={<MaterialCommunityIcons name="solana" size={22} color={colors.solana} />}
-            title={t('view_on_solscan')}
-            subtitle={t('detailed_token_analysis')}
+          <TouchableOpacity
+            style={[styles.linkButton, { backgroundColor: colors.card, borderColor: colors.border }]}
             onPress={() => openURL(`https://solscan.io/token/${MECO_MINT}`)}
-            color={colors.solana}
-          />
+            activeOpacity={0.7}
+          >
+            <View style={[styles.linkIconCircle, { backgroundColor: colors.solana + '20' }]}>
+              <MaterialCommunityIcons name="link-variant" size={22} color={colors.solana} />
+            </View>
+            <View style={styles.linkContent}>
+              <Text style={[styles.linkTitle, { color: colors.text }]}>{t('view_on_solscan')}</Text>
+              <Text style={[styles.linkSubtitle, { color: colors.textSecondary }]}>{t('detailed_token_analysis')}</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={24} color={colors.textSecondary} />
+          </TouchableOpacity>
 
-          <LinkButton
-            icon={<FontAwesome name="telegram" size={22} color="#0088cc" />}
-            title={t('telegram_channel')}
-            subtitle={t('official_community')}
+          <TouchableOpacity
+            style={[styles.linkButton, { backgroundColor: colors.card, borderColor: colors.border }]}
             onPress={() => openURL('https://t.me/monycoin1')}
-            color="#0088cc"
-          />
+            activeOpacity={0.7}
+          >
+            <View style={[styles.linkIconCircle, { backgroundColor: '#0088cc20' }]}>
+              <FontAwesome name="telegram" size={22} color="#0088cc" />
+            </View>
+            <View style={styles.linkContent}>
+              <Text style={[styles.linkTitle, { color: colors.text }]}>{t('telegram_channel')}</Text>
+              <Text style={[styles.linkSubtitle, { color: colors.textSecondary }]}>{t('official_community')}</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={24} color={colors.textSecondary} />
+          </TouchableOpacity>
 
-          <LinkButton
-            icon={<FontAwesome name="twitter" size={22} color="#1DA1F2" />}
-            title={t('twitter_account')}
-            subtitle={t('follow_for_updates')}
+          <TouchableOpacity
+            style={[styles.linkButton, { backgroundColor: colors.card, borderColor: colors.border }]}
             onPress={() => openURL('https://x.com/MoniCoinMECO')}
-            color="#1DA1F2"
-          />
+            activeOpacity={0.7}
+          >
+            <View style={[styles.linkIconCircle, { backgroundColor: '#1DA1F220' }]}>
+              <FontAwesome name="twitter" size={22} color="#1DA1F2" />
+            </View>
+            <View style={styles.linkContent}>
+              <Text style={[styles.linkTitle, { color: colors.text }]}>{t('twitter_account')}</Text>
+              <Text style={[styles.linkSubtitle, { color: colors.textSecondary }]}>{t('follow_for_updates')}</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={24} color={colors.textSecondary} />
+          </TouchableOpacity>
 
-          <LinkButton
-            icon={<FontAwesome name="facebook" size={22} color="#1877F2" />}
-            title={t('facebook_page')}
-            subtitle={t('connect_on_facebook')}
-            onPress={() => openURL('https://www.facebook.com/MonyCoim?mibextid=ZbWKwL')}
-            color="#1877F2"
-          />
-
-          <LinkButton
-            icon={<FontAwesome name="globe" size={22} color={primaryColor} />}
-            title={t('official_website')}
-            subtitle={t('learn_more_about_meco')}
+          <TouchableOpacity
+            style={[styles.linkButton, { backgroundColor: colors.card, borderColor: colors.border }]}
             onPress={() => openURL('https://monycoin1.blogspot.com/')}
-            color={primaryColor}
-          />
+            activeOpacity={0.7}
+          >
+            <View style={[styles.linkIconCircle, { backgroundColor: primaryColor + '20' }]}>
+              <FontAwesome name="globe" size={22} color={primaryColor} />
+            </View>
+            <View style={styles.linkContent}>
+              <Text style={[styles.linkTitle, { color: colors.text }]}>{t('official_website')}</Text>
+              <Text style={[styles.linkSubtitle, { color: colors.textSecondary }]}>{t('learn_more_about_meco')}</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={24} color={colors.textSecondary} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.linkButton, { backgroundColor: colors.card, borderColor: colors.border }]}
+            onPress={() => openURL('https://monycoin.github.io/meco-token/MECO_Presale_Funds.html')}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.linkIconCircle, { backgroundColor: '#33333320' }]}>
+              <FontAwesome name="github" size={22} color="#333333" />
+            </View>
+            <View style={styles.linkContent}>
+              <Text style={[styles.linkTitle, { color: colors.text }]}>{t('github_repository')}</Text>
+              <Text style={[styles.linkSubtitle, { color: colors.textSecondary }]}>
+                {t('presale_funds_transparency')}
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={24} color={colors.textSecondary} />
+          </TouchableOpacity>
         </View>
       </View>
 
-      {/* Footer */}
       <Animated.View style={[styles.footer, {
         opacity: fadeAnim,
         backgroundColor: colors.card,
@@ -366,6 +690,99 @@ export default function MecoScreen() {
           {t('verified_on_solana')}
         </Text>
       </Animated.View>
+
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={showConfirmModal}
+        onRequestClose={() => !transactionLoading && setShowConfirmModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
+            <MaterialCommunityIcons
+              name={transactionResult?.success ? "check-circle" : "alert-circle"}
+              size={60}
+              color={transactionResult?.success ? colors.success : colors.warning}
+            />
+
+            <Text style={[styles.modalTitle, { color: colors.text }]}>
+              {transactionResult ?
+                (transactionResult.success ? t('purchase_confirmed') : t('transaction_failed'))
+                : t('confirm_purchase')}
+            </Text>
+
+            {transactionResult ? (
+              <View style={styles.resultContainer}>
+                <Text style={[styles.resultText, { color: colors.textSecondary }]}>
+                  {transactionResult.message}
+                </Text>
+                {transactionResult.success && (
+                  <Text style={[styles.resultText, { color: colors.success, marginTop: 8 }]}>
+                    تم شراء: {transactionResult.mecoReceived?.toLocaleString()} MECO
+                  </Text>
+                )}
+                <TouchableOpacity
+                  style={[styles.solscanButton, { backgroundColor: colors.info }]}
+                  onPress={() => openURL(SOLSCAN_LINK)}
+                >
+                  <Text style={styles.solscanButtonText}>{t('view_on_solscan')}</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <>
+                <Text style={[styles.modalText, { color: colors.textSecondary }]}>
+                  {t('you_will_send')} {solAmount} SOL
+                </Text>
+
+                <View style={styles.modalDetails}>
+                  <View style={styles.modalDetailRow}>
+                    <Text style={[styles.modalDetailLabel, { color: colors.textSecondary }]}>
+                      {t('rate')}:
+                    </Text>
+                    <Text style={[styles.modalDetailValue, { color: colors.text }]}>
+                      1 SOL = 250,000 MECO
+                    </Text>
+                  </View>
+                  <View style={styles.modalDetailRow}>
+                    <Text style={[styles.modalDetailLabel, { color: colors.textSecondary }]}>
+                      {t('you_will_receive')}:
+                    </Text>
+                    <Text style={[styles.modalDetailValue, { color: colors.success }]}>
+                      {mecoAmount.toLocaleString()} MECO
+                    </Text>
+                  </View>
+                </View>
+
+                {transactionLoading ? (
+                  <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="large" color={primaryColor} />
+                    <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
+                      {t('processing_transaction')}...
+                    </Text>
+                  </View>
+                ) : (
+                  <View style={styles.modalButtons}>
+                    <TouchableOpacity
+                      style={[styles.modalButton, { backgroundColor: colors.border }]}
+                      onPress={() => setShowConfirmModal(false)}
+                      disabled={transactionLoading}
+                    >
+                      <Text style={[styles.modalButtonText, { color: colors.text }]}>{t('cancel')}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.modalButton, { backgroundColor: primaryColor }]}
+                      onPress={confirmPurchase}
+                      disabled={transactionLoading}
+                    >
+                      <Text style={styles.modalButtonText}>{t('confirm_pay')}</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -422,7 +839,45 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
   },
-  tradeCard: {
+  balanceCard: {
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    marginBottom: 16,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+  },
+  balanceHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  balanceTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  balanceAmount: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    marginBottom: 12,
+  },
+  refreshButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+  },
+  refreshText: {
+    fontSize: 12,
+  },
+  presaleCard: {
     width: '100%',
     padding: 20,
     borderRadius: 20,
@@ -434,13 +889,13 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 8,
   },
-  tradeHeader: {
+  presaleHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     marginBottom: 16,
   },
-  tradeLabel: {
+  presaleLabel: {
     fontSize: 16,
     fontWeight: '600',
   },
@@ -454,36 +909,137 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
   },
-  priceChange: {
+  priceBadge: {
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 12,
   },
-  priceChangeText: {
+  priceBadgeText: {
     fontSize: 14,
     fontWeight: 'bold',
   },
-  tradeTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 16,
-  },
-  tradeDetails: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+  progressSection: {
     marginBottom: 20,
   },
-  tradeDetail: {
+  progressHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  progressText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  progressBar: {
+    height: 10,
+    borderRadius: 5,
+    marginBottom: 8,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 5,
+  },
+  progressStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  progressStat: {
+    fontSize: 12,
+  },
+  amountSection: {
+    marginBottom: 20,
+  },
+  amountLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
   },
-  tradeDetailText: {
+  input: {
+    flex: 1,
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  solBadge: {
+    backgroundColor: '#14F19520',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  solText: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#14F195',
+  },
+  limitContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 8,
+  },
+  limitText: {
+    fontSize: 12,
+  },
+  calculationSection: {
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 20,
+  },
+  calculationRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  calculationLabel: {
     fontSize: 14,
     fontWeight: '500',
   },
-  tradeButton: {
+  calculationValue: {
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  separator: {
+    height: 1,
+    marginVertical: 8,
+  },
+  walletSection: {
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 20,
+  },
+  walletHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  walletTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  walletAddress: {
+    fontSize: 12,
+    marginBottom: 12,
+    fontFamily: 'monospace',
+  },
+  verifyButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+  },
+  verifyButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    textDecorationLine: 'underline',
+  },
+  buyButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -495,7 +1051,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
   },
-  tradeButtonText: {
+  buyButtonText: {
     color: '#FFFFFF',
     fontSize: 18,
     fontWeight: '600',
@@ -611,5 +1167,97 @@ const styles = StyleSheet.create({
   footerSubText: {
     fontSize: 12,
     textAlign: 'center',
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  modalContent: {
+    width: width * 0.9,
+    padding: 24,
+    borderRadius: 20,
+    alignItems: 'center',
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  modalText: {
+    fontSize: 14,
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  modalDetails: {
+    width: '100%',
+    marginBottom: 24,
+  },
+  modalDetailRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0,0,0,0.1)',
+  },
+  modalDetailLabel: {
+    fontSize: 14,
+  },
+  modalDetailValue: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  resultContainer: {
+    width: '100%',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  resultText: {
+    fontSize: 14,
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  solscanButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    marginTop: 8,
+  },
+  solscanButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  loadingContainer: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  loadingText: {
+    fontSize: 14,
+    marginTop: 12,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    width: '100%',
+  },
+  modalButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  modalButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
 });

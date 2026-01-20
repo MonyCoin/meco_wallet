@@ -35,7 +35,9 @@
     "expo-linking": "~8.0.8",
     "expo-local-authentication": "~17.0.7",
     "expo-notifications": "~0.32.16",
+    "expo-random": "^14.0.1",
     "expo-secure-store": "~15.0.7",
+    "expo-splash-screen": "~31.0.13",
     "expo-web-browser": "~15.0.8",
     "i18next": "^25.7.4",
     "process": "^0.11.10",
@@ -52,6 +54,7 @@
     "react-native-svg": "15.12.1",
     "stream-browserify": "^3.0.0",
     "text-encoding": "^0.7.0",
+    "url": "^0.11.4",
     "util": "^0.12.5",
     "vm-browserify": "^1.1.2",
     "zustand": "^5.0.6"
