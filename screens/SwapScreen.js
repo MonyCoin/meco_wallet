@@ -13,6 +13,7 @@ import {
   FlatList,
   RefreshControl,
   Linking,
+  Share,
 } from 'react-native';
 
 import { useTranslation } from 'react-i18next';
@@ -20,16 +21,19 @@ import * as SecureStore from 'expo-secure-store';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppStore } from '../store';
 import { useRoute } from '@react-navigation/native';
+import { Connection, VersionedTransaction } from '@solana/web3.js';
 
 import {
   fetchQuoteViaRest,
+  createSwapTransaction,
   executeSwapViaRest,
   amountToBaseUnits,
   baseUnitsToAmount,
   getJupiterTokens,
+  getSolanaConnection,
 } from '../services/jupiterService';
 
-const RPC = 'https://rpc.ankr.com/solana';
+const RPC = 'https://api.devnet.solana.com';
 
 export default function SwapScreen() {
   const { t } = useTranslation();
@@ -47,7 +51,6 @@ export default function SwapScreen() {
 
   const [tokens, setTokens] = useState([]);
   const [filteredTokens, setFilteredTokens] = useState([]);
-  const [tokenPrices, setTokenPrices] = useState({});
 
   const [fromToken, setFromToken] = useState(null);
   const [toToken, setToToken] = useState(null);
@@ -108,7 +111,6 @@ export default function SwapScreen() {
       
       if (!mountedRef.current) return;
       
-      // تصفية العملات المشهورة أولاً
       const popularTokens = ['SOL', 'USDC', 'USDT', 'BONK', 'JUP', 'RAY', 'WSOL'];
       const sortedList = list.sort((a, b) => {
         const aPopular = popularTokens.includes(a.symbol);
@@ -137,7 +139,7 @@ export default function SwapScreen() {
       }
     } catch (error) {
       console.error('Error loading tokens:', error);
-      Alert.alert('⚠️', 'تعذر جلب العملات، تحقق من اتصالك بالإنترنت');
+      Alert.alert('⚠️', t('token_load_error'));
     }
   };
 
@@ -185,7 +187,7 @@ export default function SwapScreen() {
 
       const slippageBps = Math.floor(slippage * 100);
       
-      console.log('🔄 جاري جلب السعر من Jupiter...', {
+      console.log('🔄 جاري جلب السعر الحقيقي من Jupiter...', {
         from: from.symbol,
         to: to.symbol,
         amount: amount,
@@ -201,26 +203,22 @@ export default function SwapScreen() {
       );
 
       if (!quote || !quote.outAmount || Number(quote.outAmount) <= 0) {
-        throw new Error('لا يوجد سيولة كافية لهذه العملية');
+        throw new Error(t('insufficient_liquidity'));
       }
 
       const out = baseUnitsToAmount(Number(quote.outAmount), to.decimals);
       const fee = quote.feeAmount ? baseUnitsToAmount(Number(quote.feeAmount), from.decimals) : 0;
       
-      // حساب معدل التحويل
       const rate = out / Number(amount);
       setExchangeRate(rate);
 
-      // حساب الحد الأدنى المستلم بناء على slippage
       const minReceived = out * (1 - (slippage / 100));
       setMinimumReceived(minReceived);
 
-      // حساب تأثير السعر من data الحقيقية من API
       if (quote.priceImpactPct) {
         const impact = Math.abs(Number(quote.priceImpactPct) * 100);
         setPriceImpact(impact);
       } else if (quote.otherAmountThreshold) {
-        // حساب تقريبي لتأثير السعر
         const otherAmount = baseUnitsToAmount(Number(quote.otherAmountThreshold), to.decimals);
         const impact = Math.abs((1 - (otherAmount / out)) * 100);
         setPriceImpact(impact);
@@ -229,7 +227,7 @@ export default function SwapScreen() {
       setExpectedAmount(out);
       setSwapFee(fee);
       setSwapQuote(quote);
-      setQuoteExpiry(new Date(Date.now() + 30000)); // 30 ثانية صلاحية
+      setQuoteExpiry(new Date(Date.now() + 30000));
       
       console.log('✅ تم الحصول على السعر الحقيقي:', {
         from: from.symbol,
@@ -245,26 +243,24 @@ export default function SwapScreen() {
     } catch (error) {
       console.error('❌ خطأ في جلب السعر الحقيقي:', error.message || error);
       
-      // إعادة تعيين القيم
       setExpectedAmount(null);
       setSwapQuote(null);
       setExchangeRate(0);
       setPriceImpact(0);
       setMinimumReceived(0);
       
-      // عرض رسالة خطأ مناسبة
-      let errorMessage = 'تعذر حساب السعر';
+      let errorMessage = t('price_calculation_error');
       
       if (error.message && error.message.includes('liquidity')) {
-        errorMessage = 'لا يوجد سيولة كافية لهذه العملية، جرب مبلغًا أصغر أو عملة أخرى';
+        errorMessage = t('insufficient_liquidity_detail');
       } else if (error.message && error.message.includes('network')) {
-        errorMessage = 'خطأ في الاتصال بالشبكة، تحقق من اتصالك بالإنترنت';
+        errorMessage = t('network_error');
       } else if (error.message && error.message.includes('amount')) {
-        errorMessage = 'المبلغ المدخل غير صالح';
+        errorMessage = t('invalid_amount');
       } else if (error.message && error.message.includes('Quote not found')) {
-        errorMessage = 'لم يتم العثور على سعر لهذه العملة، جرب عملة أخرى';
+        errorMessage = t('token_not_found');
       } else {
-        errorMessage = `خطأ في السعر: ${error.message || 'غير معروف'}`;
+        errorMessage = `${t('price_error')}: ${error.message || t('unknown_error')}`;
       }
       
       if (mountedRef.current) {
@@ -292,14 +288,14 @@ export default function SwapScreen() {
     }
   }, [fromToken, toToken, amount]);
 
-  const signAndSend = async (txBuffer) => {
+  const signAndSend = async (transaction) => {
     try {
-      const web3 = await import('@solana/web3.js');
       const secret = await SecureStore.getItemAsync('wallet_private_key');
       if (!secret) {
-        throw new Error('لا يوجد مفتاح خاص');
+        throw new Error(t('no_private_key'));
       }
       
+      const web3 = await import('@solana/web3.js');
       const keypair = web3.Keypair.fromSecretKey(
         Uint8Array.from(JSON.parse(secret))
       );
@@ -309,59 +305,93 @@ export default function SwapScreen() {
         confirmTransactionInitialTimeout: 60000,
       });
       
-      const transaction = web3.Transaction.from(txBuffer);
-      transaction.partialSign(keypair);
+      console.log('🔐 توقيع معاملة حقيقية...');
       
-      const signature = await connection.sendRawTransaction(
-        transaction.serialize(),
-        {
+      if (transaction instanceof VersionedTransaction) {
+        transaction.sign([keypair]);
+        
+        const rawTransaction = transaction.serialize();
+        const signature = await connection.sendRawTransaction(rawTransaction, {
           skipPreflight: false,
           preflightCommitment: 'confirmed',
+          maxRetries: 3,
+        });
+        
+        console.log('✅ تم إرسال المعاملة الحقيقية:', signature);
+        
+        const confirmation = await connection.confirmTransaction({
+          signature,
+          blockhash: transaction.message.recentBlockhash,
+          lastValidBlockHeight: transaction.message.lastValidBlockHeight,
+        }, 'confirmed');
+        
+        if (confirmation.value.err) {
+          throw new Error(`${t('transaction_failed')}: ${confirmation.value.err.toString()}`);
         }
-      );
-      
-      const confirmation = await connection.confirmTransaction({
-        signature: signature,
-        blockhash: transaction.recentBlockhash,
-        lastValidBlockHeight: transaction.lastValidBlockHeight,
-      });
-      
-      if (confirmation.value.err) {
-        throw new Error(`فشل المعاملة: ${confirmation.value.err.toString()}`);
+        
+        return signature;
+      } else {
+        transaction.partialSign(keypair);
+        
+        const signature = await connection.sendRawTransaction(
+          transaction.serialize(),
+          {
+            skipPreflight: false,
+            preflightCommitment: 'confirmed',
+          }
+        );
+        
+        const confirmation = await connection.confirmTransaction({
+          signature: signature,
+          blockhash: transaction.recentBlockhash,
+          lastValidBlockHeight: transaction.lastValidBlockHeight,
+        });
+        
+        if (confirmation.value.err) {
+          throw new Error(`${t('transaction_failed')}: ${confirmation.value.err.toString()}`);
+        }
+        
+        return signature;
       }
-      
-      return signature;
     } catch (error) {
       console.error('❌ خطأ في signAndSend:', error);
-      throw error;
+      
+      let errorMessage = error.message;
+      if (error.message.includes('Blockhash')) {
+        errorMessage = t('transaction_expired');
+      } else if (error.message.includes('insufficient')) {
+        errorMessage = t('insufficient_balance_fee');
+      } else if (error.message.includes('0x0')) {
+        errorMessage = t('transaction_failed_detail');
+      }
+      
+      throw new Error(errorMessage);
     }
   };
 
   const handleSwap = async () => {
     try {
       if (!fromToken || !toToken || !amount || Number(amount) <= 0) {
-        Alert.alert('خطأ', 'أكمل جميع الحقول بشكل صحيح');
+        Alert.alert(t('error'), t('complete_fields'));
         return;
       }
 
       const from = getToken(fromToken);
       if (!from) {
-        Alert.alert('خطأ', 'العملة المصدر غير صالحة');
+        Alert.alert(t('error'), t('invalid_source_token'));
         return;
       }
 
-      // التحقق من الرصيد
       const balance = getTokenBalance(fromToken);
       if (Number(amount) > balance) {
-        Alert.alert('رصيد غير كافي', `رصيدك: ${balance.toFixed(4)} ${from.symbol}`);
+        Alert.alert(t('insufficient_balance'), `${t('your_balance')}: ${balance.toFixed(4)} ${from.symbol}`);
         return;
       }
 
-      // التحقق من صلاحية الاقتباس
       if (quoteExpiry && new Date() > quoteExpiry) {
-        Alert.alert('⚠️ السعر منتهي', 'انتهت صلاحية السعر، جاري تحديثه...', [
+        Alert.alert('⚠️ ' + t('price_expired'), t('price_expired_detail'), [
           {
-            text: 'تحديث',
+            text: t('update'),
             onPress: async () => {
               await updateExpectedAmount();
               setTimeout(() => {
@@ -371,13 +401,13 @@ export default function SwapScreen() {
               }, 1000);
             }
           },
-          { text: 'إلغاء', style: 'cancel' }
+          { text: t('cancel'), style: 'cancel' }
         ]);
         return;
       }
 
       if (!swapQuote || !expectedAmount) {
-        Alert.alert('خطأ', 'يجب حساب السعر أولاً');
+        Alert.alert(t('error'), t('calculate_price_first'));
         return;
       }
 
@@ -385,7 +415,7 @@ export default function SwapScreen() {
       
     } catch (error) {
       console.error('Swap error:', error);
-      Alert.alert('خطأ', error.message || 'حدث خطأ غير متوقع');
+      Alert.alert(t('error'), error.message || t('unexpected_error'));
     }
   };
 
@@ -394,11 +424,29 @@ export default function SwapScreen() {
     setLoadingSwap(true);
     
     try {
+      console.log('🔄 بدء عملية swap حقيقية...');
+      
+      if (!fromToken || !toToken || !amount || Number(amount) <= 0) {
+        throw new Error(t('incomplete_data'));
+      }
+
       const from = getToken(fromToken);
+      const to = getToken(toToken);
+      
+      if (!from || !to) {
+        throw new Error(t('invalid_tokens'));
+      }
+
+      const balance = getTokenBalance(fromToken);
+      if (Number(amount) > balance) {
+        throw new Error(`${t('insufficient_balance')} ${t('you_have')}: ${balance.toFixed(4)} ${from.symbol}`);
+      }
+
       const baseAmount = amountToBaseUnits(Number(amount), from.decimals);
       const slippageBps = Math.floor(slippage * 100);
       
-      console.log('🔄 جاري إعادة حساب السعر قبل التنفيذ...');
+      console.log('📊 جلب سعر حقيقي جديد...');
+      
       const freshQuote = await fetchQuoteViaRest(
         fromToken,
         toToken,
@@ -407,76 +455,98 @@ export default function SwapScreen() {
       );
 
       if (!freshQuote || !freshQuote.outAmount) {
-        throw new Error('فشل في الحصول على سعر جديد للمعاملات');
+        throw new Error(t('failed_to_get_price'));
       }
 
-      const currentTime = new Date();
-      console.log('🕒 وقت التنفيذ:', currentTime.toLocaleTimeString());
+      console.log('🚀 تنفيذ swap حقيقي مع Jupiter...');
+      
+      const result = await executeSwapViaRest(
+        freshQuote,
+        publicKey,
+        signAndSend
+      );
 
-      const res = await executeSwapViaRest(freshQuote, publicKey, signAndSend);
-
-      if (!res.success) {
-        throw new Error(res.error || 'فشل تنفيذ المبادلة');
+      if (!result.success) {
+        throw new Error(result.error || t('swap_execution_failed'));
       }
 
-      console.log('✅ تم تنفيذ المبادلة بنجاح، المعاملة:', res.txid);
+      console.log('✅ تم تنفيذ swap حقيقي بنجاح:', result.txid);
       
-      // عرض تفاصيل المعاملة
-      showTransactionDetails(res.txid);
+      showTransactionDetails(result.txid, freshQuote);
       
-      // إعادة تعيين الحقول
-      setAmount('');
-      setExpectedAmount(null);
-      setSwapQuote(null);
-      setExchangeRate(0);
-      setPriceImpact(0);
-      setMinimumReceived(0);
-      
-      // تحديث الأرصدة بعد 3 ثواني
       setTimeout(() => {
-        Alert.alert('✅', 'تمت المبادلة بنجاح! سيتم تحديث رصيدك قريبًا.');
-      }, 3000);
+        setAmount('');
+        setExpectedAmount(null);
+        setSwapQuote(null);
+        setExchangeRate(0);
+        setPriceImpact(0);
+        setMinimumReceived(0);
+        
+        Alert.alert(
+          '✅ ' + t('swap_successful'),
+          `${t('swap_executed_successfully')}!\n${t('transaction')}: ${result.txid.substring(0, 20)}...\n\n${t('balance_will_update')}.`,
+          [{ text: t('ok'), style: 'cancel' }]
+        );
+      }, 2000);
       
     } catch (error) {
-      console.error('❌ Execute swap error:', error);
+      console.error('❌ خطأ في تنفيذ swap حقيقي:', error);
       
       let errorMessage = error.message;
-      if (errorMessage.includes('0x0')) {
-        errorMessage = 'فشل المعاملة: رصيد غير كافي أو رسوم معالجة';
-      } else if (errorMessage.includes('timeout')) {
-        errorMessage = 'انتهت مهلة المعاملة، جرب مرة أخرى';
-      } else if (errorMessage.includes('slippage')) {
-        errorMessage = 'تغير السعر كثيراً، جرب مع slippage أعلى';
-      } else if (errorMessage.includes('Blockhash')) {
-        errorMessage = 'انتهت صلاحية blockhash، جرب مرة أخرى';
+      
+      if (error.message.includes('insufficient')) {
+        errorMessage = t('insufficient_balance_fee');
+      } else if (error.message.includes('liquidity')) {
+        errorMessage = t('insufficient_liquidity_detail');
+      } else if (error.message.includes('slippage')) {
+        errorMessage = t('slippage_tolerance_exceeded');
+      } else if (error.message.includes('network')) {
+        errorMessage = t('network_error');
+      } else if (error.message.includes('timeout')) {
+        errorMessage = t('request_timeout');
       }
       
-      Alert.alert('❌ فشل التنفيذ', errorMessage);
+      Alert.alert('❌ ' + t('execution_failed'), errorMessage);
+      
     } finally {
       setLoadingSwap(false);
     }
   };
 
-  const showTransactionDetails = (txid) => {
+  const showTransactionDetails = (txid, quote) => {
     const from = getToken(fromToken);
     const to = getToken(toToken);
     
+    if (!from || !to) return;
+    
+    const outAmount = baseUnitsToAmount(Number(quote.outAmount), to.decimals);
+    const priceImpactValue = quote.priceImpactPct ? (Number(quote.priceImpactPct) * 100).toFixed(2) : '0.00';
+    
     Alert.alert(
-      '✅ تم تنفيذ المبادلة بنجاح',
-      `المعاملة: ${txid.substring(0, 20)}...\n\n` +
-      `التحويل: ${Number(amount).toFixed(4)} ${from?.symbol} → ${expectedAmount?.toFixed(4)} ${to?.symbol}\n` +
-      `السعر: 1 ${from?.symbol} = ${exchangeRate.toFixed(6)} ${to?.symbol}\n` +
-      `تأثير السعر: ${priceImpact.toFixed(2)}%\n` +
-      `الحد الأدنى: ${minimumReceived.toFixed(4)} ${to?.symbol}\n` +
-      `Slippage: ${slippage}%`,
+      '✅ ' + t('real_transaction_successful'),
+      `${t('real_swap_executed')}!\n\n` +
+      `🔸 ${t('conversion')}: ${Number(amount).toFixed(4)} ${from.symbol} → ${outAmount.toFixed(4)} ${to.symbol}\n` +
+      `🔸 ${t('transaction')}: ${txid.substring(0, 20)}...\n` +
+      `🔸 ${t('price_impact')}: ${priceImpactValue}%\n` +
+      `🔸 ${t('network')}: devnet (${t('real')})\n\n` +
+      `${t('can_track_transaction')}.`,
       [
         { 
-          text: 'مشاهدة المعاملة', 
+          text: t('view_on_solscan'), 
           onPress: () => {
-            Linking.openURL(`https://solscan.io/tx/${txid}`);
+            Linking.openURL(`https://solscan.io/tx/${txid}?cluster=devnet`);
           }
         },
-        { text: 'تم', style: 'cancel' }
+        { 
+          text: t('share'), 
+          onPress: () => {
+            Share.share({
+              title: t('successful_swap_meco_wallet'),
+              message: `${t('i_swapped')} ${Number(amount).toFixed(4)} ${from.symbol} ${t('to')} ${outAmount.toFixed(4)} ${to.symbol} ${t('on_meco_wallet')}\n${t('transaction')}: ${txid}\n${t('network')}: devnet`
+            });
+          }
+        },
+        { text: t('ok'), style: 'cancel' }
       ]
     );
   };
@@ -501,7 +571,6 @@ export default function SwapScreen() {
     
     let maxAmount = balance;
     if (token?.symbol === 'SOL') {
-      // ترك 0.001 SOL للرسوم
       maxAmount = Math.max(0, balance - 0.001);
     }
     
@@ -556,13 +625,10 @@ export default function SwapScreen() {
     return '#F44336';
   };
 
-  // حساب القيمة بالدولار (تقريبي)
   const calculateUSDValue = (amount, tokenAddress) => {
-    // هذا تقدير تقريبي - في التطبيق الحقيقي ستجلب الأسعار من API
     const token = getToken(tokenAddress);
     if (!token) return 0;
     
-    // أسعار تقريبية للعملات المشهورة
     const priceMap = {
       'SOL': 180,
       'USDC': 1,
@@ -589,14 +655,13 @@ export default function SwapScreen() {
       }
     >
       <View style={styles.container}>
-        {/* From Token Section */}
         <View style={styles.tokenSection}>
           <View style={styles.tokenHeader}>
-            <Text style={[styles.sectionLabel, { color: fg }]}>من</Text>
+            <Text style={[styles.sectionLabel, { color: fg }]}>{t('from')}</Text>
             {fromToken && (
               <TouchableOpacity onPress={setMaxAmount}>
                 <Text style={[styles.balanceText, { color: primaryColor }]}>
-                  الرصيد: {formatNumber(getTokenBalance(fromToken))}
+                  {t('balance')}: {formatNumber(getTokenBalance(fromToken))}
                 </Text>
               </TouchableOpacity>
             )}
@@ -620,7 +685,7 @@ export default function SwapScreen() {
                 </>
               ) : (
                 <Text style={[styles.tokenSymbol, { color: fg }]}>
-                  اختر عملة
+                  {t('select_token')}
                 </Text>
               )}
             </TouchableOpacity>
@@ -656,7 +721,6 @@ export default function SwapScreen() {
           )}
         </View>
 
-        {/* Swap Button */}
         <TouchableOpacity 
           style={[styles.swapButton, { backgroundColor: selBg }]}
           onPress={swapTokens}
@@ -669,14 +733,13 @@ export default function SwapScreen() {
           />
         </TouchableOpacity>
 
-        {/* To Token Section */}
         <View style={styles.tokenSection}>
           <View style={styles.tokenHeader}>
-            <Text style={[styles.sectionLabel, { color: fg }]}>إلى</Text>
+            <Text style={[styles.sectionLabel, { color: fg }]}>{t('to')}</Text>
             {toToken && (
               <TouchableOpacity onPress={() => openSelector('to')}>
                 <Text style={[styles.balanceText, { color: primaryColor }]}>
-                  الرصيد: {formatNumber(getTokenBalance(toToken))}
+                  {t('balance')}: {formatNumber(getTokenBalance(toToken))}
                 </Text>
               </TouchableOpacity>
             )}
@@ -699,7 +762,7 @@ export default function SwapScreen() {
               </>
             ) : (
               <Text style={[styles.tokenSymbol, { color: fg }]}>
-                اختر عملة
+                {t('select_token')}
               </Text>
             )}
           </TouchableOpacity>
@@ -708,7 +771,7 @@ export default function SwapScreen() {
             <View style={styles.quoteLoading}>
               <ActivityIndicator size="small" color={primaryColor} />
               <Text style={[styles.quoteLoadingText, { color: fg }]}>
-                جاري حساب السعر...
+                {t('calculating_price')}
               </Text>
             </View>
           ) : expectedAmount !== null ? (
@@ -732,12 +795,11 @@ export default function SwapScreen() {
           )}
         </View>
 
-        {/* Quote Details */}
         {expectedAmount !== null && swapQuote && !loadingQuote && (
           <View style={[styles.quoteDetails, { backgroundColor: isDark ? '#1A1A1A' : '#FFF' }]}>
             <View style={styles.quoteRow}>
               <Text style={[styles.quoteLabel, { color: isDark ? '#AAA' : '#666' }]}>
-                معدل التحويل
+                {t('exchange_rate')}
               </Text>
               <Text style={[styles.quoteValue, { color: fg }]}>
                 1 {getToken(fromToken)?.symbol} = {exchangeRate.toFixed(6)} {getToken(toToken)?.symbol}
@@ -746,7 +808,7 @@ export default function SwapScreen() {
             
             <View style={styles.quoteRow}>
               <Text style={[styles.quoteLabel, { color: isDark ? '#AAA' : '#666' }]}>
-                تأثير السعر
+                {t('price_impact')}
               </Text>
               <Text style={[styles.quoteValue, { color: getPriceImpactColor() }]}>
                 {priceImpact.toFixed(2)}%
@@ -755,7 +817,7 @@ export default function SwapScreen() {
             
             <View style={styles.quoteRow}>
               <Text style={[styles.quoteLabel, { color: isDark ? '#AAA' : '#666' }]}>
-                الحد الأدنى المستلم
+                {t('minimum_received')}
               </Text>
               <Text style={[styles.quoteValue, { color: fg }]}>
                 {formatNumber(minimumReceived)} {getToken(toToken)?.symbol}
@@ -765,7 +827,7 @@ export default function SwapScreen() {
             {swapFee > 0 && (
               <View style={styles.quoteRow}>
                 <Text style={[styles.quoteLabel, { color: isDark ? '#AAA' : '#666' }]}>
-                  رسوم المنصة
+                  {t('platform_fee')}
                 </Text>
                 <Text style={[styles.quoteValue, { color: fg }]}>
                   {swapFee.toFixed(6)} {getToken(fromToken)?.symbol}
@@ -776,19 +838,18 @@ export default function SwapScreen() {
             {quoteExpiry && (
               <View style={styles.quoteRow}>
                 <Text style={[styles.quoteLabel, { color: isDark ? '#AAA' : '#666' }]}>
-                  صلاحية السعر
+                  {t('price_validity')}
                 </Text>
                 <Text style={[styles.quoteValue, { color: fg }]}>
-                  {Math.max(0, Math.floor((quoteExpiry - new Date()) / 1000))} ثانية
+                  {Math.max(0, Math.floor((quoteExpiry - new Date()) / 1000))} {t('seconds')}
                 </Text>
               </View>
             )}
           </View>
         )}
 
-        {/* Slippage Settings */}
         <View style={styles.settingsSection}>
-          <Text style={[styles.settingsLabel, { color: fg }]}>تفاوت السعر (Slippage)</Text>
+          <Text style={[styles.settingsLabel, { color: fg }]}>{t('slippage_tolerance')}</Text>
           <View style={styles.slippageContainer}>
             {[0.1, 0.5, 1.0, 2.0].map(value => (
               <TouchableOpacity
@@ -812,11 +873,10 @@ export default function SwapScreen() {
             ))}
           </View>
           <Text style={[styles.slippageNote, { color: isDark ? '#AAA' : '#666' }]}>
-            زيادة Slippage تساعد في تنفيذ المعاملة بسرعة لكن قد تقلل من الكمية المستلمة
+            {t('slippage_note')}
           </Text>
         </View>
 
-        {/* Execute Swap Button */}
         <TouchableOpacity
           style={[
             styles.executeButton,
@@ -834,21 +894,20 @@ export default function SwapScreen() {
             <ActivityIndicator color="#fff" />
           ) : (
             <Text style={styles.executeButtonText}>
-              {!fromToken || !toToken ? 'اختر العملات' : 
-               !amount || Number(amount) <= 0 ? 'أدخل المبلغ' : 
-               !expectedAmount ? 'جاري حساب السعر...' : 
-               `مبادلة ${getToken(fromToken)?.symbol} → ${getToken(toToken)?.symbol}`}
+              {!fromToken || !toToken ? t('select_tokens') : 
+               !amount || Number(amount) <= 0 ? t('enter_amount') : 
+               !expectedAmount ? t('calculating_price') : 
+               `${t('swap')} ${getToken(fromToken)?.symbol} → ${getToken(toToken)?.symbol}`}
             </Text>
           )}
         </TouchableOpacity>
 
-        {/* Token Selection Modal */}
         <Modal visible={modalVisible} transparent animationType="slide">
           <View style={styles.modalOverlay}>
             <View style={[styles.modalContainer, { backgroundColor: bg }]}>
               <View style={styles.modalHeader}>
                 <Text style={[styles.modalTitle, { color: fg }]}>
-                  اختر {selecting === 'from' ? 'العملة المصدر' : 'العملة الهدف'}
+                  {t('select')} {selecting === 'from' ? t('source_token') : t('target_token')}
                 </Text>
                 <TouchableOpacity onPress={() => setModalVisible(false)}>
                   <Ionicons name="close" size={24} color={fg} />
@@ -856,7 +915,7 @@ export default function SwapScreen() {
               </View>
 
               <TextInput
-                placeholder="ابحث عن عملة..."
+                placeholder={t('search_token')}
                 placeholderTextColor={isDark ? '#666' : '#999'}
                 value={searchText}
                 onChangeText={(text) => {
@@ -916,7 +975,7 @@ export default function SwapScreen() {
                 ListEmptyComponent={
                   <View style={styles.emptyList}>
                     <Text style={[styles.emptyText, { color: fg }]}>
-                      لا توجد عملات مطابقة
+                      {t('no_matching_tokens')}
                     </Text>
                   </View>
                 }
@@ -925,13 +984,12 @@ export default function SwapScreen() {
           </View>
         </Modal>
 
-        {/* Confirmation Modal */}
         {confirmModal && swapQuote && (
           <Modal visible={confirmModal} transparent animationType="fade">
             <View style={styles.confirmOverlay}>
               <View style={[styles.confirmContainer, { backgroundColor: bg }]}>
                 <Text style={[styles.confirmTitle, { color: fg }]}>
-                  تأكيد المبادلة
+                  {t('confirm_swap')}
                 </Text>
                 
                 <View style={styles.confirmDetails}>
@@ -962,7 +1020,7 @@ export default function SwapScreen() {
                   <View style={styles.confirmInfo}>
                     <View style={styles.confirmInfoRow}>
                       <Text style={[styles.confirmInfoLabel, { color: isDark ? '#AAA' : '#666' }]}>
-                        السعر
+                        {t('price')}
                       </Text>
                       <Text style={[styles.confirmInfoValue, { color: fg }]}>
                         1 {getToken(fromToken)?.symbol} = {exchangeRate.toFixed(6)} {getToken(toToken)?.symbol}
@@ -971,7 +1029,7 @@ export default function SwapScreen() {
                     
                     <View style={styles.confirmInfoRow}>
                       <Text style={[styles.confirmInfoLabel, { color: isDark ? '#AAA' : '#666' }]}>
-                        تأثير السعر
+                        {t('price_impact')}
                       </Text>
                       <Text style={[styles.confirmInfoValue, { color: getPriceImpactColor() }]}>
                         {priceImpact.toFixed(2)}%
@@ -980,7 +1038,7 @@ export default function SwapScreen() {
                     
                     <View style={styles.confirmInfoRow}>
                       <Text style={[styles.confirmInfoLabel, { color: isDark ? '#AAA' : '#666' }]}>
-                        الحد الأدنى المستلم
+                        {t('minimum_received')}
                       </Text>
                       <Text style={[styles.confirmInfoValue, { color: fg }]}>
                         {formatNumber(minimumReceived)} {getToken(toToken)?.symbol}
@@ -990,7 +1048,7 @@ export default function SwapScreen() {
                     {swapFee > 0 && (
                       <View style={styles.confirmInfoRow}>
                         <Text style={[styles.confirmInfoLabel, { color: isDark ? '#AAA' : '#666' }]}>
-                          رسوم المنصة
+                          {t('platform_fee')}
                         </Text>
                         <Text style={[styles.confirmInfoValue, { color: fg }]}>
                           {swapFee.toFixed(6)} {getToken(fromToken)?.symbol}
@@ -1010,10 +1068,10 @@ export default function SwapScreen() {
                     {quoteExpiry && (
                       <View style={styles.confirmInfoRow}>
                         <Text style={[styles.confirmInfoLabel, { color: isDark ? '#AAA' : '#666' }]}>
-                          صلاحية السعر
+                          {t('price_validity')}
                         </Text>
                         <Text style={[styles.confirmInfoValue, { color: fg }]}>
-                          {Math.max(0, Math.floor((quoteExpiry - new Date()) / 1000))} ثانية
+                          {Math.max(0, Math.floor((quoteExpiry - new Date()) / 1000))} {t('seconds')}
                         </Text>
                       </View>
                     )}
@@ -1030,7 +1088,7 @@ export default function SwapScreen() {
                     onPress={() => setConfirmModal(false)}
                   >
                     <Text style={[styles.cancelButtonText, { color: fg }]}>
-                      إلغاء
+                      {t('cancel')}
                     </Text>
                   </TouchableOpacity>
                   
@@ -1046,7 +1104,7 @@ export default function SwapScreen() {
                       <ActivityIndicator color="#fff" />
                     ) : (
                       <Text style={styles.confirmButtonText}>
-                        تأكيد المبادلة
+                        {t('confirm_swap')}
                       </Text>
                     )}
                   </TouchableOpacity>
