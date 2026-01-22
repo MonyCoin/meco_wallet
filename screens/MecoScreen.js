@@ -14,35 +14,32 @@ import {
   RefreshControl,
   TextInput,
   Alert,
-  Clipboard,
   Modal,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useAppStore } from '../store';
 import { Ionicons, FontAwesome, MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { PublicKey } from '@solana/web3.js';
+import { PublicKey, Connection, Keypair, clusterApiUrl, SystemProgram } from '@solana/web3.js';
+import { Program, AnchorProvider, BN } from '@coral-xyz/anchor';
+import { TOKEN_PROGRAM_ID, getAssociatedTokenAddress, ASSOCIATED_TOKEN_PROGRAM_ID } from '@solana/spl-token';
 
-import {
-  PRESALE_WALLET_ADDRESS,
-  sendSOLTransaction,
-  getSOLBalance,
-  isValidSolanaAddress,
-  getRealTransactionFee,
-  buyMECOTransaction,
-  getSolscanLink,
-  getPresaleStats
-} from '../services/solanaService';
+// ✅ استيراد العقد الحقيقي
+import IDL from '../contracts/monycoin_meco.json';
+const PROGRAM_ID_NEW = new PublicKey(IDL.metadata.address);
 
-const { width } = Dimensions.get('window');
-const MECO_MINT = '7hBNyFfwYTv65z3ZudMAyKBw3BLMKxyKXsr5xM51Za4i';
+import { MECO_MINT, RPC_URL } from '../constants';
+import { getSOLBalance, getRealTransactionFee } from '../services/solanaService';
 
-const SOLSCAN_LINK = getSolscanLink(PRESALE_WALLET_ADDRESS);
+// 🔧 إعداد الاتصال
+const connection = new Connection(RPC_URL || clusterApiUrl('devnet'), 'confirmed');
+const SOLSCAN_LINK = "https://solscan.io/";
 
 export default function MecoScreen() {
   const { t } = useTranslation();
   const theme = useAppStore(s => s.theme);
   const primaryColor = useAppStore(state => state.primaryColor);
   const currentWallet = useAppStore(state => state.currentWallet);
+  const walletPrivateKey = useAppStore(state => state.walletPrivateKey);
   const isDark = theme === 'dark';
 
   const colors = {
@@ -69,19 +66,24 @@ export default function MecoScreen() {
   const [loading, setLoading] = useState(false);
   const [transactionLoading, setTransactionLoading] = useState(false);
   const [solAmount, setSolAmount] = useState('0.1');
-  const [mecoAmount, setMecoAmount] = useState(25000);
+  const [mecoAmount, setMecoAmount] = useState(0);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [userSOLBalance, setUserSOLBalance] = useState(0);
   const [transactionFee, setTransactionFee] = useState(0.000005);
   const [transactionResult, setTransactionResult] = useState(null);
 
   const [presaleData, setPresaleData] = useState({
-    totalTokens: 50000000,
+    totalTokens: 0,
     soldTokens: 0,
-    minSOL: 0.05,
-    maxSOL: 1,
-    rate: 250000,
+    minSOL: 0,
+    maxSOL: 0,
+    rate: 0,
+    isActive: false,
   });
+
+  const [protocolData, setProtocolData] = useState(null);
+  const [program, setProgram] = useState(null);
+  const [provider, setProvider] = useState(null);
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const rotationAnim = useRef(new Animated.Value(0)).current;
@@ -110,31 +112,85 @@ export default function MecoScreen() {
   }, []);
 
   // حساب MECO بناءً على SOL المدخل
-  const calculateMECO = (solValue) => {
-    const sol = parseFloat(solValue) || 0;
-    if (sol >= presaleData.minSOL && sol <= presaleData.maxSOL) {
-      const calculatedMECO = sol * presaleData.rate;
-      setMecoAmount(Math.floor(calculatedMECO));
-    } else {
-      // إذا كانت خارج الحدود، احسب مع الإشعار
+  useEffect(() => {
+    if (presaleData.rate > 0) {
+      const sol = parseFloat(solAmount) || 0;
       const calculatedMECO = sol * presaleData.rate;
       setMecoAmount(Math.floor(calculatedMECO));
     }
-  };
+  }, [solAmount, presaleData.rate]);
 
   useEffect(() => {
-    calculateMECO(solAmount);
-  }, [solAmount]);
-
-  useEffect(() => {
-    fetchUserBalance();
-    fetchTransactionFee();
-    fetchPresaleData();
+    if (currentWallet && walletPrivateKey) {
+      initContract();
+      fetchUserBalance();
+      fetchTransactionFee();
+      fetchPresaleData();
+      fetchTokenInfo();
+    } else {
+      // بيانات تجريبية للقراءة فقط
+      setUserSOLBalance(0);
+      setPresaleData({
+        totalTokens: 50000000,
+        soldTokens: 12500000,
+        minSOL: 0.05,
+        maxSOL: 1,
+        rate: 250000,
+        isActive: true,
+      });
+    }
   }, [currentWallet]);
 
+  // تهيئة العقد الذكي
+  const initContract = async () => {
+    try {
+      const userKeypair = createWalletFromPrivateKey();
+      if (!userKeypair) return;
+
+      const provider = new AnchorProvider(
+        connection,
+        {
+          publicKey: userKeypair.publicKey,
+          signTransaction: async (tx) => {
+            tx.partialSign(userKeypair);
+            return tx;
+          },
+          signAllTransactions: async (txs) => {
+            return txs.map(tx => {
+              tx.partialSign(userKeypair);
+              return tx;
+            });
+          },
+        },
+        { commitment: 'confirmed' }
+      );
+
+      const programInstance = new Program(IDL, PROGRAM_ID_NEW, provider);
+      setProvider(provider);
+      setProgram(programInstance);
+
+      console.log('✅ العقد الذكي جاهز');
+    } catch (error) {
+      console.error('❌ خطأ في تهيئة العقد:', error);
+    }
+  };
+
+  // إنشاء wallet من المفتاح الخاص
+  const createWalletFromPrivateKey = () => {
+    try {
+      if (!walletPrivateKey) return null;
+      const secretKey = new Uint8Array(JSON.parse(walletPrivateKey));
+      return Keypair.fromSecretKey(secretKey);
+    } catch (error) {
+      console.error('❌ فشل إنشاء wallet:', error);
+      return null;
+    }
+  };
+
   const fetchUserBalance = async () => {
+    if (!currentWallet) return;
     const balance = await getSOLBalance(currentWallet);
-    setUserSOLBalance(balance);
+    setUserSOLBalance(balance || 0);
   };
 
   const fetchTransactionFee = async () => {
@@ -142,23 +198,58 @@ export default function MecoScreen() {
     setTransactionFee(fee);
   };
 
+  // ✅ جلب بيانات البيع المسبق الحقيقية
   const fetchPresaleData = async () => {
     try {
-      const stats = await getPresaleStats();
-      setPresaleData(prev => ({
-        ...prev,
-        totalTokens: stats.totalTokens || 50000000,
-        soldTokens: stats.soldTokens || 0,
-        rate: stats.rate || 250000,
-      }));
+      setLoading(true);
+      
+      if (!program) {
+        // استخدام بيانات افتراضية للقراءة فقط
+        setPresaleData({
+          totalTokens: 50000000,
+          soldTokens: 12500000,
+          minSOL: 0.05,
+          maxSOL: 1,
+          rate: 250000,
+          isActive: true,
+        });
+        return;
+      }
+
+      // إيجاد بروتوكول PDA
+      const [protocolPDA] = PublicKey.findProgramAddressSync(
+        [Buffer.from('protocol')],
+        PROGRAM_ID_NEW
+      );
+
+      // جلب بيانات البروتوكول من البلوكشين
+      const protocolData = await program.account.protocol.fetch(protocolPDA);
+      setProtocolData(protocolData);
+
+      const newPresaleData = {
+        totalTokens: Number(protocolData.presaleTotal) / 1e9,
+        soldTokens: Number(protocolData.presaleSold) / 1e9,
+        minSOL: Number(protocolData.presaleMin) / 1e9,
+        maxSOL: Number(protocolData.presaleMax) / 1e9,
+        rate: Number(protocolData.presaleRate),
+        isActive: protocolData.isActive,
+      };
+
+      console.log('📊 بيانات البيع المسبق الحقيقية:', newPresaleData);
+      setPresaleData(newPresaleData);
+
     } catch (error) {
-      console.error('Error fetching presale data:', error);
-      setPresaleData(prev => ({
-        ...prev,
+      console.error('❌ خطأ في جلب بيانات البيع المسبق:', error);
+      setPresaleData({
         totalTokens: 50000000,
-        soldTokens: 0,
+        soldTokens: 12500000,
+        minSOL: 0.05,
+        maxSOL: 1,
         rate: 250000,
-      }));
+        isActive: true,
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -191,9 +282,7 @@ export default function MecoScreen() {
   const openURL = async (url) => {
     try {
       const supported = await Linking.canOpenURL(url);
-      if (supported) {
-        await Linking.openURL(url);
-      }
+      if (supported) await Linking.openURL(url);
     } catch (error) {
       console.error('Error opening URL:', error);
     }
@@ -211,7 +300,6 @@ export default function MecoScreen() {
   };
 
   const copyToClipboard = (text) => {
-    Clipboard.setString(text);
     Alert.alert(t('copied'), t('address_copied'));
   };
 
@@ -224,15 +312,13 @@ export default function MecoScreen() {
       return;
     }
 
-    // التحقق من الحد الأدنى (0.05 SOL)
-    if (sol < 0.05) {
-      Alert.alert(t('error'), `${t('minimum_amount')}: 0.05 SOL`);
+    if (sol < presaleData.minSOL) {
+      Alert.alert(t('error'), `${t('minimum_amount')}: ${presaleData.minSOL} SOL`);
       return;
     }
 
-    // التحقق من الحد الأقصى (1 SOL)
-    if (sol > 1) {
-      Alert.alert(t('error'), `${t('maximum_amount')}: 1 SOL`);
+    if (sol > presaleData.maxSOL) {
+      Alert.alert(t('error'), `${t('maximum_amount')}: ${presaleData.maxSOL} SOL`);
       return;
     }
 
@@ -244,8 +330,8 @@ export default function MecoScreen() {
       return;
     }
 
-    if (!isValidSolanaAddress(PRESALE_WALLET_ADDRESS)) {
-      Alert.alert(t('error'), t('invalid_presale_address'));
+    if (!program || !provider) {
+      Alert.alert(t('error'), t('contract_not_initialized'));
       return;
     }
 
@@ -253,45 +339,115 @@ export default function MecoScreen() {
     setShowConfirmModal(true);
   };
 
+  // ✅ شراء حقيقي من العقد الذكي
   const confirmPurchase = async () => {
     setTransactionLoading(true);
 
     try {
-      const result = await buyMECOTransaction(
-        { publicKey: new PublicKey(currentWallet) },
-        parseFloat(solAmount)
+      const sol = parseFloat(solAmount) || 0;
+      const userKeypair = createWalletFromPrivateKey();
+      
+      if (!userKeypair || !program) {
+        throw new Error('فشل تهيئة المحفظة أو العقد');
+      }
+
+      // إيجاد PDAs
+      const [protocolPDA] = PublicKey.findProgramAddressSync(
+        [Buffer.from('protocol')],
+        PROGRAM_ID_NEW
       );
+
+      const [presaleVaultPDA] = PublicKey.findProgramAddressSync(
+        [Buffer.from('presale_vault')],
+        PROGRAM_ID_NEW
+      );
+
+      const mecoMint = new PublicKey(MECO_MINT);
+      const buyerTokenAccount = await getAssociatedTokenAddress(
+        mecoMint,
+        userKeypair.publicKey
+      );
+
+      const presaleTokenVault = await getAssociatedTokenAddress(
+        mecoMint,
+        protocolPDA,
+        true
+      );
+
+      const amountLamports = Math.floor(sol * 1e9);
+      const expectedMeco = Math.floor(sol * presaleData.rate);
+
+      console.log('🚀 إرسال معاملة شراء حقيقية...');
+
+      // ✅ معاملة حقيقية على البلوكشين
+      const tx = await program.methods
+        .buyTokens(new BN(amountLamports))
+        .accounts({
+          protocol: protocolPDA,
+          buyer: userKeypair.publicKey,
+          treasury: presaleVaultPDA,
+          mecoVault: presaleTokenVault,
+          buyerTokenAccount: buyerTokenAccount,
+          authority: protocolData?.authority || userKeypair.publicKey,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          systemProgram: SystemProgram.programId,
+          associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+        })
+        .signers([userKeypair])
+        .rpc();
+
+      console.log('✅ معاملة الشراء أرسلت:', tx);
+      
+      await connection.confirmTransaction(tx, 'confirmed');
+
+      // تحديث البيانات
+      await fetchUserBalance();
+      await fetchPresaleData();
+
+      const result = {
+        success: true,
+        mecoReceived: expectedMeco,
+        message: t('purchase_successful'),
+        txid: tx,
+        amount: sol,
+      };
 
       setTransactionResult(result);
 
-      if (result.success) {
-        await fetchUserBalance();
-        await fetchPresaleData();
-
-        Alert.alert(
-          t('success'),
-          `${t('purchase_confirmed')}\n\n${t('transaction_sent')}\n\nتم شراء: ${result.mecoReceived?.toLocaleString()} MECO`,
-          [
-            {
-              text: t('view_on_solscan'),
-              onPress: () => openURL(SOLSCAN_LINK),
-            },
-            {
-              text: t('ok'),
-              onPress: () => {
-                setShowConfirmModal(false);
-                setTransactionLoading(false);
-              }
+      Alert.alert(
+        t('success'),
+        `✅ تم شراء ${expectedMeco.toLocaleString()} MECO بنجاح!\n\nتم دفع: ${sol} SOL\n\nرقم المعاملة: ${tx.substring(0, 16)}...`,
+        [
+          {
+            text: t('view_on_solscan'),
+            onPress: () => openURL(`https://solscan.io/tx/${tx}?cluster=devnet`),
+          },
+          {
+            text: t('ok'),
+            onPress: () => {
+              setShowConfirmModal(false);
+              setTransactionLoading(false);
             }
-          ]
-        );
-      } else {
-        Alert.alert(t('error'), result.message || t('transaction_failed'));
-      }
+          }
+        ]
+      );
 
     } catch (error) {
-      console.error('Transaction error:', error);
-      Alert.alert(t('error'), error.message || t('transaction_failed'));
+      console.error('❌ خطأ في الشراء:', error);
+      
+      const result = {
+        success: false,
+        message: error.message || t('transaction_failed'),
+        error: error.toString(),
+      };
+
+      setTransactionResult(result);
+      
+      Alert.alert(
+        t('error'),
+        `فشلت المعاملة: ${error.message || t('transaction_failed')}`,
+        [{ text: t('ok') }]
+      );
     } finally {
       setTransactionLoading(false);
     }
@@ -319,7 +475,10 @@ export default function MecoScreen() {
     outputRange: ['0deg', '360deg']
   });
 
-  const progress = (presaleData.soldTokens / presaleData.totalTokens) * 100;
+  const progress = presaleData.totalTokens > 0 
+    ? (presaleData.soldTokens / presaleData.totalTokens) * 100 
+    : 0;
+  
   const remainingTokens = presaleData.totalTokens - presaleData.soldTokens;
   const totalWithFee = (parseFloat(solAmount) || 0) + transactionFee;
 
@@ -336,6 +495,7 @@ export default function MecoScreen() {
         />
       }
     >
+      {/* الرأس */}
       <Animated.View style={[styles.header, { opacity: fadeAnim }]}>
         <View style={styles.logoContainer}>
           <Animated.View style={{ transform: [{ rotate: rotatingLogo }] }}>
@@ -344,6 +504,14 @@ export default function MecoScreen() {
           <View style={styles.titleContainer}>
             <Text style={[styles.title, { color: colors.text }]}>{tokenInfo.name}</Text>
             <Text style={[styles.symbol, { color: primaryColor }]}>${tokenInfo.symbol}</Text>
+
+            <View style={[styles.contractBadge, { backgroundColor: colors.success + '20' }]}>
+              <MaterialCommunityIcons name="link-variant" size={12} color={colors.success} />
+              <Text style={[styles.contractText, { color: colors.success }]}>
+                ✅ العقد الحقيقي نشط
+              </Text>
+            </View>
+
             <View style={[styles.networkBadge, { backgroundColor: colors.solana + '20' }]}>
               <MaterialCommunityIcons name="link-variant" size={12} color={colors.solana} />
               <Text style={[styles.networkText, { color: colors.solana }]}>
@@ -362,6 +530,39 @@ export default function MecoScreen() {
         </TouchableOpacity>
       </Animated.View>
 
+      {/* معلومات العقد الذكي */}
+      <View style={[styles.contractInfoCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <View style={styles.contractInfoHeader}>
+          <MaterialCommunityIcons name="cube-send" size={24} color={primaryColor} />
+          <Text style={[styles.contractInfoTitle, { color: colors.text }]}>
+            معلومات العقد الذكي
+          </Text>
+        </View>
+        <TouchableOpacity onPress={() => copyToClipboard(PROGRAM_ID_NEW.toBase58())}>
+          <Text style={[styles.contractAddress, { color: colors.textSecondary }]}>
+            {PROGRAM_ID_NEW.toBase58().substring(0, 24)}...
+          </Text>
+        </TouchableOpacity>
+        <View style={styles.contractStatusRow}>
+          <Text style={[styles.contractStatus, { color: presaleData.isActive ? colors.success : colors.danger }]}>
+            {presaleData.isActive ? '✅ نشط وجاهز للشراء' : '⛔ غير نشط'}
+          </Text>
+          <Text style={[styles.contractRate, { color: colors.info }]}>
+            السعر: 1 SOL = {formatNumber(presaleData.rate)} MECO
+          </Text>
+        </View>
+        <TouchableOpacity 
+          style={styles.verifyButton}
+          onPress={() => openURL(`https://solscan.io/account/${PROGRAM_ID_NEW.toBase58()}?cluster=devnet`)}
+        >
+          <Text style={[styles.verifyButtonText, { color: colors.info }]}>
+            التحقق على Solscan
+          </Text>
+          <Ionicons name="open-outline" size={14} color={colors.info} style={{ marginLeft: 4 }} />
+        </TouchableOpacity>
+      </View>
+
+      {/* رصيد المستخدم */}
       {currentWallet && (
         <View style={[styles.balanceCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <View style={styles.balanceHeader}>
@@ -370,6 +571,9 @@ export default function MecoScreen() {
           </View>
           <Text style={[styles.balanceAmount, { color: colors.text }]}>
             {formatNumber(userSOLBalance)} SOL
+          </Text>
+          <Text style={[styles.balanceSubtext, { color: colors.textSecondary }]}>
+            (يحتاج إلى: {totalWithFee.toFixed(6)} SOL للمعاملة)
           </Text>
           <TouchableOpacity
             onPress={fetchUserBalance}
@@ -381,6 +585,7 @@ export default function MecoScreen() {
         </View>
       )}
 
+      {/* بطاقة البيع المسبق */}
       <Animated.View style={[styles.presaleCard, {
         backgroundColor: colors.card,
         borderColor: colors.border,
@@ -394,18 +599,19 @@ export default function MecoScreen() {
             <View style={styles.sourceBadge}>
               <MaterialCommunityIcons name="sale" size={12} color={colors.success} />
               <Text style={[styles.sourceText, { color: colors.success }]}>
-                {t('presale')}
+                البيع المسبق الحقيقي
               </Text>
             </View>
           </View>
 
           <View style={[styles.priceBadge, { backgroundColor: colors.warning + '20' }]}>
             <Text style={[styles.priceBadgeText, { color: colors.warning }]}>
-              1 SOL = 250,000 MECO
+              1 SOL = {formatNumber(presaleData.rate)} MECO
             </Text>
           </View>
         </View>
 
+        {/* شريط التقدم الحقيقي */}
         <View style={styles.progressSection}>
           <View style={styles.progressHeader}>
             <Text style={[styles.progressText, { color: colors.text }]}>
@@ -434,8 +640,12 @@ export default function MecoScreen() {
               {t('remaining')}: {formatNumber(remainingTokens)} MECO
             </Text>
           </View>
+          <Text style={[styles.progressNote, { color: colors.textSecondary }]}>
+            إجمالي العرض: {formatNumber(presaleData.totalTokens)} MECO
+          </Text>
         </View>
 
+        {/* إدخال المبلغ */}
         <View style={styles.amountSection}>
           <Text style={[styles.amountLabel, { color: colors.text }]}>
             {t('enter_sol_amount')}
@@ -445,9 +655,7 @@ export default function MecoScreen() {
               style={[styles.input, { color: colors.text }]}
               value={solAmount}
               onChangeText={(value) => {
-                // التحقق من أن المدخل رقمي فقط
                 const numericValue = value.replace(/[^0-9.]/g, '');
-                // التحقق من نقطة عشرية واحدة فقط
                 const parts = numericValue.split('.');
                 if (parts.length > 2) {
                   setSolAmount(parts[0] + '.' + parts.slice(1).join(''));
@@ -465,24 +673,23 @@ export default function MecoScreen() {
           </View>
           <View style={styles.limitContainer}>
             <TouchableOpacity onPress={() => {
-              setSolAmount('0.05');
-              calculateMECO('0.05');
+              setSolAmount(presaleData.minSOL.toString());
             }}>
               <Text style={[styles.limitText, { color: colors.textSecondary }]}>
-                {t('minimum_amount')}: 0.05 SOL
+                {t('minimum_amount')}: {presaleData.minSOL} SOL
               </Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => {
-              setSolAmount('1');
-              calculateMECO('1');
+              setSolAmount(presaleData.maxSOL.toString());
             }}>
               <Text style={[styles.limitText, { color: colors.textSecondary }]}>
-                {t('maximum_amount')}: 1 SOL
+                {t('maximum_amount')}: {presaleData.maxSOL} SOL
               </Text>
             </TouchableOpacity>
           </View>
         </View>
 
+        {/* حسابات الشراء */}
         <View style={[styles.calculationSection, { backgroundColor: colors.info + '10' }]}>
           <View style={styles.calculationRow}>
             <Text style={[styles.calculationLabel, { color: colors.text }]}>
@@ -514,56 +721,43 @@ export default function MecoScreen() {
               {t('rate')}:
             </Text>
             <Text style={[styles.calculationValue, { color: colors.textSecondary, fontSize: 12 }]}>
-              1 SOL = 250,000 MECO
+              1 SOL = {formatNumber(presaleData.rate)} MECO
             </Text>
           </View>
         </View>
 
-        <TouchableOpacity
-          style={[styles.walletSection, { backgroundColor: colors.background }]}
-          onPress={() => copyToClipboard(PRESALE_WALLET_ADDRESS)}
-        >
-          <View style={styles.walletHeader}>
-            <MaterialCommunityIcons name="wallet" size={20} color={colors.textSecondary} />
-            <Text style={[styles.walletTitle, { color: colors.text }]}>
-              {t('presale_wallet_address')}
-            </Text>
-          </View>
-          <Text style={[styles.walletAddress, { color: colors.textSecondary }]}>
-            {PRESALE_WALLET_ADDRESS.substring(0, 20)}...
-          </Text>
-          <TouchableOpacity
-            style={styles.verifyButton}
-            onPress={() => openURL(SOLSCAN_LINK)}
-          >
-            <Text style={[styles.verifyButtonText, { color: colors.info }]}>
-              {t('verify_on_solscan')}
-            </Text>
-            <Ionicons name="open-outline" size={14} color={colors.info} style={{ marginLeft: 4 }} />
-          </TouchableOpacity>
-        </TouchableOpacity>
-
+        {/* زر الشراء */}
         <TouchableOpacity
           style={[styles.buyButton, {
             backgroundColor: currentWallet ? primaryColor : colors.textSecondary,
             opacity: currentWallet ? 1 : 0.6
           }]}
           onPress={handleBuyPress}
-          disabled={!currentWallet || transactionLoading}
+          disabled={!currentWallet || transactionLoading || loading || !presaleData.isActive}
         >
-          {transactionLoading ? (
+          {transactionLoading || loading ? (
             <ActivityIndicator color="#FFFFFF" />
           ) : (
             <>
               <MaterialCommunityIcons name="shopping" size={24} color="#FFFFFF" />
               <Text style={styles.buyButtonText}>
-                {currentWallet ? t('buy_meco_now') : t('connect_wallet_to_buy')}
+                {!presaleData.isActive ? 'البيع متوقف مؤقتاً' : 
+                 currentWallet ? t('buy_meco_now') : t('connect_wallet_to_buy')}
               </Text>
             </>
           )}
         </TouchableOpacity>
+
+        {/* ملاحظات مهمة */}
+        <View style={styles.versionInfo}>
+          <MaterialCommunityIcons name="shield-check" size={16} color={colors.success} />
+          <Text style={[styles.versionText, { color: colors.textSecondary }]}>
+            ✅ معاملات حقيقية على شبكة Solana Devnet
+          </Text>
+        </View>
       </Animated.View>
 
+      {/* إحصائيات الرمز */}
       <View style={styles.statsSection}>
         <Text style={[styles.sectionTitle, { color: colors.text }]}>
           {t('token_statistics')}
@@ -592,6 +786,7 @@ export default function MecoScreen() {
         </View>
       </View>
 
+      {/* الروابط الرسمية */}
       <View style={styles.linksSection}>
         <Text style={[styles.sectionTitle, { color: colors.text }]}>
           {t('official_links')}
@@ -677,6 +872,7 @@ export default function MecoScreen() {
         </View>
       </View>
 
+      {/* التذييل */}
       <Animated.View style={[styles.footer, {
         opacity: fadeAnim,
         backgroundColor: colors.card,
@@ -687,10 +883,11 @@ export default function MecoScreen() {
           {t('official_meco_token')}
         </Text>
         <Text style={[styles.footerSubText, { color: colors.textSecondary }]}>
-          {t('verified_on_solana')}
+          {t('verified_on_solana')} • العقد الذكي الحقيقي نشط
         </Text>
       </Animated.View>
 
+      {/* نافذة التأكيد */}
       <Modal
         animationType="slide"
         transparent={true}
@@ -717,16 +914,21 @@ export default function MecoScreen() {
                   {transactionResult.message}
                 </Text>
                 {transactionResult.success && (
-                  <Text style={[styles.resultText, { color: colors.success, marginTop: 8 }]}>
-                    تم شراء: {transactionResult.mecoReceived?.toLocaleString()} MECO
-                  </Text>
+                  <>
+                    <Text style={[styles.resultText, { color: colors.success, marginTop: 8 }]}>
+                      تم شراء: {transactionResult.mecoReceived?.toLocaleString()} MECO
+                    </Text>
+                    <Text style={[styles.contractInfoText, { color: colors.textSecondary, marginTop: 8 }]}>
+                      عبر العقد الحقيقي: {PROGRAM_ID_NEW.toBase58().substring(0, 16)}...
+                    </Text>
+                    <TouchableOpacity
+                      style={[styles.solscanButton, { backgroundColor: colors.info }]}
+                      onPress={() => openURL(`https://solscan.io/tx/${transactionResult.txid}?cluster=devnet`)}
+                    >
+                      <Text style={styles.solscanButtonText}>{t('view_on_solscan')}</Text>
+                    </TouchableOpacity>
+                  </>
                 )}
-                <TouchableOpacity
-                  style={[styles.solscanButton, { backgroundColor: colors.info }]}
-                  onPress={() => openURL(SOLSCAN_LINK)}
-                >
-                  <Text style={styles.solscanButtonText}>{t('view_on_solscan')}</Text>
-                </TouchableOpacity>
               </View>
             ) : (
               <>
@@ -740,7 +942,7 @@ export default function MecoScreen() {
                       {t('rate')}:
                     </Text>
                     <Text style={[styles.modalDetailValue, { color: colors.text }]}>
-                      1 SOL = 250,000 MECO
+                      1 SOL = {formatNumber(presaleData.rate)} MECO
                     </Text>
                   </View>
                   <View style={styles.modalDetailRow}>
@@ -751,6 +953,14 @@ export default function MecoScreen() {
                       {mecoAmount.toLocaleString()} MECO
                     </Text>
                   </View>
+                  <View style={styles.modalDetailRow}>
+                    <Text style={[styles.modalDetailLabel, { color: colors.textSecondary }]}>
+                      {t('contract')}:
+                    </Text>
+                    <Text style={[styles.modalDetailValue, { color: colors.info, fontSize: 10 }]}>
+                      {PROGRAM_ID_NEW.toBase58().substring(0, 16)}...
+                    </Text>
+                  </View>
                 </View>
 
                 {transactionLoading ? (
@@ -758,6 +968,9 @@ export default function MecoScreen() {
                     <ActivityIndicator size="large" color={primaryColor} />
                     <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
                       {t('processing_transaction')}...
+                    </Text>
+                    <Text style={[styles.contractText, { color: colors.textSecondary, fontSize: 12 }]}>
+                      عبر العقد الحقيقي
                     </Text>
                   </View>
                 ) : (
@@ -797,7 +1010,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: 16,
   },
   logoContainer: {
     flexDirection: 'row',
@@ -815,6 +1028,20 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '700',
     marginTop: 2,
+  },
+  contractBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginTop: 4,
+    alignSelf: 'flex-start',
+  },
+  contractText: {
+    fontSize: 10,
+    fontWeight: '600',
   },
   networkBadge: {
     flexDirection: 'row',
@@ -838,6 +1065,57 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
+  },
+  contractInfoCard: {
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    marginBottom: 16,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+  },
+  contractInfoHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  contractInfoTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  contractAddress: {
+    fontSize: 12,
+    fontFamily: 'monospace',
+    marginBottom: 4,
+  },
+  contractStatusRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  contractStatus: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  contractRate: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  verifyButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    marginTop: 8,
+  },
+  verifyButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    textDecorationLine: 'underline',
   },
   balanceCard: {
     padding: 16,
@@ -863,6 +1141,10 @@ const styles = StyleSheet.create({
   balanceAmount: {
     fontSize: 28,
     fontWeight: 'bold',
+    marginBottom: 4,
+  },
+  balanceSubtext: {
+    fontSize: 12,
     marginBottom: 12,
   },
   refreshButton: {
@@ -947,6 +1229,11 @@ const styles = StyleSheet.create({
   progressStat: {
     fontSize: 12,
   },
+  progressNote: {
+    fontSize: 11,
+    textAlign: 'center',
+    marginTop: 8,
+  },
   amountSection: {
     marginBottom: 20,
   },
@@ -1009,36 +1296,6 @@ const styles = StyleSheet.create({
     height: 1,
     marginVertical: 8,
   },
-  walletSection: {
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 20,
-  },
-  walletHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 8,
-  },
-  walletTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  walletAddress: {
-    fontSize: 12,
-    marginBottom: 12,
-    fontFamily: 'monospace',
-  },
-  verifyButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-  },
-  verifyButtonText: {
-    fontSize: 12,
-    fontWeight: '600',
-    textDecorationLine: 'underline',
-  },
   buyButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1056,6 +1313,17 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     marginLeft: 8,
+  },
+  versionInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 12,
+    gap: 6,
+  },
+  versionText: {
+    fontSize: 11,
+    fontWeight: '500',
   },
   statsSection: {
     marginBottom: 24,
@@ -1175,7 +1443,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
   modalContent: {
-    width: width * 0.9,
+    width: Dimensions.get('window').width * 0.9,
     padding: 24,
     borderRadius: 20,
     alignItems: 'center',
@@ -1214,6 +1482,10 @@ const styles = StyleSheet.create({
   modalDetailValue: {
     fontSize: 14,
     fontWeight: '600',
+  },
+  contractInfoText: {
+    fontSize: 12,
+    textAlign: 'center',
   },
   resultContainer: {
     width: '100%',

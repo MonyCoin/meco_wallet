@@ -1,0 +1,101 @@
+{
+  "version": "0.1.0",
+  "name": "monycoin_meco",
+  "instructions": [
+    {
+      "name": "initialize",
+      "accounts": [
+        {"name": "protocol", "isMut": true, "isSigner": false},
+        {"name": "authority", "isMut": true, "isSigner": true},
+        {"name": "mecoMint", "isMut": false, "isSigner": false},
+        {"name": "systemProgram", "isMut": false, "isSigner": false}
+      ],
+      "args": []
+    },
+    {
+      "name": "buyTokens",
+      "accounts": [
+        {"name": "protocol", "isMut": true, "isSigner": false},
+        {"name": "buyer", "isMut": true, "isSigner": true},
+        {"name": "treasury", "isMut": true, "isSigner": false},
+        {"name": "mecoVault", "isMut": true, "isSigner": false},
+        {"name": "buyerTokenAccount", "isMut": true, "isSigner": false},
+        {"name": "authority", "isMut": false, "isSigner": true},
+        {"name": "tokenProgram", "isMut": false, "isSigner": false},
+        {"name": "systemProgram", "isMut": false, "isSigner": false}
+      ],
+      "args": [
+        {"name": "solAmount", "type": "u64"}
+      ]
+    },
+    {
+      "name": "stake",
+      "accounts": [
+        {"name": "protocol", "isMut": true, "isSigner": false},
+        {"name": "user", "isMut": true, "isSigner": true},
+        {"name": "stakeAccount", "isMut": true, "isSigner": false},
+        {"name": "userTokenAccount", "isMut": true, "isSigner": false},
+        {"name": "stakingVault", "isMut": true, "isSigner": false},
+        {"name": "tokenProgram", "isMut": false, "isSigner": false},
+        {"name": "systemProgram", "isMut": false, "isSigner": false}
+      ],
+      "args": [
+        {"name": "amount", "type": "u64"}
+      ]
+    },
+    {
+      "name": "unstake",
+      "accounts": [
+        {"name": "protocol", "isMut": true, "isSigner": false},
+        {"name": "user", "isMut": true, "isSigner": true},
+        {"name": "stakeAccount", "isMut": true, "isSigner": false},
+        {"name": "userTokenAccount", "isMut": true, "isSigner": false},
+        {"name": "stakingVault", "isMut": true, "isSigner": false},
+        {"name": "authority", "isMut": false, "isSigner": true},
+        {"name": "tokenProgram", "isMut": false, "isSigner": false}
+      ],
+      "args": [
+        {"name": "amount", "type": "u64"}
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "protocol",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {"name": "authority", "type": "publicKey"},
+          {"name": "mecoMint", "type": "publicKey"},
+          {"name": "presaleRate", "type": "u64"},
+          {"name": "stakingApr", "type": "u64"},
+          {"name": "presaleTotal", "type": "u64"},
+          {"name": "presaleSold", "type": "u64"},
+          {"name": "presaleMin", "type": "u64"},
+          {"name": "presaleMax", "type": "u64"},
+          {"name": "stakingTotal", "type": "u64"},
+          {"name": "isActive", "type": "bool"}
+        ]
+      }
+    },
+    {
+      "name": "stakeAccount",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {"name": "user", "type": "publicKey"},
+          {"name": "amount", "type": "u64"},
+          {"name": "stakeTime", "type": "i64"}
+        ]
+      }
+    }
+  ],
+  "errors": [
+    {"code": 6000, "name": "ProtocolInactive", "msg": "Protocol is not active"},
+    {"code": 6001, "name": "InvalidAmount", "msg": "Amount is outside presale limits"},
+    {"code": 6002, "name": "InsufficientStake", "msg": "Insufficient staked amount"}
+  ],
+  "metadata": {
+    "address": "97w8B9w7cFfdGjBNAyxsHBd8im6HZGbUrdvYwbSpsnG5"
+  }
+}
