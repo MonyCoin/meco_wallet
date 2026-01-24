@@ -96,7 +96,7 @@ export default function StakingScreen() {
   const createWalletFromPrivateKey = () => {
     try {
       if (!walletPrivateKey) {
-        console.warn('❌ walletPrivateKey غير موجود');
+        console.warn(t('wallet_private_key_missing'));
         return null;
       }
 
@@ -104,14 +104,14 @@ export default function StakingScreen() {
       try {
         secretKey = new Uint8Array(JSON.parse(walletPrivateKey));
       } catch (e) {
-        console.warn('❌ فشل تحويل المفتاح الخاص:', e.message);
+        console.warn(t('private_key_conversion_failed'), e.message);
         return null;
       }
 
       const keypair = Keypair.fromSecretKey(secretKey);
       return keypair;
     } catch (error) {
-      console.error('❌ فشل إنشاء wallet:', error);
+      console.error(t('wallet_creation_failed'), error);
       return null;
     }
   };
@@ -120,7 +120,7 @@ export default function StakingScreen() {
   const initSolanaConnection = async () => {
     try {
       setLoading(true);
-      console.log('🔗 بدء اتصال Solana مع العقد الحقيقي...');
+      console.log(t('starting_solana_connection'));
 
       // Setup connection
       const conn = new Connection(clusterApiUrl('devnet'), 'confirmed');
@@ -128,7 +128,7 @@ export default function StakingScreen() {
 
       // Check if wallet is available
       if (!walletAddress || !walletPrivateKey) {
-        console.warn('❌ Wallet not connected, loading real data only');
+        console.warn(t('wallet_not_connected_readonly'));
         setLoading(false);
         return;
       }
@@ -136,7 +136,7 @@ export default function StakingScreen() {
       // إنشاء wallet
       const userKeypair = createWalletFromPrivateKey();
       if (!userKeypair) {
-        console.warn('❌ فشل إنشاء wallet، جلب بيانات للقراءة فقط');
+        console.warn(t('wallet_creation_failed_readonly'));
         setLoading(false);
         return;
       }
@@ -163,7 +163,7 @@ export default function StakingScreen() {
       // إنشاء program من IDL الحقيقي
       const programInstance = new Program(IDL, PROGRAM_ID_NEW, provider);
       setProgram(programInstance);
-      console.log('✅ Program instance جاهز - IDL حقيقي');
+      console.log(t('program_instance_ready'));
 
       // Find protocol PDA
       const [protocolPDAAddress] = PublicKey.findProgramAddressSync(
@@ -176,7 +176,7 @@ export default function StakingScreen() {
       await loadStakingData(conn, userKeypair.publicKey, programInstance);
 
     } catch (error) {
-      console.error('❌ Connection error:', error);
+      console.error(t('connection_error'), error);
       // Fallback to read-only data
       await loadReadOnlyData();
     } finally {
@@ -187,10 +187,10 @@ export default function StakingScreen() {
   // Load Staking Data - REAL DATA FROM BLOCKCHAIN
   const loadStakingData = async (conn, userPublicKey, programInstance) => {
     try {
-      console.log('📊 جلب بيانات Staking حقيقية من البلوكشين...');
+      console.log(t('loading_real_staking_data'));
 
       if (!userPublicKey) {
-        console.warn('❌ لا يوجد عنوان محفظة');
+        console.warn(t('no_wallet_address'));
         await loadReadOnlyData();
         return;
       }
@@ -210,9 +210,9 @@ export default function StakingScreen() {
           ? mecoAccount.account.data.parsed.info.tokenAmount.uiAmount
           : 0;
         setBalance(mecoBalance);
-        console.log('💰 رصيد MECO حقيقي:', mecoBalance);
+        console.log(t('real_meco_balance'), mecoBalance);
       } catch (error) {
-        console.warn('❌ فشل جلب رصيد MECO:', error.message);
+        console.warn(t('failed_to_get_meco_balance'), error.message);
         setBalance(0);
       }
 
@@ -229,7 +229,7 @@ export default function StakingScreen() {
         if (stakeAccount) {
           const stakedAmount = Number(stakeAccount.amount) / 1e9; // تحويل من lamports
           setStakedAmount(stakedAmount);
-          console.log('🎯 Staked amount حقيقي:', stakedAmount);
+          console.log(t('real_staked_amount'), stakedAmount);
 
           // حساب المكافآت بناءً على وقت التثبيت
           const stakeTime = Number(stakeAccount.stakeTime);
@@ -240,7 +240,7 @@ export default function StakingScreen() {
             const dailyReward = (stakedAmount * STAKING_CONFIG.APR) / 365 / 100;
             const earnedRewards = dailyReward * (timeStaked / (24 * 60 * 60));
             setRewards(earnedRewards);
-            console.log('🎁 المكافآت المحسوبة:', earnedRewards);
+            console.log(t('calculated_rewards'), earnedRewards);
           } else {
             setRewards(0);
           }
@@ -249,13 +249,13 @@ export default function StakingScreen() {
           setRewards(0);
         }
       } catch (e) {
-        console.log('ℹ️ No staking account found - لم يسبق التثبيت');
+        console.log(t('no_staking_account_found'));
         setStakedAmount(0);
         setRewards(0);
       }
 
     } catch (error) {
-      console.error('❌ Load data error:', error);
+      console.error(t('load_data_error'), error);
       await loadReadOnlyData();
     }
   };
@@ -265,7 +265,7 @@ export default function StakingScreen() {
     try {
       if (!connection) return;
       
-      console.log('📊 جلب بيانات للقراءة فقط...');
+      console.log(t('loading_readonly_data'));
       
       // يمكن إضافة جلب بيانات عامة للعقد هنا
       // For now, set minimal data
@@ -274,7 +274,7 @@ export default function StakingScreen() {
       setRewards(0);
       
     } catch (error) {
-      console.warn('❌ Error in read-only mode:', error);
+      console.warn(t('readonly_mode_error'), error);
     }
   };
 
@@ -296,6 +296,30 @@ export default function StakingScreen() {
       monthly: monthly.toFixed(2),
       yearly: yearly.toFixed(2)
     };
+  };
+
+  // ==================== HANDLE BUTTON PRESSES ====================
+
+  // Handle Stake Button Press - ALWAYS ACTIVE
+  const handleStakePress = () => {
+    if (!walletAddress || !walletPrivateKey) {
+      Alert.alert(
+        t('start_staking'),
+        t('staking_instructions')
+      );
+      return;
+    }
+
+    if (balance <= 0) {
+      Alert.alert(
+        t('get_meco_first'),
+        t('get_meco_instructions')
+      );
+      return;
+    }
+
+    // فتح نافذة الاستثمار
+    setStakeModalVisible(true);
   };
 
   // Handle REAL Stake Transaction
@@ -335,7 +359,7 @@ export default function StakingScreen() {
 
                 const userKeypair = createWalletFromPrivateKey();
                 if (!userKeypair || !connection || !program) {
-                  throw new Error('فشل تهيئة المحفظة أو البرنامج');
+                  throw new Error(t('wallet_program_initialization_failed'));
                 }
 
                 // جلب PDA الحسابات
@@ -362,7 +386,7 @@ export default function StakingScreen() {
                 const amountLamports = Math.floor(amount * 1e9); // MECO has 9 decimals
 
                 // ✅ معاملة حقيقية على البلوكشين
-                console.log('🚀 إرسال معاملة Stake حقيقية...', {
+                console.log(t('sending_real_stake_transaction'), {
                   amount: amountLamports,
                   user: userKeypair.publicKey.toBase58(),
                   stakePDA: stakePDA.toBase58()
@@ -382,11 +406,11 @@ export default function StakingScreen() {
                   .signers([userKeypair])
                   .rpc();
 
-                console.log('✅ معاملة Stake أرسلت بنجاح:', tx);
+                console.log(t('stake_transaction_sent'), tx);
                 
                 // انتظار التأكيد
                 await connection.confirmTransaction(tx, 'confirmed');
-                console.log('✅ معاملة Stake مؤكدة');
+                console.log(t('stake_transaction_confirmed'));
 
                 // تحديث البيانات المحلية فوراً
                 setStakedAmount(prev => prev + amount);
@@ -396,17 +420,22 @@ export default function StakingScreen() {
 
                 Alert.alert(
                   t('success'),
-                  `✅ تم تثبيت ${amount} MECO بنجاح!\n\nرقم المعاملة: ${tx.substring(0, 16)}...`
+                  t('stake_success', { 
+                    amount: amount,
+                    tx: tx.substring(0, 16)
+                  })
                 );
 
                 // إعادة تحميل البيانات من البلوكشين
                 await loadStakingData(connection, userKeypair.publicKey, program);
 
               } catch (error) {
-                console.error('❌ Stake transaction error:', error);
+                console.error(t('stake_transaction_error'), error);
                 Alert.alert(
                   t('error'),
-                  `فشلت المعاملة: ${error.message || t('stake_transaction_failed')}`
+                  t('stake_transaction_failed_message', { 
+                    error: error.message || t('stake_transaction_failed')
+                  })
                 );
               } finally {
                 setLoading(false);
@@ -419,6 +448,28 @@ export default function StakingScreen() {
       console.error('Stake error:', error);
       Alert.alert(t('error'), t('stake_transaction_failed'));
     }
+  };
+
+  // Handle Unstake Button Press - ALWAYS ACTIVE
+  const handleUnstakePress = () => {
+    if (!walletAddress || !walletPrivateKey) {
+      Alert.alert(
+        t('wallet_not_connected_short'),
+        t('wallet_connection_instructions')
+      );
+      return;
+    }
+
+    if (stakedAmount <= 0) {
+      Alert.alert(
+        t('no_funds_staked'),
+        t('no_staked_funds_instructions')
+      );
+      return;
+    }
+
+    // فتح نافذة السحب
+    setUnstakeModalVisible(true);
   };
 
   // Handle REAL Unstake Transaction
@@ -453,7 +504,7 @@ export default function StakingScreen() {
 
                 const userKeypair = createWalletFromPrivateKey();
                 if (!userKeypair || !connection || !program) {
-                  throw new Error('فشل تهيئة المحفظة أو البرنامج');
+                  throw new Error(t('wallet_program_initialization_failed'));
                 }
 
                 // جلب PDA الحسابات
@@ -480,7 +531,7 @@ export default function StakingScreen() {
                 const amountLamports = Math.floor(amount * 1e9);
 
                 // ✅ معاملة حقيقية على البلوكشين
-                console.log('🚀 إرسال معاملة Unstake حقيقية...');
+                console.log(t('sending_real_unstake_transaction'));
 
                 const tx = await program.methods
                   .unstake(new BN(amountLamports))
@@ -496,11 +547,11 @@ export default function StakingScreen() {
                   .signers([userKeypair])
                   .rpc();
 
-                console.log('✅ معاملة Unstake أرسلت بنجاح:', tx);
+                console.log(t('unstake_transaction_sent'), tx);
                 
                 // انتظار التأكيد
                 await connection.confirmTransaction(tx, 'confirmed');
-                console.log('✅ معاملة Unstake مؤكدة');
+                console.log(t('unstake_transaction_confirmed'));
 
                 // تحديث البيانات المحلية فوراً
                 setStakedAmount(prev => prev - amount);
@@ -510,14 +561,18 @@ export default function StakingScreen() {
 
                 Alert.alert(
                   t('success'),
-                  `✅ تم إلغاء تثبيت ${amount} MECO بنجاح!\n\nسيكون الرصيد متاحاً بعد ${STAKING_CONFIG.UNSTAKE_PERIOD} أيام.\n\nرقم المعاملة: ${tx.substring(0, 16)}...`
+                  t('unstake_success', { 
+                    amount: amount,
+                    days: STAKING_CONFIG.UNSTAKE_PERIOD,
+                    tx: tx.substring(0, 16)
+                  })
                 );
 
                 // إعادة تحميل البيانات من البلوكشين
                 await loadStakingData(connection, userKeypair.publicKey, program);
 
               } catch (error) {
-                console.error('❌ Unstake transaction error:', error);
+                console.error(t('unstake_transaction_error'), error);
                 Alert.alert(t('error'), error.message || t('unstake_transaction_failed'));
               } finally {
                 setLoading(false);
@@ -532,11 +587,27 @@ export default function StakingScreen() {
     }
   };
 
-  // Handle Claim Rewards (العقد لا يدعم claimRewards حالياً)
-  const handleClaimRewards = async () => {
+  // Handle Claim Rewards Button Press - ALWAYS ACTIVE
+  const handleClaimRewardsPress = () => {
+    if (!walletAddress || !walletPrivateKey) {
+      Alert.alert(
+        t('wallet_not_connected_short'),
+        t('claim_rewards_instructions')
+      );
+      return;
+    }
+
+    if (rewards <= 0) {
+      Alert.alert(
+        t('no_rewards_available'),
+        t('no_rewards_instructions')
+      );
+      return;
+    }
+
     Alert.alert(
-      t('info'),
-      'ميزة claimRewards غير متوفرة في العقد الحالي. المكافآت تُحول تلقائياً عند إلغاء التثبيت (unstake).'
+      t('claim_rewards_info'),
+      t('rewards_claim_info', { rewards: rewards.toFixed(4) })
     );
   };
 
@@ -553,12 +624,15 @@ export default function StakingScreen() {
       
       if (programInfo) {
         Alert.alert(
-          '✅ اتصال ناجح',
-          `العقد الذكي نشط ومتوفر على:\n${PROGRAM_ID_NEW.toBase58().substring(0, 24)}...\n\nإصدار Solana: ${version['solana-core']}`
+          t('connection_successful'),
+          t('contract_active_available', {
+            address: PROGRAM_ID_NEW.toBase58().substring(0, 24),
+            version: version['solana-core']
+          })
         );
       }
     } catch (error) {
-      Alert.alert('❌ خطأ في الاتصال', error.message);
+      Alert.alert(t('connection_failed'), error.message);
     }
   };
 
@@ -570,7 +644,7 @@ export default function StakingScreen() {
           {t('loading_staking_data')}
         </Text>
         <Text style={[styles.contractInfo, { color: colors.textSecondary }]}>
-          Contract: {PROGRAM_ID_NEW.toBase58().substring(0, 20)}...
+          {t('contract_address')}: {PROGRAM_ID_NEW.toBase58().substring(0, 20)}...
         </Text>
       </View>
     );
@@ -604,7 +678,7 @@ export default function StakingScreen() {
             <View style={[styles.contractBadge, { backgroundColor: colors.success + '20' }]}>
               <Ionicons name="checkbox" size={14} color={colors.success} />
               <Text style={[styles.contractText, { color: colors.success }]}>
-                العقد الذكي متصل
+                {t('smart_contract_connected')}
               </Text>
             </View>
 
@@ -632,7 +706,7 @@ export default function StakingScreen() {
             </TouchableOpacity>
 
             <Text style={styles.contractId}>
-              العقد: {PROGRAM_ID_NEW.toBase58().substring(0, 16)}...
+              {t('contract_address')}: {PROGRAM_ID_NEW.toBase58().substring(0, 16)}...
             </Text>
           </View>
 
@@ -689,40 +763,40 @@ export default function StakingScreen() {
             )}
           </View>
 
-          {/* Action Buttons */}
+          {/* ==================== ACTION BUTTONS - ALWAYS ACTIVE ==================== */}
           <View style={styles.actionsContainer}>
+            {/* زر الاستثمار - دائماً نشط */}
             <TouchableOpacity
               style={[styles.actionButton, {
-                backgroundColor: balance <= 0 ? colors.border : primaryColor,
-                opacity: balance <= 0 ? 0.6 : 1
+                backgroundColor: primaryColor,
+                opacity: 1 // دائماً نشط
               }]}
-              onPress={() => setStakeModalVisible(true)}
-              disabled={balance <= 0}
+              onPress={handleStakePress}
             >
               <Ionicons name="arrow-up-circle" size={24} color="#FFFFFF" />
               <Text style={styles.actionButtonText}>{t('stake_button')}</Text>
             </TouchableOpacity>
 
+            {/* زر السحب - دائماً نشط */}
             <TouchableOpacity
               style={[styles.actionButton, {
-                backgroundColor: stakedAmount <= 0 ? colors.border : colors.card,
+                backgroundColor: colors.card,
                 borderColor: colors.border,
-                opacity: stakedAmount <= 0 ? 0.6 : 1
+                opacity: 1 // دائماً نشط
               }]}
-              onPress={() => setUnstakeModalVisible(true)}
-              disabled={stakedAmount <= 0}
+              onPress={handleUnstakePress}
             >
               <Ionicons name="arrow-down-circle" size={24} color={colors.text} />
               <Text style={[styles.actionButtonText, { color: colors.text }]}>{t('unstake_button')}</Text>
             </TouchableOpacity>
 
+            {/* زر المطالبة بالمكافآت - دائماً نشط */}
             <TouchableOpacity
               style={[styles.actionButton, {
-                backgroundColor: rewards <= 0 ? colors.border : colors.warning,
-                opacity: rewards <= 0 ? 0.6 : 1
+                backgroundColor: colors.warning,
+                opacity: 1 // دائماً نشط
               }]}
-              onPress={handleClaimRewards}
-              disabled={rewards <= 0}
+              onPress={handleClaimRewardsPress}
             >
               <Ionicons name="information-circle" size={24} color={colors.text} />
               <Text style={[styles.actionButtonText, { color: colors.text }]}>{t('claim_rewards')}</Text>
@@ -818,7 +892,7 @@ export default function StakingScreen() {
   );
 }
 
-// Modal Components (same as before)
+// Modal Components
 const StakeModal = ({ visible, onClose, colors, primaryColor, balance, stakeAmount, setStakeAmount, onStake, onMax, calculateEstimatedRewards, t }) => (
   <Modal visible={visible} transparent animationType="slide">
     <View style={styles.modalOverlay}>

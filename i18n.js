@@ -212,10 +212,111 @@ const resources = {
       official_meco_token: "رمز MECO الرسمي",
       verified_on_solana: "تم التحقق منه على شبكة سولانا",
 
-      // المفتاح المطلوب للمحفظة
+      // ========== مفاتيح جديدة من شاشة MECO ==========
+      // معلومات العقد الذكي
+      real_contract_active: "✅ العقد الحقيقي نشط",
+      solana_network_label: "شبكة Solana",
+      smart_contract_info: "معلومات العقد الذكي",
+      contract_verification: "التحقق على Solscan",
+      contract_status: "حالة العقد",
+      contract_rate: "سعر العقد",
+      price_per_sol: "1 SOL = {{rate}} MECO",
+      
+      // معلومات الرصيد
+      your_balance_label: "رصيدك",
+      needs_for_transaction: "يحتاج إلى {{amount}} SOL للمعاملة",
+      wallet_balance_zero: "❌ رصيد محفظتك 0 SOL. أضف رصيد للشراء",
+      update_balance: "تحديث",
+      
+      // بطاقة البيع المسبق
+      real_presale: "البيع المسبق الحقيقي",
+      presale_price: "1 SOL = {{rate}} MECO",
+      progress_label: "تقدم البيع المسبق",
+      progress_percentage: "{{percentage}}%",
+      sold_tokens: "مباع: {{amount}} MECO",
+      remaining_tokens: "متبقي: {{amount}} MECO",
+      total_supply: "إجمالي العرض: {{amount}} MECO",
+      
+      // إدخال المبلغ
+      enter_sol_amount_label: "أدخل مبلغ SOL",
+      sol_currency: "SOL",
+      minimum_sol: "الحد الأدنى: {{amount}} SOL",
+      maximum_sol: "الحد الأقصى: {{amount}} SOL",
+      
+      // حسابات الشراء
+      you_will_send_label: "سترسل:",
+      transaction_fee_label: "رسوم المعاملة:",
+      you_will_receive_label: "ستحصل على:",
+      calculation_price: "السعر: 1 SOL = {{rate}} MECO",
+      
+      // زر الشراء
+      buy_button: "شراء",
+      presale_paused: "البيع متوقف مؤقتاً",
+      real_transactions_notice: "✅ معاملات حقيقية على شبكة Solana Devnet",
+      
+      // إحصائيات الرمز
+      token_stats: "إحصائيات الرمز",
+      circulating_supply_label: "العرض المتداول",
+      decimal_places: "المنازل العشرية",
+      
+      // الروابط الرسمية
+      official_links_label: "الروابط الرسمية",
+      view_on_solscan_label: "عرض على Solscan",
+      token_analysis: "تحليل مفصل للرمزي",
+      telegram_channel_label: "قناة تلغرام",
+      official_community_label: "المجتمع الرسمي",
+      twitter_account_label: "حساب تويتر",
+      follow_for_updates_label: "تابع للتحديثات",
+      official_website_label: "الموقع الرسمي",
+      learn_more_about_meco_label: "تعرف أكثر على MECO",
+      github_repository: "مستودع GitHub",
+      presale_funds_transparency: "شفافية أموال البيع المسبق",
+      
+      // تذييل الصفحة
+      verified_official_token: "تم التحقق على Solana • العقد الذكي الحقيقي نشط",
+      
+      // نافذة التأكيد
+      transaction_confirmation: "تأكيد الشراء",
+      you_will_send_amount: "سوف ترسل {{amount}} SOL",
+      transaction_rate: "السعر: 1 SOL = {{rate}} MECO",
+      you_will_receive_amount: "ستحصل على: {{amount}} MECO",
+      contract_address_short: "العقد: {{address}}...",
+      processing_transaction_label: "جاري معالجة المعاملة...",
+      via_real_contract: "عبر العقد الحقيقي",
+      cancel_button: "إلغاء",
+      confirm_payment: "تأكيد الدفع",
+      purchase_successful: "تم الشراء بنجاح",
+      purchase_failed: "فشلت المعاملة",
+      purchased_amount: "تم شراء: {{amount}} MECO",
+      via_real_contract_full: "عبر العقد الحقيقي: {{address}}...",
+      view_on_solscan_button: "عرض على Solscan",
+      transaction_success_message: "✅ تم شراء {{mecoAmount}} MECO بنجاح!\n\nتم دفع: {{solAmount}} SOL\n\nرقم المعاملة: {{txId}}...",
+      
+      // رسائل الخطأ
+      wallet_not_available: "المحفظة غير متاحة. يرجى المحاولة مرة أخرى.",
+      insufficient_wallet_balance: "❌ رصيد محفظتك هو 0 SOL. يرجى إضافة رصيد SOL أولاً ثم المحاولة مرة أخرى.",
+      insufficient_balance_with_fee: "❌ رصيدك الحالي: {{currentBalance}} SOL\nالمبلغ المطلوب: {{requiredAmount}} SOL\n\nيرجى إضافة رصيد إضافي إلى محفظتك.",
+      below_minimum: "خطأ",
+      below_minimum_message: "الحد الأدنى للشراء: {{minAmount}} SOL",
+      above_maximum: "خطأ",
+      above_maximum_message: "الحد الأقصى للشراء: {{maxAmount}} SOL",
+      contract_not_initialized: "لم يتم تهيئة العقد الذكي",
+      presale_inactive: "معلق",
+      presale_inactive_message: "البيع المسبق متوقف مؤقتاً",
+      transaction_failed_message: "فشلت المعاملة: {{error}}",
+      wallet_initialization_failed: "❌ فشل إنشاء wallet:",
+      contract_initialization_error: "❌ خطأ في تهيئة العقد:",
+      presale_fetch_error: "❌ خطأ في جلب بيانات البيع المسبق:",
+      connection_error: "❌ خطأ في جلب بيانات البيع المسبق:",
+      
+      // مفاتيح متنوعة
+      confirm: "تأكيد",
+      close_modal: "إغلاق",
+      ok_button: "موافق",
+      share_token_info: "شارك معلومات الرمز",
+      
+      // ========== مفاتيح Staking الجديدة ==========
       staking: "استثمار",
-
-      // ========== مفاتيح Staking ==========
       stake_title: "استثمار MECO",
       stake_subtitle: "اكسب دخل سلبي ودعم شبكة MECO",
       annual_percentage_rate: "النسبة السنوية",
@@ -267,6 +368,31 @@ const resources = {
       confirm_stake_button: "تأكيد الاستثمار",
       confirm_unstake_button: "تأكيد السحب",
       info: "معلومات",
+      
+      // رسائل توجيهية للستيكينغ
+      start_staking: "🚀 ابدأ الاستثمار",
+      get_meco_first: "🔄 احصل على MECO أولاً",
+      wallet_not_connected_short: "🔗 المحفظة غير متصلة",
+      no_funds_staked: "💼 لا توجد أموال مستثمرة",
+      claim_rewards_info: "🎁 المطالبة بالمكافآت",
+      no_rewards_available: "⏳ لا توجد مكافآت متاحة",
+      real_transactions_active: "✅ معاملات حقيقية على Solana",
+      
+      // إرشادات الستيكينغ
+      staking_instructions: "لبدء الاستثمار في MECO، يرجى توصيل محفظتك أولاً.\n\n1. تأكد من أن لديك محفظة نشطة\n2. احصل على رصيد MECO للاستثمار\n3. ابدأ برحلة الاستثمار وحقق أرباحاً يومية",
+      get_meco_instructions: "لا تملك رصيداً من MECO للاستثمار.\n\nللحصول على MECO:\n1. انتقل إلى شاشة MECO\n2. اشترِ MECO من البيع المسبق\n3. عد إلى هذه الشاشة لبدء الاستثمار\n\nيمكنك شراء MECO بسعر مخفض من البيع المسبق!",
+      wallet_connection_instructions: "يجب توصيل محفظتك أولاً لسحب الأموال.\n\n1. تأكد من أن محفظتك متصلة\n2. تحقق من اتصالك بشبكة Solana\n3. حاول مرة أخرى",
+      no_staked_funds_instructions: "لم تقم باستثمار أي أموال حتى الآن.\n\nللسحب، يجب أن:\n1. تستثمر MECO أولاً\n2. تنتظر فترة الاستثمار\n3. ثم يمكنك سحب أموالك\n\nابدأ الاستثمار الآن لتحقيق أرباح يومية!",
+      claim_rewards_instructions: "توصيل المحفظة مطلوب للمطالبة بالمكافآت.\n\n1. قم بتوصيل محفظتك\n2. تأكد من اتصال العقد الذكي\n3. حاول مرة أخرى",
+      no_rewards_instructions: "ليس لديك مكافآت جادة للمطالبة حالياً.\n\nلتراكم المكافآت:\n1. استثمر MECO أولاً\n2. انتظر لتراكم المكافآت اليومية\n3. المكافآت تتراكم تلقائياً مع الوقت\n\nيمكنك المطالبة بالمكافآت عندما تصل إلى الحد الأدنى",
+      rewards_claim_info: "لديك {{rewards}} MECO مكافآت متاحة.\n\nفي العقد الحالي، المكافآت تُحول تلقائياً عند إلغاء التثبيت (Unstake).\n\nلتحصيل مكافآتك:\n1. قم بإلغاء تثبيت جزء من أموالك\n2. ستحصل على أموالك + المكافآت المتراكمة\n3. يمكنك استثمارها مرة أخرى لزيادة الأرباح",
+      
+      // مفاتيح إضافية للعقود
+      smart_contract_connected: "العقد الذكي متصل",
+      connection_successful: "✅ اتصال ناجح",
+      connection_failed: "❌ خطأ في الاتصال",
+      contract_address: "عنوان العقد",
+      contract_active_available: "العقد الذكي نشط ومتوفر على:\n{{address}}...\n\nإصدار Solana: {{version}}",
 
       // ========== مفاتيح Market ==========
       market_title: "سوق العملات",
@@ -493,10 +619,111 @@ const resources = {
       official_meco_token: "Official MECO Token",
       verified_on_solana: "Verified on Solana network",
 
-      // المفتاح المطلوب للمحفظة
-      staking: "Staking",
+      // ========== New Keys from MECO Screen ==========
+      // Smart Contract Info
+      real_contract_active: "✅ Real Contract Active",
+      solana_network_label: "Solana Network",
+      smart_contract_info: "Smart Contract Information",
+      contract_verification: "Verify on Solscan",
+      contract_status: "Contract Status",
+      contract_rate: "Contract Rate",
+      price_per_sol: "1 SOL = {{rate}} MECO",
+      
+      // Balance Information
+      your_balance_label: "Your Balance",
+      needs_for_transaction: "Needs {{amount}} SOL for transaction",
+      wallet_balance_zero: "❌ Your wallet balance is 0 SOL. Add balance to purchase",
+      update_balance: "Refresh",
+      
+      // Presale Card
+      real_presale: "Real Presale",
+      presale_price: "1 SOL = {{rate}} MECO",
+      progress_label: "Presale Progress",
+      progress_percentage: "{{percentage}}%",
+      sold_tokens: "Sold: {{amount}} MECO",
+      remaining_tokens: "Remaining: {{amount}} MECO",
+      total_supply: "Total Supply: {{amount}} MECO",
+      
+      // Amount Input
+      enter_sol_amount_label: "Enter SOL Amount",
+      sol_currency: "SOL",
+      minimum_sol: "Minimum: {{amount}} SOL",
+      maximum_sol: "Maximum: {{amount}} SOL",
+      
+      // Purchase Calculations
+      you_will_send_label: "You will send:",
+      transaction_fee_label: "Transaction Fee:",
+      you_will_receive_label: "You will receive:",
+      calculation_price: "Price: 1 SOL = {{rate}} MECO",
+      
+      // Buy Button
+      buy_button: "Buy",
+      presale_paused: "Presale Paused",
+      real_transactions_notice: "✅ Real transactions on Solana Devnet",
+      
+      // Token Statistics
+      token_stats: "Token Statistics",
+      circulating_supply_label: "Circulating Supply",
+      decimal_places: "Decimal Places",
+      
+      // Official Links
+      official_links_label: "Official Links",
+      view_on_solscan_label: "View on Solscan",
+      token_analysis: "Detailed Token Analysis",
+      telegram_channel_label: "Telegram Channel",
+      official_community_label: "Official Community",
+      twitter_account_label: "Twitter Account",
+      follow_for_updates_label: "Follow for Updates",
+      official_website_label: "Official Website",
+      learn_more_about_meco_label: "Learn more about MECO",
+      github_repository: "GitHub Repository",
+      presale_funds_transparency: "Presale Funds Transparency",
+      
+      // Page Footer
+      verified_official_token: "Verified on Solana • Real Smart Contract Active",
+      
+      // Confirmation Modal
+      transaction_confirmation: "Confirm Purchase",
+      you_will_send_amount: "You will send {{amount}} SOL",
+      transaction_rate: "Price: 1 SOL = {{rate}} MECO",
+      you_will_receive_amount: "You will receive: {{amount}} MECO",
+      contract_address_short: "Contract: {{address}}...",
+      processing_transaction_label: "Processing transaction...",
+      via_real_contract: "Via Real Contract",
+      cancel_button: "Cancel",
+      confirm_payment: "Confirm Payment",
+      purchase_successful: "Purchase Successful",
+      purchase_failed: "Transaction Failed",
+      purchased_amount: "Purchased: {{amount}} MECO",
+      via_real_contract_full: "Via Real Contract: {{address}}...",
+      view_on_solscan_button: "View on Solscan",
+      transaction_success_message: "✅ Purchased {{mecoAmount}} MECO successfully!\n\nPaid: {{solAmount}} SOL\n\nTransaction ID: {{txId}}...",
+      
+      // Error Messages
+      wallet_not_available: "Wallet not available. Please try again.",
+      insufficient_wallet_balance: "❌ Your wallet balance is 0 SOL. Please add SOL balance first then try again.",
+      insufficient_balance_with_fee: "❌ Your current balance: {{currentBalance}} SOL\nRequired amount: {{requiredAmount}} SOL\n\nPlease add additional balance to your wallet.",
+      below_minimum: "Error",
+      below_minimum_message: "Minimum purchase: {{minAmount}} SOL",
+      above_maximum: "Error",
+      above_maximum_message: "Maximum purchase: {{maxAmount}} SOL",
+      contract_not_initialized: "Smart contract not initialized",
+      presale_inactive: "Paused",
+      presale_inactive_message: "Presale is temporarily suspended",
+      transaction_failed_message: "Transaction failed: {{error}}",
+      wallet_initialization_failed: "❌ Failed to create wallet:",
+      contract_initialization_error: "❌ Error initializing contract:",
+      presale_fetch_error: "❌ Error fetching presale data:",
+      connection_error: "❌ Error fetching presale data:",
+      
+      // Miscellaneous Keys
+      confirm: "Confirm",
+      close_modal: "Close",
+      ok_button: "OK",
+      share_token_info: "Share Token Info",
 
-      // ========== Staking Keys ==========
+      // ========== New Staking Keys ==========
+      staking: "Staking",
       stake_title: "Staking MECO",
       stake_subtitle: "Earn passive income & support MECO network",
       annual_percentage_rate: "Annual Percentage Rate",
@@ -548,6 +775,31 @@ const resources = {
       confirm_stake_button: "Confirm Stake",
       confirm_unstake_button: "Confirm Unstake",
       info: "Info",
+      
+      // Staking guidance messages
+      start_staking: "🚀 Start Staking",
+      get_meco_first: "🔄 Get MECO First",
+      wallet_not_connected_short: "🔗 Wallet Not Connected",
+      no_funds_staked: "💼 No Funds Staked",
+      claim_rewards_info: "🎁 Claim Rewards",
+      no_rewards_available: "⏳ No Rewards Available",
+      real_transactions_active: "✅ Real transactions on Solana",
+      
+      // Staking instructions
+      staking_instructions: "To start staking MECO, please connect your wallet first.\n\n1. Make sure you have an active wallet\n2. Get MECO balance for staking\n3. Start your staking journey and earn daily profits",
+      get_meco_instructions: "You don't have MECO balance for staking.\n\nTo get MECO:\n1. Go to MECO screen\n2. Buy MECO from presale\n3. Return to this screen to start staking\n\nYou can buy MECO at a discounted price from the presale!",
+      wallet_connection_instructions: "You must connect your wallet first to withdraw funds.\n\n1. Make sure your wallet is connected\n2. Check your connection to Solana network\n3. Try again",
+      no_staked_funds_instructions: "You haven't staked any funds yet.\n\nTo withdraw, you must:\n1. Stake MECO first\n2. Wait for the staking period\n3. Then you can withdraw your funds\n\nStart staking now to earn daily profits!",
+      claim_rewards_instructions: "Wallet connection is required to claim rewards.\n\n1. Connect your wallet\n2. Make sure smart contract is connected\n3. Try again",
+      no_rewards_instructions: "You don't have any rewards ready to claim at the moment.\n\nTo accumulate rewards:\n1. Stake MECO first\n2. Wait for daily rewards to accumulate\n3. Rewards accumulate automatically over time\n\nYou can claim rewards when you reach the minimum",
+      rewards_claim_info: "You have {{rewards}} MECO rewards available.\n\nIn the current contract, rewards are automatically transferred when you unstake.\n\nTo collect your rewards:\n1. Unstake a portion of your funds\n2. You'll receive your funds + accumulated rewards\n3. You can stake them again to increase profits",
+      
+      // Additional contract keys
+      smart_contract_connected: "Smart Contract Connected",
+      connection_successful: "✅ Connection Successful",
+      connection_failed: "❌ Connection Failed",
+      contract_address: "Contract Address",
+      contract_active_available: "Smart contract is active and available on:\n{{address}}...\n\nSolana version: {{version}}",
 
       // ========== Market Keys ==========
       market_title: "Market",
