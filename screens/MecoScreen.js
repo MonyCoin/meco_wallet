@@ -73,12 +73,12 @@ export default function MecoScreen() {
   const [transactionResult, setTransactionResult] = useState(null);
 
   const [presaleData, setPresaleData] = useState({
-    totalTokens: 0,
+    totalTokens: 50000000,
     soldTokens: 0,
-    minSOL: 0,
-    maxSOL: 0,
-    rate: 0,
-    isActive: false,
+    minSOL: 0.05,
+    maxSOL: 1,
+    rate: 250000,
+    isActive: true,
   });
 
   const [protocolData, setProtocolData] = useState(null);
@@ -132,7 +132,7 @@ export default function MecoScreen() {
       setUserSOLBalance(0);
       setPresaleData({
         totalTokens: 50000000,
-        soldTokens: 12500000,
+        soldTokens: 0,
         minSOL: 0.05,
         maxSOL: 1,
         rate: 250000,
@@ -188,7 +188,10 @@ export default function MecoScreen() {
   };
 
   const fetchUserBalance = async () => {
-    if (!currentWallet) return;
+    if (!currentWallet) {
+      setUserSOLBalance(0);
+      return;
+    }
     const balance = await getSOLBalance(currentWallet);
     setUserSOLBalance(balance || 0);
   };
@@ -201,13 +204,11 @@ export default function MecoScreen() {
   // ✅ جلب بيانات البيع المسبق الحقيقية
   const fetchPresaleData = async () => {
     try {
-      setLoading(true);
-      
       if (!program) {
         // استخدام بيانات افتراضية للقراءة فقط
         setPresaleData({
           totalTokens: 50000000,
-          soldTokens: 12500000,
+          soldTokens: 0,
           minSOL: 0.05,
           maxSOL: 1,
           rate: 250000,
@@ -242,14 +243,12 @@ export default function MecoScreen() {
       console.error('❌ خطأ في جلب بيانات البيع المسبق:', error);
       setPresaleData({
         totalTokens: 50000000,
-        soldTokens: 12500000,
+        soldTokens: 0,
         minSOL: 0.05,
         maxSOL: 1,
         rate: 250000,
         isActive: true,
       });
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -307,34 +306,55 @@ export default function MecoScreen() {
     const sol = parseFloat(solAmount) || 0;
     const totalWithFee = sol + transactionFee;
 
+    // ✅ التحقق من وجود محفظة (في تطبيق حقيقي يجب أن تكون موجودة دائماً)
     if (!currentWallet) {
-      Alert.alert(t('error'), t('connect_wallet_first'));
+      Alert.alert('خطأ', 'المحفظة غير متاحة. يرجى المحاولة مرة أخرى.');
       return;
     }
 
-    if (sol < presaleData.minSOL) {
-      Alert.alert(t('error'), `${t('minimum_amount')}: ${presaleData.minSOL} SOL`);
-      return;
-    }
-
-    if (sol > presaleData.maxSOL) {
-      Alert.alert(t('error'), `${t('maximum_amount')}: ${presaleData.maxSOL} SOL`);
-      return;
-    }
-
-    if (totalWithFee > userSOLBalance) {
+    // ✅ التحقق من رصيد المحفظة - هذا هو الجزء الأهم
+    if (userSOLBalance === 0) {
       Alert.alert(
-        t('error'),
-        `${t('insufficient_balance')}\n${t('you_need')} ${totalWithFee.toFixed(6)} SOL`
+        'رصيد غير كافي', 
+        '❌ رصيد محفظتك هو 0 SOL. يرجى إضافة رصيد SOL أولاً ثم المحاولة مرة أخرى.'
       );
       return;
     }
 
-    if (!program || !provider) {
-      Alert.alert(t('error'), t('contract_not_initialized'));
+    // ✅ التحقق من الحد الأدنى
+    if (sol < presaleData.minSOL) {
+      Alert.alert('خطأ', `الحد الأدنى للشراء: ${presaleData.minSOL} SOL`);
       return;
     }
 
+    // ✅ التحقق من الحد الأقصى
+    if (sol > presaleData.maxSOL) {
+      Alert.alert('خطأ', `الحد الأقصى للشراء: ${presaleData.maxSOL} SOL`);
+      return;
+    }
+
+    // ✅ التحقق من كفاية الرصيد مع الرسوم
+    if (totalWithFee > userSOLBalance) {
+      Alert.alert(
+        'رصيد غير كافي',
+        `❌ رصيدك الحالي: ${userSOLBalance.toFixed(6)} SOL\nالمبلغ المطلوب: ${totalWithFee.toFixed(6)} SOL\n\nيرجى إضافة رصيد إضافي إلى محفظتك.`
+      );
+      return;
+    }
+
+    // ✅ التحقق من تهيئة العقد
+    if (!program || !provider) {
+      Alert.alert('خطأ', 'لم يتم تهيئة العقد الذكي');
+      return;
+    }
+
+    // ✅ التحقق من نشاط البيع المسبق
+    if (!presaleData.isActive) {
+      Alert.alert('معلق', 'البيع المسبق متوقف مؤقتاً');
+      return;
+    }
+
+    // ✅ كل الشروط متوفرة - عرض نافذة التأكيد
     setTransactionResult(null);
     setShowConfirmModal(true);
   };
@@ -407,7 +427,7 @@ export default function MecoScreen() {
       const result = {
         success: true,
         mecoReceived: expectedMeco,
-        message: t('purchase_successful'),
+        message: '✅ تم الشراء بنجاح',
         txid: tx,
         amount: sol,
       };
@@ -415,15 +435,15 @@ export default function MecoScreen() {
       setTransactionResult(result);
 
       Alert.alert(
-        t('success'),
+        'نجاح',
         `✅ تم شراء ${expectedMeco.toLocaleString()} MECO بنجاح!\n\nتم دفع: ${sol} SOL\n\nرقم المعاملة: ${tx.substring(0, 16)}...`,
         [
           {
-            text: t('view_on_solscan'),
+            text: 'عرض على Solscan',
             onPress: () => openURL(`https://solscan.io/tx/${tx}?cluster=devnet`),
           },
           {
-            text: t('ok'),
+            text: 'موافق',
             onPress: () => {
               setShowConfirmModal(false);
               setTransactionLoading(false);
@@ -437,16 +457,16 @@ export default function MecoScreen() {
       
       const result = {
         success: false,
-        message: error.message || t('transaction_failed'),
+        message: '❌ فشلت المعاملة',
         error: error.toString(),
       };
 
       setTransactionResult(result);
       
       Alert.alert(
-        t('error'),
-        `فشلت المعاملة: ${error.message || t('transaction_failed')}`,
-        [{ text: t('ok') }]
+        'خطأ',
+        `فشلت المعاملة: ${error.message || 'حدث خطأ غير معروف'}`,
+        [{ text: 'موافق' }]
       );
     } finally {
       setTransactionLoading(false);
@@ -454,7 +474,7 @@ export default function MecoScreen() {
   };
 
   const formatNumber = (num) => {
-    if (num === null || num === undefined) return t('not_available');
+    if (num === null || num === undefined) return 'غير متوفر';
 
     const absNum = Math.abs(num);
     if (absNum >= 1000000000) {
@@ -475,6 +495,7 @@ export default function MecoScreen() {
     outputRange: ['0deg', '360deg']
   });
 
+  // ✅ شريط التقدم يعكس البيانات الحقيقية فقط - إذا كان soldTokens = 0 سيكون فارغاً
   const progress = presaleData.totalTokens > 0 
     ? (presaleData.soldTokens / presaleData.totalTokens) * 100 
     : 0;
@@ -515,7 +536,7 @@ export default function MecoScreen() {
             <View style={[styles.networkBadge, { backgroundColor: colors.solana + '20' }]}>
               <MaterialCommunityIcons name="link-variant" size={12} color={colors.solana} />
               <Text style={[styles.networkText, { color: colors.solana }]}>
-                {t('solana_network')}
+                شبكة Solana
               </Text>
             </View>
           </View>
@@ -566,21 +587,23 @@ export default function MecoScreen() {
       {currentWallet && (
         <View style={[styles.balanceCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <View style={styles.balanceHeader}>
-            <MaterialCommunityIcons name="wallet" size={24} color={colors.success} />
-            <Text style={[styles.balanceTitle, { color: colors.text }]}>{t('your_balance')}</Text>
+            <MaterialCommunityIcons name="wallet" size={24} color={userSOLBalance > 0 ? colors.success : colors.danger} />
+            <Text style={[styles.balanceTitle, { color: colors.text }]}>رصيدك</Text>
           </View>
-          <Text style={[styles.balanceAmount, { color: colors.text }]}>
+          <Text style={[styles.balanceAmount, { color: userSOLBalance > 0 ? colors.success : colors.danger }]}>
             {formatNumber(userSOLBalance)} SOL
           </Text>
           <Text style={[styles.balanceSubtext, { color: colors.textSecondary }]}>
-            (يحتاج إلى: {totalWithFee.toFixed(6)} SOL للمعاملة)
+            {userSOLBalance > 0 
+              ? `(يحتاج إلى: ${totalWithFee.toFixed(6)} SOL للمعاملة)` 
+              : '❌ رصيد محفظتك 0 SOL. أضف رصيد للشراء'}
           </Text>
           <TouchableOpacity
             onPress={fetchUserBalance}
             style={[styles.refreshButton, { backgroundColor: colors.background }]}
           >
             <Ionicons name="refresh" size={16} color={colors.textSecondary} />
-            <Text style={[styles.refreshText, { color: colors.textSecondary }]}>{t('refresh')}</Text>
+            <Text style={[styles.refreshText, { color: colors.textSecondary }]}>تحديث</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -594,7 +617,7 @@ export default function MecoScreen() {
         <View style={styles.presaleHeader}>
           <View>
             <Text style={[styles.presaleLabel, { color: colors.text }]}>
-              {t('buy_meco')}
+              شراء MECO
             </Text>
             <View style={styles.sourceBadge}>
               <MaterialCommunityIcons name="sale" size={12} color={colors.success} />
@@ -611,11 +634,11 @@ export default function MecoScreen() {
           </View>
         </View>
 
-        {/* شريط التقدم الحقيقي */}
+        {/* ✅ شريط التقدم الحقيقي - يعكس البيانات الحقيقية فقط */}
         <View style={styles.progressSection}>
           <View style={styles.progressHeader}>
             <Text style={[styles.progressText, { color: colors.text }]}>
-              {t('presale_progress')}
+              تقدم البيع المسبق
             </Text>
             <Text style={[styles.progressText, { color: colors.text }]}>
               {progress.toFixed(1)}%
@@ -627,17 +650,17 @@ export default function MecoScreen() {
                 styles.progressFill,
                 {
                   width: `${progress}%`,
-                  backgroundColor: primaryColor
+                  backgroundColor: progress > 0 ? primaryColor : 'transparent'
                 }
               ]}
             />
           </View>
           <View style={styles.progressStats}>
             <Text style={[styles.progressStat, { color: colors.textSecondary }]}>
-              {t('sold')}: {formatNumber(presaleData.soldTokens)} MECO
+              مباع: {formatNumber(presaleData.soldTokens)} MECO
             </Text>
             <Text style={[styles.progressStat, { color: colors.textSecondary }]}>
-              {t('remaining')}: {formatNumber(remainingTokens)} MECO
+              متبقي: {formatNumber(remainingTokens)} MECO
             </Text>
           </View>
           <Text style={[styles.progressNote, { color: colors.textSecondary }]}>
@@ -648,7 +671,7 @@ export default function MecoScreen() {
         {/* إدخال المبلغ */}
         <View style={styles.amountSection}>
           <Text style={[styles.amountLabel, { color: colors.text }]}>
-            {t('enter_sol_amount')}
+            أدخل مبلغ SOL
           </Text>
           <View style={[styles.inputContainer, { borderColor: colors.border }]}>
             <TextInput
@@ -676,14 +699,14 @@ export default function MecoScreen() {
               setSolAmount(presaleData.minSOL.toString());
             }}>
               <Text style={[styles.limitText, { color: colors.textSecondary }]}>
-                {t('minimum_amount')}: {presaleData.minSOL} SOL
+                الحد الأدنى: {presaleData.minSOL} SOL
               </Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => {
               setSolAmount(presaleData.maxSOL.toString());
             }}>
               <Text style={[styles.limitText, { color: colors.textSecondary }]}>
-                {t('maximum_amount')}: {presaleData.maxSOL} SOL
+                الحد الأقصى: {presaleData.maxSOL} SOL
               </Text>
             </TouchableOpacity>
           </View>
@@ -693,7 +716,7 @@ export default function MecoScreen() {
         <View style={[styles.calculationSection, { backgroundColor: colors.info + '10' }]}>
           <View style={styles.calculationRow}>
             <Text style={[styles.calculationLabel, { color: colors.text }]}>
-              {t('you_send')}:
+              سترسل:
             </Text>
             <Text style={[styles.calculationValue, { color: colors.text }]}>
               {solAmount} SOL
@@ -701,7 +724,7 @@ export default function MecoScreen() {
           </View>
           <View style={styles.calculationRow}>
             <Text style={[styles.calculationLabel, { color: colors.text }]}>
-              {t('transaction_fee')}:
+              رسوم المعاملة:
             </Text>
             <Text style={[styles.calculationValue, { color: colors.warning }]}>
               {formatNumber(transactionFee)} SOL
@@ -710,7 +733,7 @@ export default function MecoScreen() {
           <View style={[styles.separator, { backgroundColor: colors.border }]} />
           <View style={styles.calculationRow}>
             <Text style={[styles.calculationLabel, { color: colors.text }]}>
-              {t('you_receive')}:
+              ستحصل على:
             </Text>
             <Text style={[styles.calculationValue, { color: primaryColor, fontSize: 20 }]}>
               {mecoAmount.toLocaleString()} MECO
@@ -718,7 +741,7 @@ export default function MecoScreen() {
           </View>
           <View style={styles.calculationRow}>
             <Text style={[styles.calculationLabel, { color: colors.textSecondary, fontSize: 12 }]}>
-              {t('rate')}:
+              السعر:
             </Text>
             <Text style={[styles.calculationValue, { color: colors.textSecondary, fontSize: 12 }]}>
               1 SOL = {formatNumber(presaleData.rate)} MECO
@@ -726,14 +749,14 @@ export default function MecoScreen() {
           </View>
         </View>
 
-        {/* زر الشراء */}
+        {/* ✅ زر الشراء - الآن يعمل في كل الحالات */}
         <TouchableOpacity
           style={[styles.buyButton, {
-            backgroundColor: currentWallet ? primaryColor : colors.textSecondary,
-            opacity: currentWallet ? 1 : 0.6
+            backgroundColor: presaleData.isActive ? primaryColor : colors.textSecondary,
+            opacity: presaleData.isActive ? 1 : 0.6
           }]}
           onPress={handleBuyPress}
-          disabled={!currentWallet || transactionLoading || loading || !presaleData.isActive}
+          disabled={transactionLoading || loading || !presaleData.isActive}
         >
           {transactionLoading || loading ? (
             <ActivityIndicator color="#FFFFFF" />
@@ -741,8 +764,7 @@ export default function MecoScreen() {
             <>
               <MaterialCommunityIcons name="shopping" size={24} color="#FFFFFF" />
               <Text style={styles.buyButtonText}>
-                {!presaleData.isActive ? 'البيع متوقف مؤقتاً' : 
-                 currentWallet ? t('buy_meco_now') : t('connect_wallet_to_buy')}
+                {!presaleData.isActive ? 'البيع متوقف مؤقتاً' : 'شراء'}
               </Text>
             </>
           )}
@@ -760,7 +782,7 @@ export default function MecoScreen() {
       {/* إحصائيات الرمز */}
       <View style={styles.statsSection}>
         <Text style={[styles.sectionTitle, { color: colors.text }]}>
-          {t('token_statistics')}
+          إحصائيات الرمز
         </Text>
 
         <View style={styles.statsGrid}>
@@ -769,7 +791,7 @@ export default function MecoScreen() {
               <MaterialIcons name="account-balance-wallet" size={20} color={colors.info} />
             </View>
             <View style={styles.infoContent}>
-              <Text style={[styles.infoTitle, { color: colors.textSecondary }]}>{t('circulating_supply')}</Text>
+              <Text style={[styles.infoTitle, { color: colors.textSecondary }]}>العرض المتداول</Text>
               <Text style={[styles.infoValue, { color: colors.text }]}>{formatNumber(tokenInfo.supply)}</Text>
             </View>
           </View>
@@ -779,7 +801,7 @@ export default function MecoScreen() {
               <MaterialIcons name="numbers" size={20} color={colors.warning} />
             </View>
             <View style={styles.infoContent}>
-              <Text style={[styles.infoTitle, { color: colors.textSecondary }]}>{t('decimals')}</Text>
+              <Text style={[styles.infoTitle, { color: colors.textSecondary }]}>المنازل العشرية</Text>
               <Text style={[styles.infoValue, { color: colors.text }]}>{tokenInfo.decimals}</Text>
             </View>
           </View>
@@ -789,7 +811,7 @@ export default function MecoScreen() {
       {/* الروابط الرسمية */}
       <View style={styles.linksSection}>
         <Text style={[styles.sectionTitle, { color: colors.text }]}>
-          {t('official_links')}
+          الروابط الرسمية
         </Text>
 
         <View style={[styles.linksCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -802,8 +824,8 @@ export default function MecoScreen() {
               <MaterialCommunityIcons name="link-variant" size={22} color={colors.solana} />
             </View>
             <View style={styles.linkContent}>
-              <Text style={[styles.linkTitle, { color: colors.text }]}>{t('view_on_solscan')}</Text>
-              <Text style={[styles.linkSubtitle, { color: colors.textSecondary }]}>{t('detailed_token_analysis')}</Text>
+              <Text style={[styles.linkTitle, { color: colors.text }]}>عرض على Solscan</Text>
+              <Text style={[styles.linkSubtitle, { color: colors.textSecondary }]}>تحليل مفصل للرمزي</Text>
             </View>
             <Ionicons name="chevron-forward" size={24} color={colors.textSecondary} />
           </TouchableOpacity>
@@ -817,8 +839,8 @@ export default function MecoScreen() {
               <FontAwesome name="telegram" size={22} color="#0088cc" />
             </View>
             <View style={styles.linkContent}>
-              <Text style={[styles.linkTitle, { color: colors.text }]}>{t('telegram_channel')}</Text>
-              <Text style={[styles.linkSubtitle, { color: colors.textSecondary }]}>{t('official_community')}</Text>
+              <Text style={[styles.linkTitle, { color: colors.text }]}>قناة تلغرام</Text>
+              <Text style={[styles.linkSubtitle, { color: colors.textSecondary }]}>المجتمع الرسمي</Text>
             </View>
             <Ionicons name="chevron-forward" size={24} color={colors.textSecondary} />
           </TouchableOpacity>
@@ -832,8 +854,8 @@ export default function MecoScreen() {
               <FontAwesome name="twitter" size={22} color="#1DA1F2" />
             </View>
             <View style={styles.linkContent}>
-              <Text style={[styles.linkTitle, { color: colors.text }]}>{t('twitter_account')}</Text>
-              <Text style={[styles.linkSubtitle, { color: colors.textSecondary }]}>{t('follow_for_updates')}</Text>
+              <Text style={[styles.linkTitle, { color: colors.text }]}>حساب تويتر</Text>
+              <Text style={[styles.linkSubtitle, { color: colors.textSecondary }]}>تابع للتحديثات</Text>
             </View>
             <Ionicons name="chevron-forward" size={24} color={colors.textSecondary} />
           </TouchableOpacity>
@@ -847,8 +869,8 @@ export default function MecoScreen() {
               <FontAwesome name="globe" size={22} color={primaryColor} />
             </View>
             <View style={styles.linkContent}>
-              <Text style={[styles.linkTitle, { color: colors.text }]}>{t('official_website')}</Text>
-              <Text style={[styles.linkSubtitle, { color: colors.textSecondary }]}>{t('learn_more_about_meco')}</Text>
+              <Text style={[styles.linkTitle, { color: colors.text }]}>الموقع الرسمي</Text>
+              <Text style={[styles.linkSubtitle, { color: colors.textSecondary }]}>تعرف أكثر على MECO</Text>
             </View>
             <Ionicons name="chevron-forward" size={24} color={colors.textSecondary} />
           </TouchableOpacity>
@@ -862,9 +884,9 @@ export default function MecoScreen() {
               <FontAwesome name="github" size={22} color="#333333" />
             </View>
             <View style={styles.linkContent}>
-              <Text style={[styles.linkTitle, { color: colors.text }]}>{t('github_repository')}</Text>
+              <Text style={[styles.linkTitle, { color: colors.text }]}>مستودع GitHub</Text>
               <Text style={[styles.linkSubtitle, { color: colors.textSecondary }]}>
-                {t('presale_funds_transparency')}
+                شفافية أموال البيع المسبق
               </Text>
             </View>
             <Ionicons name="chevron-forward" size={24} color={colors.textSecondary} />
@@ -880,10 +902,10 @@ export default function MecoScreen() {
       }]}>
         <MaterialCommunityIcons name="shield-check" size={30} color={colors.success} />
         <Text style={[styles.footerText, { color: colors.text }]}>
-          {t('official_meco_token')}
+          رمز MECO الرسمي
         </Text>
         <Text style={[styles.footerSubText, { color: colors.textSecondary }]}>
-          {t('verified_on_solana')} • العقد الذكي الحقيقي نشط
+          تم التحقق على Solana • العقد الذكي الحقيقي نشط
         </Text>
       </Animated.View>
 
@@ -904,8 +926,8 @@ export default function MecoScreen() {
 
             <Text style={[styles.modalTitle, { color: colors.text }]}>
               {transactionResult ?
-                (transactionResult.success ? t('purchase_confirmed') : t('transaction_failed'))
-                : t('confirm_purchase')}
+                (transactionResult.success ? 'تم تأكيد الشراء' : 'فشلت المعاملة')
+                : 'تأكيد الشراء'}
             </Text>
 
             {transactionResult ? (
@@ -925,7 +947,7 @@ export default function MecoScreen() {
                       style={[styles.solscanButton, { backgroundColor: colors.info }]}
                       onPress={() => openURL(`https://solscan.io/tx/${transactionResult.txid}?cluster=devnet`)}
                     >
-                      <Text style={styles.solscanButtonText}>{t('view_on_solscan')}</Text>
+                      <Text style={styles.solscanButtonText}>عرض على Solscan</Text>
                     </TouchableOpacity>
                   </>
                 )}
@@ -933,13 +955,13 @@ export default function MecoScreen() {
             ) : (
               <>
                 <Text style={[styles.modalText, { color: colors.textSecondary }]}>
-                  {t('you_will_send')} {solAmount} SOL
+                  سترسل {solAmount} SOL
                 </Text>
 
                 <View style={styles.modalDetails}>
                   <View style={styles.modalDetailRow}>
                     <Text style={[styles.modalDetailLabel, { color: colors.textSecondary }]}>
-                      {t('rate')}:
+                      السعر:
                     </Text>
                     <Text style={[styles.modalDetailValue, { color: colors.text }]}>
                       1 SOL = {formatNumber(presaleData.rate)} MECO
@@ -947,7 +969,7 @@ export default function MecoScreen() {
                   </View>
                   <View style={styles.modalDetailRow}>
                     <Text style={[styles.modalDetailLabel, { color: colors.textSecondary }]}>
-                      {t('you_will_receive')}:
+                      ستحصل على:
                     </Text>
                     <Text style={[styles.modalDetailValue, { color: colors.success }]}>
                       {mecoAmount.toLocaleString()} MECO
@@ -955,7 +977,7 @@ export default function MecoScreen() {
                   </View>
                   <View style={styles.modalDetailRow}>
                     <Text style={[styles.modalDetailLabel, { color: colors.textSecondary }]}>
-                      {t('contract')}:
+                      العقد:
                     </Text>
                     <Text style={[styles.modalDetailValue, { color: colors.info, fontSize: 10 }]}>
                       {PROGRAM_ID_NEW.toBase58().substring(0, 16)}...
@@ -967,7 +989,7 @@ export default function MecoScreen() {
                   <View style={styles.loadingContainer}>
                     <ActivityIndicator size="large" color={primaryColor} />
                     <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
-                      {t('processing_transaction')}...
+                      جاري معالجة المعاملة...
                     </Text>
                     <Text style={[styles.contractText, { color: colors.textSecondary, fontSize: 12 }]}>
                       عبر العقد الحقيقي
@@ -980,14 +1002,14 @@ export default function MecoScreen() {
                       onPress={() => setShowConfirmModal(false)}
                       disabled={transactionLoading}
                     >
-                      <Text style={[styles.modalButtonText, { color: colors.text }]}>{t('cancel')}</Text>
+                      <Text style={[styles.modalButtonText, { color: colors.text }]}>إلغاء</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={[styles.modalButton, { backgroundColor: primaryColor }]}
                       onPress={confirmPurchase}
                       disabled={transactionLoading}
                     >
-                      <Text style={styles.modalButtonText}>{t('confirm_pay')}</Text>
+                      <Text style={styles.modalButtonText}>تأكيد الدفع</Text>
                     </TouchableOpacity>
                   </View>
                 )}

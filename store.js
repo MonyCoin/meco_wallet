@@ -21,6 +21,7 @@ export const useAppStore = create((set) => ({
   // ====== بيانات المحفظة ======
   walletPublicKey: null,
   walletPrivateKey: null,
+  currentWallet: null, // ✅ تم الإضافة
 
   loadWallet: async () => {
     try {
@@ -34,6 +35,7 @@ export const useAppStore = create((set) => ({
       set({
         walletPublicKey: publicKey,
         walletPrivateKey: privateKey,
+        currentWallet: publicKey, // ✅ تم الإضافة
       });
 
       return true;
@@ -52,6 +54,7 @@ export const useAppStore = create((set) => ({
     set({
       walletPublicKey: null,
       walletPrivateKey: null,
+      currentWallet: null, // ✅ تم الإضافة
     });
   },
 }));
