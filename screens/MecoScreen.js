@@ -16,26 +16,24 @@ import {
   Alert,
   Modal,
 } from 'react-native';
-import { useTranslation } from 'react-i18next'; // تأكد من استيراد الترجمة
+import { useTranslation } from 'react-i18next';
 import { useAppStore } from '../store';
 import { Ionicons, FontAwesome, MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { PublicKey, Connection, Keypair, clusterApiUrl, SystemProgram } from '@solana/web3.js';
 import { Program, AnchorProvider, BN } from '@coral-xyz/anchor';
 import { TOKEN_PROGRAM_ID, getAssociatedTokenAddress, ASSOCIATED_TOKEN_PROGRAM_ID } from '@solana/spl-token';
 
-// ✅ استيراد العقد الحقيقي
 import IDL from '../contracts/monycoin_meco.json';
 const PROGRAM_ID_NEW = new PublicKey(IDL.metadata.address);
 
 import { MECO_MINT, RPC_URL } from '../constants';
 import { getSOLBalance, getRealTransactionFee } from '../services/solanaService';
 
-// 🔧 إعداد الاتصال
 const connection = new Connection(RPC_URL || clusterApiUrl('devnet'), 'confirmed');
 const SOLSCAN_LINK = "https://solscan.io/";
 
 export default function MecoScreen() {
-  const { t } = useTranslation(); // استخدم useTranslation هنا
+  const { t } = useTranslation();
   const theme = useAppStore(s => s.theme);
   const primaryColor = useAppStore(state => state.primaryColor);
   const currentWallet = useAppStore(state => state.currentWallet);
@@ -111,7 +109,6 @@ export default function MecoScreen() {
     };
   }, []);
 
-  // حساب MECO بناءً على SOL المدخل
   useEffect(() => {
     if (presaleData.rate > 0) {
       const sol = parseFloat(solAmount) || 0;
@@ -128,7 +125,6 @@ export default function MecoScreen() {
       fetchPresaleData();
       fetchTokenInfo();
     } else {
-      // بيانات تجريبية للقراءة فقط
       setUserSOLBalance(0);
       setPresaleData({
         totalTokens: 50000000,
@@ -141,7 +137,6 @@ export default function MecoScreen() {
     }
   }, [currentWallet]);
 
-  // تهيئة العقد الذكي
   const initContract = async () => {
     try {
       const userKeypair = createWalletFromPrivateKey();
@@ -175,7 +170,6 @@ export default function MecoScreen() {
     }
   };
 
-  // إنشاء wallet من المفتاح الخاص
   const createWalletFromPrivateKey = () => {
     try {
       if (!walletPrivateKey) return null;
@@ -187,13 +181,22 @@ export default function MecoScreen() {
     }
   };
 
+  // 🔧 التعديل الوحيد المطلوب
   const fetchUserBalance = async () => {
     if (!currentWallet) {
       setUserSOLBalance(0);
       return;
     }
-    const balance = await getSOLBalance(currentWallet);
-    setUserSOLBalance(balance || 0);
+    
+    try {
+      const publicKey = new PublicKey(currentWallet);
+      const balance = await connection.getBalance(publicKey, 'confirmed');
+      const solBalance = balance / 1e9;
+      setUserSOLBalance(solBalance);
+    } catch (error) {
+      console.error('❌ Error fetching balance:', error);
+      setUserSOLBalance(0);
+    }
   };
 
   const fetchTransactionFee = async () => {
@@ -201,11 +204,9 @@ export default function MecoScreen() {
     setTransactionFee(fee);
   };
 
-  // ✅ جلب بيانات البيع المسبق الحقيقية
   const fetchPresaleData = async () => {
     try {
       if (!program) {
-        // استخدام بيانات افتراضية للقراءة فقط
         setPresaleData({
           totalTokens: 50000000,
           soldTokens: 0,
@@ -217,13 +218,11 @@ export default function MecoScreen() {
         return;
       }
 
-      // إيجاد بروتوكول PDA
       const [protocolPDA] = PublicKey.findProgramAddressSync(
         [Buffer.from('protocol')],
         PROGRAM_ID_NEW
       );
 
-      // جلب بيانات البروتوكول من البلوكشين
       const protocolData = await program.account.protocol.fetch(protocolPDA);
       setProtocolData(protocolData);
 
@@ -306,13 +305,11 @@ export default function MecoScreen() {
     const sol = parseFloat(solAmount) || 0;
     const totalWithFee = sol + transactionFee;
 
-    // ✅ التحقق من وجود محفظة
     if (!currentWallet) {
       Alert.alert(t('error'), t('wallet_not_available'));
       return;
     }
 
-    // ✅ التحقق من رصيد المحفظة
     if (userSOLBalance === 0) {
       Alert.alert(
         t('insufficient_balance'),
@@ -321,19 +318,16 @@ export default function MecoScreen() {
       return;
     }
 
-    // ✅ التحقق من الحد الأدنى
     if (sol < presaleData.minSOL) {
       Alert.alert(t('error'), t('below_minimum_message', { minAmount: presaleData.minSOL }));
       return;
     }
 
-    // ✅ التحقق من الحد الأقصى
     if (sol > presaleData.maxSOL) {
       Alert.alert(t('error'), t('above_maximum_message', { maxAmount: presaleData.maxSOL }));
       return;
     }
 
-    // ✅ التحقق من كفاية الرصيد مع الرسوم
     if (totalWithFee > userSOLBalance) {
       Alert.alert(
         t('insufficient_balance'),
@@ -345,24 +339,20 @@ export default function MecoScreen() {
       return;
     }
 
-    // ✅ التحقق من تهيئة العقد
     if (!program || !provider) {
       Alert.alert(t('error'), t('contract_not_initialized'));
       return;
     }
 
-    // ✅ التحقق من نشاط البيع المسبق
     if (!presaleData.isActive) {
       Alert.alert(t('presale_inactive'), t('presale_inactive_message'));
       return;
     }
 
-    // ✅ كل الشروط متوفرة - عرض نافذة التأكيد
     setTransactionResult(null);
     setShowConfirmModal(true);
   };
 
-  // ✅ شراء حقيقي من العقد الذكي
   const confirmPurchase = async () => {
     setTransactionLoading(true);
 
@@ -374,7 +364,6 @@ export default function MecoScreen() {
         throw new Error(t('wallet_not_connected'));
       }
 
-      // إيجاد PDAs
       const [protocolPDA] = PublicKey.findProgramAddressSync(
         [Buffer.from('protocol')],
         PROGRAM_ID_NEW
@@ -402,7 +391,6 @@ export default function MecoScreen() {
 
       console.log('🚀 Sending real purchase transaction...');
 
-      // ✅ معاملة حقيقية على البلوكشين
       const tx = await program.methods
         .buyTokens(new BN(amountLamports))
         .accounts({
@@ -423,7 +411,6 @@ export default function MecoScreen() {
       
       await connection.confirmTransaction(tx, 'confirmed');
 
-      // تحديث البيانات
       await fetchUserBalance();
       await fetchPresaleData();
 
@@ -502,7 +489,6 @@ export default function MecoScreen() {
     outputRange: ['0deg', '360deg']
   });
 
-  // ✅ شريط التقدم يعكس البيانات الحقيقية فقط
   const progress = presaleData.totalTokens > 0 
     ? (presaleData.soldTokens / presaleData.totalTokens) * 100 
     : 0;
@@ -523,7 +509,6 @@ export default function MecoScreen() {
         />
       }
     >
-      {/* الرأس */}
       <Animated.View style={[styles.header, { opacity: fadeAnim }]}>
         <View style={styles.logoContainer}>
           <Animated.View style={{ transform: [{ rotate: rotatingLogo }] }}>
@@ -558,7 +543,6 @@ export default function MecoScreen() {
         </TouchableOpacity>
       </Animated.View>
 
-      {/* معلومات العقد الذكي */}
       <View style={[styles.contractInfoCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
         <View style={styles.contractInfoHeader}>
           <MaterialCommunityIcons name="cube-send" size={24} color={primaryColor} />
@@ -590,7 +574,6 @@ export default function MecoScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* رصيد المستخدم */}
       {currentWallet && (
         <View style={[styles.balanceCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <View style={styles.balanceHeader}>
@@ -615,7 +598,6 @@ export default function MecoScreen() {
         </View>
       )}
 
-      {/* بطاقة البيع المسبق */}
       <Animated.View style={[styles.presaleCard, {
         backgroundColor: colors.card,
         borderColor: colors.border,
@@ -641,7 +623,6 @@ export default function MecoScreen() {
           </View>
         </View>
 
-        {/* ✅ شريط التقدم الحقيقي */}
         <View style={styles.progressSection}>
           <View style={styles.progressHeader}>
             <Text style={[styles.progressText, { color: colors.text }]}>
@@ -675,7 +656,6 @@ export default function MecoScreen() {
           </Text>
         </View>
 
-        {/* إدخال المبلغ */}
         <View style={styles.amountSection}>
           <Text style={[styles.amountLabel, { color: colors.text }]}>
             {t('enter_sol_amount_label')}
@@ -719,7 +699,6 @@ export default function MecoScreen() {
           </View>
         </View>
 
-        {/* حسابات الشراء */}
         <View style={[styles.calculationSection, { backgroundColor: colors.info + '10' }]}>
           <View style={styles.calculationRow}>
             <Text style={[styles.calculationLabel, { color: colors.text }]}>
@@ -756,7 +735,6 @@ export default function MecoScreen() {
           </View>
         </View>
 
-        {/* ✅ زر الشراء */}
         <TouchableOpacity
           style={[styles.buyButton, {
             backgroundColor: presaleData.isActive ? primaryColor : colors.textSecondary,
@@ -777,7 +755,6 @@ export default function MecoScreen() {
           )}
         </TouchableOpacity>
 
-        {/* ملاحظات مهمة */}
         <View style={styles.versionInfo}>
           <MaterialCommunityIcons name="shield-check" size={16} color={colors.success} />
           <Text style={[styles.versionText, { color: colors.textSecondary }]}>
@@ -786,7 +763,6 @@ export default function MecoScreen() {
         </View>
       </Animated.View>
 
-      {/* إحصائيات الرمز */}
       <View style={styles.statsSection}>
         <Text style={[styles.sectionTitle, { color: colors.text }]}>
           {t('token_stats')}
@@ -815,7 +791,6 @@ export default function MecoScreen() {
         </View>
       </View>
 
-      {/* الروابط الرسمية */}
       <View style={styles.linksSection}>
         <Text style={[styles.sectionTitle, { color: colors.text }]}>
           {t('official_links_label')}
@@ -901,7 +876,6 @@ export default function MecoScreen() {
         </View>
       </View>
 
-      {/* التذييل */}
       <Animated.View style={[styles.footer, {
         opacity: fadeAnim,
         backgroundColor: colors.card,
@@ -916,7 +890,6 @@ export default function MecoScreen() {
         </Text>
       </Animated.View>
 
-      {/* نافذة التأكيد */}
       <Modal
         animationType="slide"
         transparent={true}
