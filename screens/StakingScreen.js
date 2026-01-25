@@ -195,19 +195,21 @@ export default function StakingScreen() {
         return;
       }
 
-      // 1. جلب رصيد MECO الحقيقي
+      // 1. 🔧 التعديل: جلب رصيد MECO الحقيقي مباشرة من البلوكشين
       try {
-        const tokenAccounts = await conn.getParsedTokenAccountsByOwner(
-          userPublicKey,
-          { programId: TOKEN_PROGRAM_ID }
+        const associatedTokenAddress = await getAssociatedTokenAddress(
+          new PublicKey(MECO_MINT),
+          userPublicKey
         );
-
-        const mecoAccount = tokenAccounts.value.find(acc =>
-          acc.account.data.parsed.info.mint === MECO_MINT
+        
+        // ✅ استخدام getTokenAccountBalance مع commitment مؤكد
+        const balanceResponse = await conn.getTokenAccountBalance(
+          associatedTokenAddress,
+          'confirmed'
         );
-
-        const mecoBalance = mecoAccount
-          ? mecoAccount.account.data.parsed.info.tokenAmount.uiAmount
+        
+        const mecoBalance = balanceResponse && balanceResponse.value 
+          ? balanceResponse.value.uiAmount 
           : 0;
         setBalance(mecoBalance);
         console.log(t('real_meco_balance'), mecoBalance);
