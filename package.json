@@ -69,7 +69,8 @@
       "reactNativeDirectoryCheck": {
         "listUnknownPackages": false,
         "exclude": [
-          "react-native-chart-kit"
+          "react-native-chart-kit",
+          "react-native-randombytes"
         ]
       }
     }
