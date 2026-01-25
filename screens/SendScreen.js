@@ -20,18 +20,18 @@ import * as splToken from '@solana/spl-token';
 const { width } = Dimensions.get('window');
 
 // =============================================
-// ✅ عنوان محفظة تحصيل رسوم التحويل (Fee Collector)
+// ✅ Fee Collector Wallet Address
 // =============================================
-// هذا العنوان يستقبل رسوم المعاملات (transaction fees)
-// جزء من الرسوم يذهب لهذا العنوان كرسوم خدمة
+// This address receives transaction fees
+// Part of the fees go to this address as service fees
 // =============================================
 const FEE_COLLECTOR_ADDRESS = 'HXkEZSKictbSYan9ZxQGaHpFrbA4eLDyNtEDxVBkdFy6';
 
-// رسوم متغيرة حسب الشبكة + رسوم الخدمة
+// Dynamic network fees + service fees
 let DYNAMIC_FEE = 0.001;
-const SERVICE_FEE_PERCENTAGE = 0.1; // 10% من رسوم الشبكة تذهب للمطور
+const SERVICE_FEE_PERCENTAGE = 0.1; // 10% of network fees go to developer
 
-// العملات الأساسية
+// Base tokens
 const BASE_TOKENS = [
   {
     symbol: 'SOL',
@@ -83,7 +83,7 @@ export default function SendScreen() {
   const primaryColor = useAppStore(state => state.primaryColor);
   const isDark = theme === 'dark';
   
-  // ألوان متناسقة مع الثيم
+  // Theme colors
   const colors = {
     background: isDark ? '#0A0A0F' : '#FFFFFF',
     card: isDark ? '#1A1A2E' : '#F8FAFD',
@@ -105,17 +105,17 @@ export default function SendScreen() {
   const [availableTokens, setAvailableTokens] = useState([]);
   const [loading, setLoading] = useState(false);
   const [loadingTokens, setLoadingTokens] = useState(true);
-  const [networkFee, setNetworkFee] = useState(0.001); // رسوم الشبكة فقط
+  const [networkFee, setNetworkFee] = useState(0.001);
   const [connection, setConnection] = useState(null);
   const [fadeAnim] = useState(new Animated.Value(0));
 
-  // حساب إجمالي الرسوم (الشبكة + الخدمة)
+  // Calculate total fees (network + service)
   const calculateTotalFee = () => {
     const serviceFee = networkFee * SERVICE_FEE_PERCENTAGE;
     return networkFee + serviceFee;
   };
 
-  // تهيئة الاتصال بـ Solana
+  // Initialize Solana connection
   useEffect(() => {
     const initConnection = async () => {
       try {
@@ -128,7 +128,7 @@ export default function SendScreen() {
     initConnection();
   }, []);
 
-  // تحديث الأسعار بشكل دوري
+  // Update prices periodically
   useEffect(() => {
     const updatePrices = async () => {
       try {
@@ -136,7 +136,7 @@ export default function SendScreen() {
         setPrices(priceData);
       } catch (error) {
         console.warn('Failed to update prices:', error);
-        // أسعار افتراضية في حالة الفشل
+        // Default prices in case of failure
         setPrices({
           'SOL': 185,
           'USDT': 1,
@@ -147,26 +147,26 @@ export default function SendScreen() {
     };
     
     updatePrices();
-    const interval = setInterval(updatePrices, 30000); // كل 30 ثانية
+    const interval = setInterval(updatePrices, 30000);
     return () => clearInterval(interval);
   }, []);
 
-  // تحديث رسوم الشبكة بشكل دوري
+  // Update network fees periodically
   useEffect(() => {
     const updateNetworkFee = async () => {
       try {
         if (!connection) return;
         
         const fees = await connection.getRecentPrioritizationFees?.();
-        let fee = 0.001; // القيمة الافتراضية
+        let fee = 0.001; // Default value
         
         if (fees && fees.length > 0) {
-          // حساب متوسط الرسوم
+          // Calculate average fees
           const totalFees = fees.reduce((sum, f) => sum + f.prioritizationFee, 0);
           fee = (totalFees / fees.length) / 1e9;
         }
         
-        // الحد الأدنى 0.000005 SOL والحد الأقصى 0.01 SOL
+        // Minimum 0.000005 SOL and maximum 0.01 SOL
         const minFee = 0.000005;
         const maxFee = 0.01;
         fee = Math.max(minFee, Math.min(fee, maxFee));
@@ -180,7 +180,7 @@ export default function SendScreen() {
     };
     
     updateNetworkFee();
-    const interval = setInterval(updateNetworkFee, 60000); // كل دقيقة
+    const interval = setInterval(updateNetworkFee, 60000);
     return () => clearInterval(interval);
   }, [connection]);
 
@@ -204,7 +204,7 @@ export default function SendScreen() {
     try {
       setLoadingTokens(true);
       
-      // 1. جلب قائمة العملات من Jupiter
+      // 1. Fetch tokens from Jupiter
       let tokenList = [];
       try {
         tokenList = await getTokens();
@@ -212,11 +212,11 @@ export default function SendScreen() {
           tokenList = [];
         }
       } catch (error) {
-        console.log('⚠️ استخدام قائمة العملات الأساسية');
+        console.log('⚠️ Using base token list');
         tokenList = [];
       }
       
-      // 2. إضافة العملات الأساسية إذا لم تكن موجودة
+      // 2. Add base tokens if not present
       const baseSymbols = BASE_TOKENS.map(t => t.symbol);
       const existingSymbols = new Set(tokenList.map(t => t.symbol));
       
@@ -230,7 +230,7 @@ export default function SendScreen() {
         }
       });
       
-      // 3. جلب أرصدة المستخدم لتصفية العملات
+      // 3. Fetch user balances to filter tokens
       const pub = await SecureStore.getItemAsync('wallet_public_key');
       let userBalances = {};
       
@@ -251,11 +251,10 @@ export default function SendScreen() {
         }
       }
       
-      // 4. دمج البيانات وإزالة التكرارات
+      // 4. Merge data and remove duplicates
       const uniqueTokensMap = new Map();
       
       tokenList.forEach(token => {
-        // إنشاء مفتاح فريد لكل عملة
         const uniqueKey = token.mint || `${token.symbol}_${token.name}`;
         
         if (!uniqueTokensMap.has(uniqueKey)) {
@@ -264,7 +263,7 @@ export default function SendScreen() {
           
           uniqueTokensMap.set(uniqueKey, {
             ...token,
-            uniqueKey: uniqueKey, // إضافة مفتاح فريد
+            uniqueKey: uniqueKey,
             icon: baseToken?.icon || 'help-circle',
             logoURI: baseToken?.logoURI || token.logoURI,
             userBalance: userBalance,
@@ -273,13 +272,12 @@ export default function SendScreen() {
         }
       });
       
-      // تحويل Map إلى Array
       const tokensWithIcons = Array.from(uniqueTokensMap.values());
       
       setAvailableTokens(tokensWithIcons);
       
     } catch (error) {
-      console.error('❌ خطأ في تحميل بيانات العملات:', error);
+      console.error('❌ Error loading token data:', error);
       setAvailableTokens(BASE_TOKENS.map(t => ({ 
         ...t, 
         uniqueKey: t.mint || `base_${t.symbol}`,
@@ -348,7 +346,6 @@ export default function SendScreen() {
         return;
       }
 
-      // حساب إجمالي الرسوم (الشبكة + الخدمة)
       const totalFee = calculateTotalFee();
       const totalAmount = currency === 'SOL' ? num + totalFee : num;
       
@@ -362,7 +359,7 @@ export default function SendScreen() {
     } catch (err) {
       console.error('Send validation error:', err);
       setLoading(false);
-      Alert.alert(t('error'), 'خطأ في التحقق: ' + err.message);
+      Alert.alert(t('error'), 'Validation error: ' + err.message);
     }
   };
 
@@ -391,10 +388,9 @@ export default function SendScreen() {
       const serviceFee = networkFee * SERVICE_FEE_PERCENTAGE;
 
       if (currency === 'SOL') {
-        // تقسيم الرسوم: جزء للشبكة وجزء لمحفظة المطور
         const transactions = [];
         
-        // 1. إرسال المبلغ الأساسي للمستلم
+        // 1. Send main amount to recipient
         transactions.push(
           web3.SystemProgram.transfer({
             fromPubkey,
@@ -403,7 +399,7 @@ export default function SendScreen() {
           })
         );
 
-        // 2. إرسال رسوم الخدمة لمحفظة المطور (10% من الرسوم)
+        // 2. Send service fee to developer wallet
         transactions.push(
           web3.SystemProgram.transfer({
             fromPubkey,
@@ -412,10 +408,8 @@ export default function SendScreen() {
           })
         );
 
-        // 3. باقي الرسوم تذهب للشبكة (في معاملات Solana، الرسوم تخصم تلقائياً)
         const tx = new web3.Transaction().add(...transactions);
         
-        // حساب الحد الأدنى للرصانة (rent) للمعاملة
         const { blockhash } = await connection.getRecentBlockhash();
         tx.recentBlockhash = blockhash;
         tx.feePayer = fromPubkey;
@@ -449,12 +443,12 @@ export default function SendScreen() {
           );
         }
 
-        // 1. إرسال المبلغ للمستلم
+        // 1. Send amount to recipient
         instructions.push(
           splToken.createTransferInstruction(fromATA, toATA, fromPubkey, amountToSend)
         );
 
-        // 2. إرسال رسوم الخدمة لمحفظة المطور
+        // 2. Send service fee to developer wallet
         instructions.push(
           splToken.createTransferInstruction(fromATA, feeCollectorATA, fromPubkey, serviceFeeAmount)
         );
@@ -481,10 +475,10 @@ export default function SendScreen() {
       Alert.alert(
         t('success'),
         `✅ ${t('sent_successfully')}: ${num} ${currency}\n\n` +
-        `📊 تفاصيل الرسوم:\n` +
-        `• رسوم الشبكة: ${networkFee.toFixed(6)} SOL\n` +
-        `• رسوم الخدمة: ${serviceFee.toFixed(6)} SOL\n` +
-        `• الإجمالي: ${totalFee.toFixed(6)} SOL`,
+        `${t('fee_details')}:\n` +
+        `• ${t('network_fee')}: ${networkFee.toFixed(6)} SOL\n` +
+        `• ${t('service_fee')}: ${serviceFee.toFixed(6)} SOL\n` +
+        `• ${t('total')}: ${totalFee.toFixed(6)} SOL`,
         [
           {
             text: t('ok'),
@@ -536,16 +530,13 @@ export default function SendScreen() {
           { 
             backgroundColor: colors.card,
             borderColor: isSelected ? primaryColor : 'transparent',
-            opacity: hasBalance ? 1 : 0.7
+            opacity: 1 // ✅ إصلاح: السماح باختيار جميع العملات حتى بدون رصيد
           }
         ]}
         onPress={() => {
-          if (hasBalance || isSelected) {
-            setCurrency(item.symbol);
-            setModalVisible(false);
-          }
+          setCurrency(item.symbol);
+          setModalVisible(false);
         }}
-        disabled={!hasBalance && !isSelected}
       >
         <View style={styles.tokenItemContent}>
           <View style={[styles.tokenIcon, { backgroundColor: primaryColor + '20' }]}>
@@ -567,7 +558,7 @@ export default function SendScreen() {
             </Text>
             {item.userBalance > 0 && (
               <Text style={[styles.tokenBalance, { color: colors.textSecondary }]}>
-                رصيد: {item.userBalance.toFixed(4)}
+                {t('balance')}: {item.userBalance.toFixed(4)}
               </Text>
             )}
           </View>
@@ -576,7 +567,7 @@ export default function SendScreen() {
           )}
           {!hasBalance && !isSelected && (
             <Text style={[styles.noBalanceText, { color: colors.textSecondary }]}>
-              لا رصيد
+              {t('no_balance')}
             </Text>
           )}
         </View>
@@ -588,7 +579,7 @@ export default function SendScreen() {
   const totalFee = calculateTotalFee();
   const serviceFee = networkFee * SERVICE_FEE_PERCENTAGE;
   
-  // تصفية العملات: أولوية للعملات التي يملكها المستخدم
+  // Filter tokens: priority for user's tokens
   const filteredTokens = availableTokens.sort((a, b) => {
     if (a.hasBalance && !b.hasBalance) return -1;
     if (!a.hasBalance && b.hasBalance) return 1;
@@ -722,19 +713,19 @@ export default function SendScreen() {
             )}
           </View>
 
-          {/* Fee Info - تفاصيل الرسوم */}
+          {/* Fee Info */}
           <View style={[styles.feeCard, { backgroundColor: colors.card }]}>
             <Text style={[styles.feeCardTitle, { color: colors.text }]}>
-              📊 تفاصيل الرسوم
+              📊 {t('fee_details')}
             </Text>
             
             <View style={styles.feeRow}>
               <View style={styles.feeLabelContainer}>
                 <Text style={[styles.feeLabel, { color: colors.textSecondary }]}>
-                  رسوم الشبكة
+                  {t('network_fee')}
                 </Text>
                 <Text style={[styles.feeSubLabel, { color: colors.textSecondary }]}>
-                  (متحركة حسب الازدحام)
+                  {t('dynamic_based_on_congestion')}
                 </Text>
               </View>
               <Text style={[styles.feeValue, { color: colors.text }]}>
@@ -745,10 +736,10 @@ export default function SendScreen() {
             <View style={styles.feeRow}>
               <View style={styles.feeLabelContainer}>
                 <Text style={[styles.feeLabel, { color: colors.textSecondary }]}>
-                  رسوم الخدمة
+                  {t('service_fee')}
                 </Text>
                 <Text style={[styles.feeSubLabel, { color: colors.textSecondary }]}>
-                  (10% للمطور لدعم التطبيق)
+                  {t('for_developer_support')}
                 </Text>
               </View>
               <Text style={[styles.feeValue, { color: colors.text }]}>
@@ -758,7 +749,7 @@ export default function SendScreen() {
             
             <View style={[styles.totalFeeRow, { borderTopColor: colors.border }]}>
               <Text style={[styles.totalFeeLabel, { color: colors.text }]}>
-                إجمالي الرسوم
+                {t('total_fees')}
               </Text>
               <Text style={[styles.totalAmount, { color: primaryColor }]}>
                 {totalFee.toFixed(6)} SOL
@@ -792,11 +783,11 @@ export default function SendScreen() {
             )}
           </TouchableOpacity>
 
-          {/* Info Notice about fees */}
+          {/* Info Notice */}
           <View style={[styles.infoNotice, { backgroundColor: primaryColor + '10', borderColor: primaryColor + '30' }]}>
             <Ionicons name="information-circle-outline" size={16} color={primaryColor} />
             <Text style={[styles.infoText, { color: colors.text }]}>
-              ⓘ 10% من رسوم الشبكة تذهب لدعم تطوير وصيانة التطبيق
+              ⓘ {t('fee_developer_notice')}
             </Text>
           </View>
 
@@ -827,13 +818,13 @@ export default function SendScreen() {
               <View style={styles.loadingContainer}>
                 <Ionicons name="ellipsis-horizontal" size={24} color={colors.text} />
                 <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
-                  جاري تحميل العملات...
+                  {t('loading_tokens')}
                 </Text>
               </View>
             ) : (
               <FlatList
                 data={filteredTokens}
-                keyExtractor={(item) => item.uniqueKey || item.symbol} // ✅ إصلاح خطأ المفاتيح المكررة
+                keyExtractor={(item) => item.uniqueKey || item.symbol}
                 renderItem={renderTokenItem}
                 contentContainerStyle={styles.tokenList}
                 showsVerticalScrollIndicator={false}

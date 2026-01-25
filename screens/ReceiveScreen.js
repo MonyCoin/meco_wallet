@@ -33,7 +33,7 @@ export default function ReceiveScreen() {
 
   const isDark = theme === 'dark';
   
-  // ألوان متناسقة مع الثيم
+  // Theme colors
   const colors = {
     background: isDark ? '#0A0A0F' : '#F8FAFD',
     card: isDark ? '#1A1A2E' : '#FFFFFF',
@@ -45,7 +45,7 @@ export default function ReceiveScreen() {
   };
 
   useEffect(() => {
-    // تأثيرات دخول الشاشة
+    // Entrance animations
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
@@ -60,7 +60,7 @@ export default function ReceiveScreen() {
       }),
     ]).start();
 
-    // جلب عنوان المحفظة
+    // Fetch wallet address
     SecureStore.getItemAsync('wallet_public_key')
       .then(async (addr) => {
         if (addr) {
@@ -85,15 +85,15 @@ export default function ReceiveScreen() {
     
     try {
       await Clipboard.setStringAsync(walletAddress);
-      Vibration.vibrate(50); // اهتزاز خفيف بدلاً من Haptics
+      Vibration.vibrate(50); // Light vibration instead of Haptics
       
       setCopied(true);
       Alert.alert(t('success'), t('wallet_address_copied'));
       
-      // إعادة تعيين حالة النسخ بعد 2 ثانية
+      // Reset copy state after 2 seconds
       setTimeout(() => setCopied(false), 2000);
     } catch (error) {
-      Alert.alert(t('error'), 'فشل نسخ العنوان');
+      Alert.alert(t('error'), t('copy_failed'));
     }
   };
 
@@ -102,8 +102,8 @@ export default function ReceiveScreen() {
     
     try {
       await Share.share({
-        message: `عنوان محفظتي على سولانا: ${walletAddress}\n\nيمكنك إرسال أي عملة رقمية إليها.`,
-        title: 'عنوان المحفظة'
+        message: t('share_message_with_address', { address: walletAddress }),
+        title: t('wallet_address')
       });
     } catch (error) {
       console.log('Share error:', error);
@@ -130,22 +130,22 @@ export default function ReceiveScreen() {
             }
           ]}
         >
-          {/* الهيدر */}
+          {/* Header */}
           <View style={styles.header}>
             <Text style={[styles.title, { color: colors.text }]}>
               {t('receive_crypto')}
             </Text>
             <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-              شارك عنوانك لاستلام الأموال
+              {t('share_to_receive')}
             </Text>
           </View>
 
-          {/* بطاقة QR Code الرئيسية */}
+          {/* Main QR Code Card */}
           <View style={[styles.qrCard, { backgroundColor: colors.card }]}>
             <View style={styles.qrHeader}>
               <Ionicons name="qr-code-outline" size={24} color={primaryColor} />
               <Text style={[styles.qrTitle, { color: colors.text }]}>
-                مسح للاستلام
+                {t('scan_to_receive')}
               </Text>
             </View>
             
@@ -166,7 +166,7 @@ export default function ReceiveScreen() {
                   <View style={styles.qrHint}>
                     <Ionicons name="information-circle-outline" size={14} color={colors.textSecondary} />
                     <Text style={[styles.hintText, { color: colors.textSecondary }]}>
-                      يمكن مسح الكود بأي محفظة
+                      {t('qr_hint')}
                     </Text>
                   </View>
                 </>
@@ -174,14 +174,14 @@ export default function ReceiveScreen() {
                 <View style={styles.loadingContainer}>
                   <Ionicons name="ellipsis-horizontal" size={40} color={colors.textSecondary} />
                   <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
-                    جاري تحميل العنوان...
+                    {t('loading_address')}
                   </Text>
                 </View>
               )}
             </View>
           </View>
 
-          {/* بطاقة العنوان */}
+          {/* Address Card */}
           <View style={[styles.addressCard, { backgroundColor: colors.card }]}>
             <View style={styles.addressHeader}>
               <Ionicons name="wallet-outline" size={20} color={primaryColor} />
@@ -201,7 +201,7 @@ export default function ReceiveScreen() {
             </Text>
           </View>
 
-          {/* أزرار الإجراءات */}
+          {/* Action Buttons */}
           <View style={styles.actionsContainer}>
             <TouchableOpacity
               style={[
@@ -244,12 +244,12 @@ export default function ReceiveScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* نصائح الأمان */}
+          {/* Security Tips */}
           <View style={[styles.securityCard, { backgroundColor: colors.card }]}>
             <View style={styles.securityHeader}>
               <Ionicons name="shield-checkmark-outline" size={20} color={colors.warning} />
               <Text style={[styles.securityTitle, { color: colors.text }]}>
-                نصائح أمنية
+                {t('security_tips')}
               </Text>
             </View>
             
@@ -257,31 +257,31 @@ export default function ReceiveScreen() {
               <View style={styles.tipItem}>
                 <Ionicons name="checkmark-circle" size={16} color={colors.success} />
                 <Text style={[styles.tipText, { color: colors.textSecondary }]}>
-                  شارك هذا العنوان فقط مع أشخاص تثق بهم
+                  {t('tip1')}
                 </Text>
               </View>
               
               <View style={styles.tipItem}>
                 <Ionicons name="checkmark-circle" size={16} color={colors.success} />
                 <Text style={[styles.tipText, { color: colors.textSecondary }]}>
-                  يمكن استلام أي عملة على شبكة سولانا
+                  {t('tip2')}
                 </Text>
               </View>
               
               <View style={styles.tipItem}>
                 <Ionicons name="checkmark-circle" size={16} color={colors.success} />
                 <Text style={[styles.tipText, { color: colors.textSecondary }]}>
-                  تأكد من صحة العنوان قبل الإرسال
+                  {t('tip3')}
                 </Text>
               </View>
             </View>
           </View>
 
-          {/* ملاحظة سفلية */}
+          {/* Bottom Note */}
           <View style={styles.footerNote}>
             <Ionicons name="time-outline" size={14} color={colors.textSecondary} />
             <Text style={[styles.noteText, { color: colors.textSecondary }]}>
-              المعاملات تستغرق عادةً بضع ثوانٍ على شبكة سولانا
+              {t('transaction_time_note')}
             </Text>
           </View>
         </Animated.View>
