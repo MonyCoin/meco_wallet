@@ -24,12 +24,18 @@ import { Program, AnchorProvider, BN } from '@coral-xyz/anchor';
 import { TOKEN_PROGRAM_ID, getAssociatedTokenAddress, ASSOCIATED_TOKEN_PROGRAM_ID } from '@solana/spl-token';
 
 import IDL from '../contracts/monycoin_meco.json';
-const PROGRAM_ID_NEW = new PublicKey(IDL.metadata.address);
-
-import { MECO_MINT, RPC_URL } from '../constants';
-import { getSOLBalance, getRealTransactionFee } from '../services/solanaService';
+import { MECO_MINT, RPC_URL, PROGRAM_ID } from '../constants';
+import { 
+  getSOLBalance, 
+  getRealTransactionFee,
+  initProgram,
+  getPresaleStats,
+  buyMECOTransaction,
+  getMECOBalance
+} from '../services/solanaService';
 
 const connection = new Connection(RPC_URL || clusterApiUrl('devnet'), 'confirmed');
+const PROGRAM_ID_NEW = new PublicKey(PROGRAM_ID);
 const SOLSCAN_LINK = "https://solscan.io/";
 
 export default function MecoScreen() {
@@ -142,29 +148,25 @@ export default function MecoScreen() {
       const userKeypair = createWalletFromPrivateKey();
       if (!userKeypair) return;
 
-      const provider = new AnchorProvider(
-        connection,
-        {
-          publicKey: userKeypair.publicKey,
-          signTransaction: async (tx) => {
+      const wallet = {
+        publicKey: userKeypair.publicKey,
+        signTransaction: async (tx) => {
+          tx.partialSign(userKeypair);
+          return tx;
+        },
+        signAllTransactions: async (txs) => {
+          return txs.map(tx => {
             tx.partialSign(userKeypair);
             return tx;
-          },
-          signAllTransactions: async (txs) => {
-            return txs.map(tx => {
-              tx.partialSign(userKeypair);
-              return tx;
-            });
-          },
+          });
         },
-        { commitment: 'confirmed' }
-      );
+      };
 
-      const programInstance = new Program(IDL, PROGRAM_ID_NEW, provider);
-      setProvider(provider);
-      setProgram(programInstance);
-
-      console.log('✅ Smart contract ready');
+      const programInstance = initProgram(wallet);
+      if (programInstance) {
+        setProgram(programInstance);
+        console.log('✅ Smart contract ready');
+      }
     } catch (error) {
       console.error('❌ Error initializing contract:', error);
     }
@@ -181,7 +183,6 @@ export default function MecoScreen() {
     }
   };
 
-  // 🔧 التعديل الوحيد المطلوب
   const fetchUserBalance = async () => {
     if (!currentWallet) {
       setUserSOLBalance(0);
@@ -189,9 +190,7 @@ export default function MecoScreen() {
     }
     
     try {
-      const publicKey = new PublicKey(currentWallet);
-      const balance = await connection.getBalance(publicKey, 'confirmed');
-      const solBalance = balance / 1e9;
+      const solBalance = await getSOLBalance(currentWallet);
       setUserSOLBalance(solBalance);
     } catch (error) {
       console.error('❌ Error fetching balance:', error);
@@ -206,7 +205,8 @@ export default function MecoScreen() {
 
   const fetchPresaleData = async () => {
     try {
-      if (!program) {
+      const userKeypair = createWalletFromPrivateKey();
+      if (!userKeypair) {
         setPresaleData({
           totalTokens: 50000000,
           soldTokens: 0,
@@ -218,26 +218,34 @@ export default function MecoScreen() {
         return;
       }
 
-      const [protocolPDA] = PublicKey.findProgramAddressSync(
-        [Buffer.from('protocol')],
-        PROGRAM_ID_NEW
-      );
-
-      const protocolData = await program.account.protocol.fetch(protocolPDA);
-      setProtocolData(protocolData);
-
-      const newPresaleData = {
-        totalTokens: Number(protocolData.presaleTotal) / 1e9,
-        soldTokens: Number(protocolData.presaleSold) / 1e9,
-        minSOL: Number(protocolData.presaleMin) / 1e9,
-        maxSOL: Number(protocolData.presaleMax) / 1e9,
-        rate: Number(protocolData.presaleRate),
-        isActive: protocolData.isActive,
+      const wallet = {
+        publicKey: userKeypair.publicKey,
+        signTransaction: async (tx) => {
+          tx.partialSign(userKeypair);
+          return tx;
+        },
+        signAllTransactions: async (txs) => {
+          return txs.map(tx => {
+            tx.partialSign(userKeypair);
+            return tx;
+          });
+        },
       };
 
-      console.log('📊 Real presale data:', newPresaleData);
-      setPresaleData(newPresaleData);
-
+      const presaleStats = await getPresaleStats(wallet);
+      if (presaleStats) {
+        setPresaleData({
+          totalTokens: presaleStats.totalTokens,
+          soldTokens: presaleStats.soldTokens,
+          minSOL: presaleStats.minSOL,
+          maxSOL: presaleStats.maxSOL,
+          rate: presaleStats.rate,
+          isActive: presaleStats.isActive,
+        });
+        console.log('📊 Real presale data:', presaleStats);
+      } else {
+        throw new Error('Failed to fetch presale stats');
+      }
     } catch (error) {
       console.error('❌ Error fetching presale data:', error);
       setPresaleData({
@@ -257,6 +265,12 @@ export default function MecoScreen() {
       await fetchUserBalance();
       await fetchTransactionFee();
       await fetchPresaleData();
+      
+      if (currentWallet) {
+        const mecoBalance = await getMECOBalance(currentWallet);
+        // يمكن استخدام mecoBalance إذا احتجت له
+      }
+      
       setTokenInfo({
         name: 'MECO',
         symbol: 'MECO',
@@ -339,7 +353,7 @@ export default function MecoScreen() {
       return;
     }
 
-    if (!program || !provider) {
+    if (!program) {
       Alert.alert(t('error'), t('contract_not_initialized'));
       return;
     }
@@ -360,91 +374,56 @@ export default function MecoScreen() {
       const sol = parseFloat(solAmount) || 0;
       const userKeypair = createWalletFromPrivateKey();
       
-      if (!userKeypair || !program) {
+      if (!userKeypair) {
         throw new Error(t('wallet_not_connected'));
       }
 
-      const [protocolPDA] = PublicKey.findProgramAddressSync(
-        [Buffer.from('protocol')],
-        PROGRAM_ID_NEW
-      );
-
-      const [presaleVaultPDA] = PublicKey.findProgramAddressSync(
-        [Buffer.from('presale_vault')],
-        PROGRAM_ID_NEW
-      );
-
-      const mecoMint = new PublicKey(MECO_MINT);
-      const buyerTokenAccount = await getAssociatedTokenAddress(
-        mecoMint,
-        userKeypair.publicKey
-      );
-
-      const presaleTokenVault = await getAssociatedTokenAddress(
-        mecoMint,
-        protocolPDA,
-        true
-      );
-
-      const amountLamports = Math.floor(sol * 1e9);
-      const expectedMeco = Math.floor(sol * presaleData.rate);
-
-      console.log('🚀 Sending real purchase transaction...');
-
-      const tx = await program.methods
-        .buyTokens(new BN(amountLamports))
-        .accounts({
-          protocol: protocolPDA,
-          buyer: userKeypair.publicKey,
-          treasury: presaleVaultPDA,
-          mecoVault: presaleTokenVault,
-          buyerTokenAccount: buyerTokenAccount,
-          authority: protocolData?.authority || userKeypair.publicKey,
-          tokenProgram: TOKEN_PROGRAM_ID,
-          systemProgram: SystemProgram.programId,
-          associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
-        })
-        .signers([userKeypair])
-        .rpc();
-
-      console.log('✅ Purchase transaction sent:', tx);
-      
-      await connection.confirmTransaction(tx, 'confirmed');
-
-      await fetchUserBalance();
-      await fetchPresaleData();
-
-      const result = {
-        success: true,
-        mecoReceived: expectedMeco,
-        message: t('success'),
-        txid: tx,
-        amount: sol,
+      const wallet = {
+        publicKey: userKeypair.publicKey,
+        signTransaction: async (tx) => {
+          tx.partialSign(userKeypair);
+          return tx;
+        },
+        signAllTransactions: async (txs) => {
+          return txs.map(tx => {
+            tx.partialSign(userKeypair);
+            return tx;
+          });
+        },
       };
 
-      setTransactionResult(result);
+      const result = await buyMECOTransaction(wallet, sol);
 
-      Alert.alert(
-        t('success'),
-        t('transaction_success_message', {
-          mecoAmount: expectedMeco.toLocaleString(),
-          solAmount: sol,
-          txId: tx.substring(0, 16)
-        }),
-        [
-          {
-            text: t('view_on_solscan'),
-            onPress: () => openURL(`https://solscan.io/tx/${tx}?cluster=devnet`),
-          },
-          {
-            text: t('ok'),
-            onPress: () => {
-              setShowConfirmModal(false);
-              setTransactionLoading(false);
+      if (result.success) {
+        await fetchUserBalance();
+        await fetchPresaleData();
+
+        setTransactionResult(result);
+
+        Alert.alert(
+          t('success'),
+          t('transaction_success_message', {
+            mecoAmount: result.mecoReceived.toLocaleString(),
+            solAmount: sol,
+            txId: result.signature.substring(0, 16)
+          }),
+          [
+            {
+              text: t('view_on_solscan'),
+              onPress: () => openURL(`https://solscan.io/tx/${result.signature}?cluster=devnet`),
+            },
+            {
+              text: t('ok'),
+              onPress: () => {
+                setShowConfirmModal(false);
+                setTransactionLoading(false);
+              }
             }
-          }
-        ]
-      );
+          ]
+        );
+      } else {
+        throw new Error(result.error);
+      }
 
     } catch (error) {
       console.error('❌ Purchase error:', error);
@@ -925,7 +904,7 @@ export default function MecoScreen() {
                     </Text>
                     <TouchableOpacity
                       style={[styles.solscanButton, { backgroundColor: colors.info }]}
-                      onPress={() => openURL(`https://solscan.io/tx/${transactionResult.txid}?cluster=devnet`)}
+                      onPress={() => openURL(`https://solscan.io/tx/${transactionResult.signature}?cluster=devnet`)}
                     >
                       <Text style={styles.solscanButtonText}>{t('view_on_solscan_button')}</Text>
                     </TouchableOpacity>
@@ -1517,6 +1496,10 @@ const styles = StyleSheet.create({
   loadingText: {
     fontSize: 14,
     marginTop: 12,
+  },
+  contractText: {
+    fontSize: 12,
+    textAlign: 'center',
   },
   modalButtons: {
     flexDirection: 'row',

@@ -76,6 +76,24 @@ async function isValidSolanaAddress(address) {
   }
 }
 
+// Helper function to check and handle rent exemption
+async function checkAndCreateAccountIfNeeded(connection, fromPubkey, toPubkey) {
+  try {
+    const accountInfo = await connection.getAccountInfo(toPubkey);
+    
+    // If account doesn't exist, return rent exempt amount
+    if (!accountInfo) {
+      const rentExemptAmount = await connection.getMinimumBalanceForRentExemption(0);
+      return rentExemptAmount;
+    }
+    
+    return 0; // Account exists, no rent needed
+  } catch (error) {
+    console.error('Error checking account:', error);
+    return 0;
+  }
+}
+
 export default function SendScreen() {
   const { t } = useTranslation();
   const route = useRoute();
@@ -108,6 +126,7 @@ export default function SendScreen() {
   const [networkFee, setNetworkFee] = useState(0.001);
   const [connection, setConnection] = useState(null);
   const [fadeAnim] = useState(new Animated.Value(0));
+  const [rentExemptAmount, setRentExemptAmount] = useState(0);
 
   // Calculate total fees (network + service)
   const calculateTotalFee = () => {
@@ -121,6 +140,10 @@ export default function SendScreen() {
       try {
         const conn = new web3.Connection('https://api.mainnet-beta.solana.com');
         setConnection(conn);
+        
+        // Get current rent exempt amount
+        const rent = await conn.getMinimumBalanceForRentExemption(0);
+        setRentExemptAmount(rent / 1e9); // Convert to SOL
       } catch (error) {
         console.error('Failed to initialize connection:', error);
       }
@@ -346,16 +369,36 @@ export default function SendScreen() {
         return;
       }
 
+      // Check if recipient account exists
+      let recipientExists = false;
+      if (connection) {
+        try {
+          const recipientInfo = await connection.getAccountInfo(new web3.PublicKey(recipient));
+          recipientExists = !!recipientInfo;
+        } catch (error) {
+          console.warn('Could not check recipient account:', error);
+        }
+      }
+
       const totalFee = calculateTotalFee();
-      const totalAmount = currency === 'SOL' ? num + totalFee : num;
+      let totalAmount = currency === 'SOL' ? num + totalFee : num;
+      
+      // Add rent exempt amount for new accounts
+      if (currency === 'SOL' && !recipientExists) {
+        totalAmount += rentExemptAmount;
+      }
       
       if (totalAmount > balance) {
-        Alert.alert(t('error'), t('insufficient_balance'));
+        let errorMessage = t('insufficient_balance');
+        if (currency === 'SOL' && !recipientExists) {
+          errorMessage += `\n\n${t('new_account_requires_rent')} ${rentExemptAmount.toFixed(6)} SOL`;
+        }
+        Alert.alert(t('error'), errorMessage);
         return;
       }
 
       setLoading(true);
-      await proceedWithSend(num, totalFee);
+      await proceedWithSend(num, totalFee, recipientExists);
     } catch (err) {
       console.error('Send validation error:', err);
       setLoading(false);
@@ -363,7 +406,7 @@ export default function SendScreen() {
     }
   };
 
-  const proceedWithSend = async (num, totalFee) => {
+  const proceedWithSend = async (num, totalFee, recipientExists) => {
     try {
       const secretKeyStr = await SecureStore.getItemAsync('wallet_private_key');
       if (!secretKeyStr) throw new Error('Missing key');
@@ -388,19 +431,36 @@ export default function SendScreen() {
       const serviceFee = networkFee * SERVICE_FEE_PERCENTAGE;
 
       if (currency === 'SOL') {
-        const transactions = [];
+        const lamportsToSend = Math.floor(num * 1e9);
+        const instructions = [];
+
+        // Check if recipient account exists and handle rent if needed
+        const rentAmount = await checkAndCreateAccountIfNeeded(connection, fromPubkey, toPubkey);
         
-        // 1. Send main amount to recipient
-        transactions.push(
+        if (rentAmount > 0) {
+          // Create account with rent exempt amount
+          instructions.push(
+            web3.SystemProgram.createAccount({
+              fromPubkey: fromPubkey,
+              newAccountPubkey: toPubkey,
+              lamports: rentAmount,
+              space: 0,
+              programId: web3.SystemProgram.programId,
+            })
+          );
+        }
+
+        // Send main amount to recipient
+        instructions.push(
           web3.SystemProgram.transfer({
             fromPubkey,
             toPubkey,
-            lamports: Math.floor(num * 1e9),
+            lamports: lamportsToSend,
           })
         );
 
-        // 2. Send service fee to developer wallet
-        transactions.push(
+        // Send service fee to developer wallet
+        instructions.push(
           web3.SystemProgram.transfer({
             fromPubkey,
             toPubkey: feeCollectorPubkey,
@@ -408,7 +468,7 @@ export default function SendScreen() {
           })
         );
 
-        const tx = new web3.Transaction().add(...transactions);
+        const tx = new web3.Transaction().add(...instructions);
         
         const { blockhash } = await connection.getRecentBlockhash();
         tx.recentBlockhash = blockhash;
@@ -443,12 +503,12 @@ export default function SendScreen() {
           );
         }
 
-        // 1. Send amount to recipient
+        // Send amount to recipient
         instructions.push(
           splToken.createTransferInstruction(fromATA, toATA, fromPubkey, amountToSend)
         );
 
-        // 2. Send service fee to developer wallet
+        // Send service fee to developer wallet
         instructions.push(
           splToken.createTransferInstruction(fromATA, feeCollectorATA, fromPubkey, serviceFeeAmount)
         );
@@ -468,6 +528,7 @@ export default function SendScreen() {
         networkFee: networkFee,
         serviceFee: serviceFee,
         totalFee: totalFee,
+        rentExemptAmount: recipientExists ? 0 : rentExemptAmount,
         feeCollectorAddress: FEE_COLLECTOR_ADDRESS,
         timestamp: new Date().toISOString(),
       });
@@ -478,6 +539,7 @@ export default function SendScreen() {
         `${t('fee_details')}:\n` +
         `• ${t('network_fee')}: ${networkFee.toFixed(6)} SOL\n` +
         `• ${t('service_fee')}: ${serviceFee.toFixed(6)} SOL\n` +
+        `${!recipientExists && currency === 'SOL' ? `• ${t('rent_exempt_fee')}: ${rentExemptAmount.toFixed(6)} SOL\n` : ''}` +
         `• ${t('total')}: ${totalFee.toFixed(6)} SOL`,
         [
           {
@@ -495,14 +557,27 @@ export default function SendScreen() {
     } catch (err) {
       console.error('Send transaction error:', err);
       setLoading(false);
-      Alert.alert(t('error'), `${t('send_failed')}: ${err.message}`);
+      
+      let errorMessage = `${t('send_failed')}: ${err.message}`;
+      
+      // Provide more specific error messages
+      if (err.message.includes('insufficient funds for rent')) {
+        errorMessage = `${t('rent_exempt_insufficient')}\n\n${t('new_account_requires_rent')} ${rentExemptAmount.toFixed(6)} SOL`;
+      } else if (err.message.includes('insufficient funds')) {
+        errorMessage = t('insufficient_balance_for_transaction');
+      }
+      
+      Alert.alert(t('error'), errorMessage);
     }
   };
 
   const handleMaxAmount = () => {
     if (balance > 0) {
       const totalFee = calculateTotalFee();
-      const maxAmount = currency === 'SOL' ? Math.max(0, balance - totalFee) : balance;
+      
+      // For SOL, subtract rent exempt amount if recipient is new
+      let maxAmount = currency === 'SOL' ? Math.max(0, balance - totalFee) : balance;
+      
       setAmount(maxAmount.toFixed(6));
     }
   };
@@ -530,7 +605,7 @@ export default function SendScreen() {
           { 
             backgroundColor: colors.card,
             borderColor: isSelected ? primaryColor : 'transparent',
-            opacity: 1 // ✅ إصلاح: السماح باختيار جميع العملات حتى بدون رصيد
+            opacity: 1
           }
         ]}
         onPress={() => {
@@ -746,6 +821,22 @@ export default function SendScreen() {
                 {serviceFee.toFixed(6)} SOL
               </Text>
             </View>
+            
+            {currency === 'SOL' && (
+              <View style={styles.feeRow}>
+                <View style={styles.feeLabelContainer}>
+                  <Text style={[styles.feeLabel, { color: colors.textSecondary }]}>
+                    {t('rent_exempt_fee')}
+                  </Text>
+                  <Text style={[styles.feeSubLabel, { color: colors.textSecondary }]}>
+                    {t('for_new_accounts_only')}
+                  </Text>
+                </View>
+                <Text style={[styles.feeValue, { color: colors.text }]}>
+                  {rentExemptAmount.toFixed(6)} SOL
+                </Text>
+              </View>
+            )}
             
             <View style={[styles.totalFeeRow, { borderTopColor: colors.border }]}>
               <Text style={[styles.totalFeeLabel, { color: colors.text }]}>

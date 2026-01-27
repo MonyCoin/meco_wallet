@@ -1,3 +1,4 @@
+// screens/MarketScreen.js - معدل مع الأسعار الحية
 import React, { useEffect, useState } from 'react';
 import {
   View,
@@ -17,7 +18,8 @@ import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { 
   getTokens,
-  fetchPrices
+  fetchPrices,
+  fetchMarketData
 } from '../services/jupiterService';
 
 const { width } = Dimensions.get('window');
@@ -29,7 +31,7 @@ const MECO_TOKEN = {
   name: 'MonyCoin',
   decimals: 6,
   logoURI: 'https://raw.githubusercontent.com/saadeh73/meco-project/main/meco-logo.png',
-  currentPrice: 0.00617 // السعر الحقيقي
+  currentPrice: 0.00617
 };
 
 export default function MarketScreen() {
@@ -43,6 +45,7 @@ export default function MarketScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('all');
+  const [marketData, setMarketData] = useState({});
 
   const isDark = theme === 'dark';
   const bg = isDark ? '#0A0A0A' : '#F8F9FA';
@@ -53,7 +56,37 @@ export default function MarketScreen() {
 
   useEffect(() => {
     loadMarketData();
+    // تحديث الأسعار كل 30 ثانية
+    const interval = setInterval(() => {
+      loadPricesOnly();
+    }, 30000);
+    
+    return () => clearInterval(interval);
   }, []);
+
+  const loadPricesOnly = async () => {
+    try {
+      const priceData = await fetchPrices();
+      setPrices(priceData);
+      
+      // تحديث الأسعار في قائمة العملات
+      setTokens(prevTokens => 
+        prevTokens.map(token => {
+          const priceInfo = priceData[token.symbol];
+          if (priceInfo) {
+            return {
+              ...token,
+              currentPrice: priceInfo.price,
+              priceSource: priceInfo.source
+            };
+          }
+          return token;
+        })
+      );
+    } catch (error) {
+      console.warn('⚠️ فشل تحديث الأسعار:', error);
+    }
+  };
 
   const loadMarketData = async () => {
     try {
@@ -91,26 +124,69 @@ export default function MarketScreen() {
         };
       }
       
-      // 4. تأكد من وجود سعر MECO
-      if (!priceData['MECO']) {
-        priceData['MECO'] = { price: 0.00617, source: 'Fixed', updated: Date.now() };
+      // 4. جلب بيانات السوق الإضافية للعملات الرئيسية
+      const marketDataPromises = {};
+      const mainTokens = ['SOL', 'USDC', 'USDT', 'JUP'];
+      
+      for (const token of tokenList) {
+        if (mainTokens.includes(token.symbol)) {
+          marketDataPromises[token.symbol] = fetchMarketData(token.address);
+        }
       }
+      
+      // انتظار جميع طلبات بيانات السوق
+      const marketDataResults = {};
+      for (const [symbol, promise] of Object.entries(marketDataPromises)) {
+        try {
+          const data = await promise;
+          if (data) {
+            marketDataResults[symbol] = data;
+          }
+        } catch (error) {
+          console.warn(`⚠️ فشل جلب بيانات السوق لـ ${symbol}:`, error);
+        }
+      }
+      
+      setMarketData(marketDataResults);
       
       // 5. دمج البيانات
       const tokensWithPrices = tokenList.slice(0, 15).map(token => {
         const symbol = token.symbol;
-        const priceInfo = priceData[symbol] || { price: 0, source: 'Unknown' };
+        let priceInfo = priceData[symbol];
         
-        // بيانات افتراضية للتغيرات
+        // إذا لم يكن هناك سعر، نستخدم سعر افتراضي بناءً على الرمز
+        if (!priceInfo) {
+          let defaultPrice = 0;
+          if (symbol === 'SOL') defaultPrice = 185;
+          else if (symbol === 'USDC') defaultPrice = 1;
+          else if (symbol === 'USDT') defaultPrice = 1;
+          else if (symbol === 'JUP') defaultPrice = 0.8;
+          else if (symbol === 'MECO') defaultPrice = 0.00617;
+          
+          priceInfo = { price: defaultPrice, source: 'Default' };
+        }
+        
+        // استخدام بيانات السوق الحقيقية إذا كانت متاحة
+        const tokenMarketData = marketDataResults[symbol];
         let change24h = 0;
-        if (symbol === 'MECO') {
-          change24h = 0.5; // +0.5% لـ MECO
-        } else if (symbol === 'SOL') {
-          change24h = Math.random() * 6 - 3; // بين -3% و +3%
-        } else if (symbol === 'USDC' || symbol === 'USDT') {
-          change24h = 0;
+        let volume24h = 0;
+        
+        if (tokenMarketData) {
+          change24h = tokenMarketData.priceChange24h || 0;
+          volume24h = tokenMarketData.volume24h || 0;
         } else {
-          change24h = Math.random() * 10 - 5; // بين -5% و +5%
+          // بيانات افتراضية للتغيرات
+          if (symbol === 'MECO') {
+            change24h = 0.5; // +0.5% لـ MECO
+          } else if (symbol === 'SOL') {
+            change24h = Math.random() * 6 - 3; // بين -3% و +3%
+          } else if (symbol === 'USDC' || symbol === 'USDT') {
+            change24h = 0;
+          } else {
+            change24h = Math.random() * 10 - 5; // بين -5% و +5%
+          }
+          
+          volume24h = priceInfo.price * (Math.random() * 10000000 + 100000);
         }
         
         return {
@@ -118,8 +194,8 @@ export default function MarketScreen() {
           currentPrice: priceInfo.price,
           priceSource: priceInfo.source,
           change24h: change24h,
-          marketCap: priceInfo.price * (Math.random() * 1000000000 + 1000000),
-          volume24h: priceInfo.price * (Math.random() * 10000000 + 100000)
+          volume24h: volume24h,
+          marketCap: priceInfo.price * (Math.random() * 1000000000 + 1000000)
         };
       });
       
@@ -221,6 +297,12 @@ export default function MarketScreen() {
                     <Text style={styles.mecoBadgeText}>MECO</Text>
                   </View>
                 )}
+                {token.priceSource === 'Jupiter' && (
+                  <Ionicons name="flash" size={12} color="#FF6B00" style={styles.sourceIcon} />
+                )}
+                {token.priceSource === 'Birdeye' && (
+                  <Ionicons name="eye" size={12} color="#10B981" style={styles.sourceIcon} />
+                )}
               </View>
               <Text style={[styles.tokenName, { color: secondaryText }]} numberOfLines={1}>
                 {token.name}
@@ -257,7 +339,7 @@ export default function MarketScreen() {
           <View style={styles.sourceContainer}>
             <Ionicons name="information-circle-outline" size={12} color={secondaryText} />
             <Text style={[styles.sourceText, { color: secondaryText }]}>
-              {token.priceSource || 'Unknown'}
+              {token.priceSource || 'Unknown'} • Vol: ${(token.volume24h || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
             </Text>
           </View>
           
@@ -356,17 +438,33 @@ export default function MarketScreen() {
             <Text style={[styles.statsText, { color: secondaryText }]}>
               {t('tokens_count', { count: tokens.length })}
             </Text>
-            <TouchableOpacity 
-              style={styles.refreshButton}
-              onPress={onRefresh}
-            >
-              <Ionicons name="refresh" size={20} color={primaryColor} />
-            </TouchableOpacity>
+            <View style={styles.headerButtons}>
+              <TouchableOpacity 
+                style={styles.refreshButton}
+                onPress={loadPricesOnly}
+              >
+                <Ionicons name="refresh" size={20} color={primaryColor} />
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.refreshButton, { marginLeft: 8 }]}
+                onPress={onRefresh}
+              >
+                <Ionicons name="reload" size={20} color={primaryColor} />
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
 
         {/* التبويبات */}
         {renderTabs()}
+
+        {/* معلومات تحديث الأسعار */}
+        <View style={[styles.updateInfo, { backgroundColor: primaryColor + '10' }]}>
+          <Ionicons name="time-outline" size={14} color={primaryColor} />
+          <Text style={[styles.updateText, { color: primaryColor }]}>
+            {t('prices_update_every_30s')}
+          </Text>
+        </View>
 
         {/* قائمة العملات */}
         <View style={styles.sectionHeader}>
@@ -393,6 +491,25 @@ export default function MarketScreen() {
                 {t('meco_price_note', { price: MECO_TOKEN.currentPrice })}
               </Text>
             </Text>
+          </View>
+        </View>
+
+        {/* مصادر البيانات */}
+        <View style={[styles.sourcesCard, { backgroundColor: cardBg, borderColor }]}>
+          <Text style={[styles.sourcesTitle, { color: textColor }]}>
+            {t('data_sources')}
+          </Text>
+          <View style={styles.sourcesList}>
+            <View style={styles.sourceItem}>
+              <Ionicons name="flash" size={16} color="#FF6B00" />
+              <Text style={[styles.sourceItemText, { color: textColor }]}>Jupiter</Text>
+              <Text style={[styles.sourceItemDesc, { color: secondaryText }]}>الأسعار الفورية</Text>
+            </View>
+            <View style={styles.sourceItem}>
+              <Ionicons name="eye" size={16} color="#10B981" />
+              <Text style={[styles.sourceItemText, { color: textColor }]}>Birdeye</Text>
+              <Text style={[styles.sourceItemDesc, { color: secondaryText }]}>بيانات السوق</Text>
+            </View>
           </View>
         </View>
 
@@ -440,6 +557,9 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginBottom: 8,
   },
+  headerButtons: {
+    flexDirection: 'row',
+  },
   refreshButton: {
     width: 36,
     height: 36,
@@ -447,6 +567,21 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.05)',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  updateInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 12,
+    marginHorizontal: 20,
+    marginBottom: 16,
+  },
+  updateText: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginLeft: 6,
   },
   tabsContainer: {
     paddingHorizontal: 20,
@@ -538,6 +673,9 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#FF6B6B',
   },
+  sourceIcon: {
+    marginLeft: 6,
+  },
   tokenName: {
     fontSize: 12,
     opacity: 0.7,
@@ -613,6 +751,34 @@ const styles = StyleSheet.create({
   noteText: {
     fontSize: 12,
     lineHeight: 18,
+  },
+  sourcesCard: {
+    borderRadius: 16,
+    padding: 16,
+    marginHorizontal: 20,
+    marginBottom: 20,
+    borderWidth: 1,
+  },
+  sourcesTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 12,
+  },
+  sourcesList: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+  },
+  sourceItem: {
+    alignItems: 'center',
+  },
+  sourceItemText: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 4,
+  },
+  sourceItemDesc: {
+    fontSize: 10,
+    marginTop: 2,
   },
   spacer: {
     height: 40,
