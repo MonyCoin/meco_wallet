@@ -73,6 +73,30 @@ async function isValidSolanaAddress(address) {
   }
 }
 
+// التحقق من التواقيع قبل الإرسال
+const verifySignatures = (tx, fromPubkey) => {
+  try {
+    const signatures = tx.signatures;
+    console.log(`📌 عدد التواقيع: ${signatures.length}`);
+    
+    // التحقق من وجود توقيع المرسل
+    const senderSignature = signatures.find(sig => 
+      sig.publicKey.toBase58() === fromPubkey.toBase58()
+    );
+    
+    if (!senderSignature || senderSignature.signature === null) {
+      console.error('❌ لم يتم توقيع المعاملة من قبل المرسل');
+      return false;
+    }
+    
+    console.log('✅ تم توقيع المعاملة بنجاح');
+    return true;
+  } catch (error) {
+    console.error('❌ خطأ في التحقق من التواقيع:', error);
+    return false;
+  }
+};
+
 export default function SendScreen() {
   const { t } = useTranslation();
   const route = useRoute();
@@ -366,7 +390,7 @@ export default function SendScreen() {
         try {
           const rentExemptAmount = await connection.getMinimumBalanceForRentExemption(0) / 1e9;
           totalAmount += rentExemptAmount;
-          console.log(`Adding rent exempt amount: ${rentExemptAmount} SOL`);
+          console.log(`📌 Adding rent exempt amount: ${rentExemptAmount} SOL`);
         } catch (error) {
           console.warn('Could not calculate rent exempt amount:', error);
         }
@@ -411,6 +435,11 @@ export default function SendScreen() {
         throw new Error('Network connection not available');
       }
 
+      // التحقق من المفتاح الخاص والمفتاح العام
+      console.log('🔄 التحقق من المفتاح الخاص...');
+      console.log('📌 المفتاح العام:', fromPubkey.toBase58());
+      console.log('📌 المفتاح العام المتوقع:', await SecureStore.getItemAsync('wallet_public_key'));
+
       const currentToken = getCurrentToken();
       const serviceFee = networkFee * SERVICE_FEE_PERCENTAGE;
 
@@ -422,30 +451,39 @@ export default function SendScreen() {
         if (!recipientExists) {
           try {
             const rentExemptAmount = await connection.getMinimumBalanceForRentExemption(0);
-            // Create account with rent exempt amount
+            console.log(`📌 Rent exempt amount needed: ${rentExemptAmount / 1e9} SOL`);
+            
+            // إضافة تعليمات التحويل للرانت مع المبلغ الرئيسي
             instructions.push(
-              web3.SystemProgram.createAccount({
+              web3.SystemProgram.transfer({
                 fromPubkey: fromPubkey,
-                newAccountPubkey: toPubkey,
-                lamports: rentExemptAmount,
-                space: 0,
-                programId: web3.SystemProgram.programId,
+                toPubkey: toPubkey,
+                lamports: rentExemptAmount + lamportsToSend,
               })
             );
-            console.log(`Creating new account with rent: ${rentExemptAmount / 1e9} SOL`);
+            
+            console.log(`✅ Total transfer (rent + amount): ${(rentExemptAmount + lamportsToSend) / 1e9} SOL`);
           } catch (error) {
-            console.warn('Could not create account with rent:', error);
+            console.warn('⚠️ Rent calculation error:', error);
+            // استمرار بدون رانت في حالة الخطأ
+            instructions.push(
+              web3.SystemProgram.transfer({
+                fromPubkey: fromPubkey,
+                toPubkey: toPubkey,
+                lamports: lamportsToSend,
+              })
+            );
           }
+        } else {
+          // الحساب موجود بالفعل، أرسل المبلغ فقط
+          instructions.push(
+            web3.SystemProgram.transfer({
+              fromPubkey: fromPubkey,
+              toPubkey: toPubkey,
+              lamports: lamportsToSend,
+            })
+          );
         }
-
-        // Send main amount to recipient
-        instructions.push(
-          web3.SystemProgram.transfer({
-            fromPubkey,
-            toPubkey,
-            lamports: lamportsToSend,
-          })
-        );
 
         // Send service fee to developer wallet
         instructions.push(
@@ -462,6 +500,14 @@ export default function SendScreen() {
         tx.recentBlockhash = blockhash;
         tx.feePayer = fromPubkey;
 
+        // توقيع المعاملة
+        tx.sign(keypair);
+
+        // التحقق من التواقيع قبل الإرسال
+        if (!verifySignatures(tx, fromPubkey)) {
+          throw new Error('فشل التحقق من توقيع المعاملة');
+        }
+
         // Simulate transaction first
         try {
           const simulation = await connection.simulateTransaction(tx);
@@ -472,7 +518,15 @@ export default function SendScreen() {
           console.warn('Transaction simulation warning:', simError.message);
         }
 
-        const sig = await web3.sendAndConfirmTransaction(connection, tx, [keypair]);
+        // إرسال المعاملة باستخدام connection.sendTransaction
+        const sig = await connection.sendTransaction(tx, [keypair], {
+          skipPreflight: false,
+          preflightCommitment: 'confirmed'
+        });
+        
+        console.log('✅ Transaction sent, waiting for confirmation...');
+        
+        // انتظار تأكيد المعاملة
         await connection.confirmTransaction(sig, 'confirmed');
         
         console.log('✅ SOL transfer successful:', sig);
@@ -517,6 +571,14 @@ export default function SendScreen() {
 
         const tx = new web3.Transaction().add(...instructions);
         
+        // توقيع المعاملة
+        tx.sign(keypair);
+
+        // التحقق من التواقيع قبل الإرسال
+        if (!verifySignatures(tx, fromPubkey)) {
+          throw new Error('فشل التحقق من توقيع المعاملة');
+        }
+
         // Simulate transaction first
         try {
           const simulation = await connection.simulateTransaction(tx);
@@ -527,7 +589,15 @@ export default function SendScreen() {
           console.warn('Transaction simulation warning:', simError.message);
         }
 
-        const sig = await web3.sendAndConfirmTransaction(connection, tx, [keypair]);
+        // إرسال المعاملة باستخدام connection.sendTransaction
+        const sig = await connection.sendTransaction(tx, [keypair], {
+          skipPreflight: false,
+          preflightCommitment: 'confirmed'
+        });
+        
+        console.log('✅ Transaction sent, waiting for confirmation...');
+        
+        // انتظار تأكيد المعاملة
         await connection.confirmTransaction(sig, 'confirmed');
         
         console.log('✅ Token transfer successful:', sig);
@@ -568,18 +638,24 @@ export default function SendScreen() {
         ]
       );
     } catch (err) {
-      console.error('Send transaction error:', err);
+      console.error('❌ Send transaction error:', err);
       setLoading(false);
       
       let errorMessage = `${t('send_failed')}: ${err.message}`;
       
-      // Provide more specific error messages
+      // تقديم رسائل خطأ أكثر تحديداً
       if (err.message.includes('insufficient funds for rent')) {
         errorMessage = `${t('rent_exempt_insufficient')}\n\n${t('new_account_requires_rent')}`;
       } else if (err.message.includes('insufficient funds')) {
         errorMessage = t('insufficient_balance_for_transaction');
       } else if (err.message.includes('Account does not exist')) {
         errorMessage = `${t('recipient_account_not_found')}\n\n${t('make_sure_address_correct')}`;
+      } else if (err.message.includes('signature verification')) {
+        errorMessage = 'فشل التحقق من التوقيع. يرجى التحقق من المفتاح الخاص وإعادة المحاولة.';
+      } else if (err.message.includes('Blockhash not found')) {
+        errorMessage = 'انتهت صلاحية Blockhash. يرجى إعادة المحاولة.';
+      } else if (err.message.includes('Invalid public key')) {
+        errorMessage = 'عنوان المستلم غير صالح.';
       }
       
       Alert.alert(t('error'), errorMessage);

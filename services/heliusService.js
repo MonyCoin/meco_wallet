@@ -1,54 +1,106 @@
+// services/heliusService.js
 import * as SecureStore from 'expo-secure-store';
-import { MECO_MINT } from '../constants';
+import { MECO_MINT, RPC_URL, WALLET_ADDRESSES } from '../constants';
 
 const HELIUS_API_KEY = '886a8252-15e3-4eef-bc26-64bd552dded0';
-const BASE_URL = `https://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`;
-const FALLBACK_RPC_URL = 'https://api.mainnet-beta.solana.com';
+const HELIUS_BASE_URL = `https://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`;
+const FALLBACK_RPC_URL = RPC_URL || 'https://api.mainnet-beta.solana.com';
 
-async function heliusRpcRequest(method, params = []) {
+// تحسين: إضافة retry logic مع فترات انتظار متدرجة
+const MAX_RETRIES = 2;
+const RETRY_DELAYS = [1000, 2000]; // فترات انتظار بالميلي ثانية
+
+async function delay(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function makeRpcRequest(url, method, params = [], retryCount = 0) {
   try {
     const body = {
       jsonrpc: '2.0',
-      id: 1,
+      id: Date.now(),
       method,
       params,
     };
 
-    const res = await fetch(BASE_URL, {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // timeout 10 ثانية
+
+    const res = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
       body: JSON.stringify(body),
+      signal: controller.signal,
     });
 
+    clearTimeout(timeoutId);
+
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    }
+
     const json = await res.json();
-    if (json.error) throw new Error(json.error.message);
+    
+    if (json.error) {
+      throw new Error(`RPC Error: ${json.error.message || JSON.stringify(json.error)}`);
+    }
+    
     return json.result;
   } catch (error) {
-    console.log(`⚠️ Helius failed, trying fallback for ${method}:`, error.message);
-    return fallbackRpcRequest(method, params);
+    // إعادة المحاولة فقط لأخطاء الشبكة أو timeout
+    const isNetworkError = error.name === 'AbortError' || 
+                          error.message.includes('Network') ||
+                          error.message.includes('timeout') ||
+                          error.message.includes('fetch');
+    
+    if (isNetworkError && retryCount < MAX_RETRIES) {
+      const delayTime = RETRY_DELAYS[retryCount];
+      console.log(`🔄 Retrying ${method} (attempt ${retryCount + 1}/${MAX_RETRIES})`);
+      await delay(delayTime);
+      return makeRpcRequest(url, method, params, retryCount + 1);
+    }
+    
+    throw error;
   }
 }
 
-async function fallbackRpcRequest(method, params = []) {
+// ✅ Export هذه الدالة
+export async function heliusRpcRequest(method, params = []) {
   try {
-    const body = {
-      jsonrpc: '2.0',
-      id: 1,
-      method,
-      params,
-    };
-
-    const res = await fetch(FALLBACK_RPC_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-
-    const json = await res.json();
-    if (json.error) throw new Error(json.error.message);
-    return json.result;
+    const result = await makeRpcRequest(HELIUS_BASE_URL, method, params);
+    return result;
   } catch (error) {
-    console.error(`❌ Fallback also failed for ${method}:`, error);
+    console.log(`⚠️ Helius failed for ${method}:`, error.message);
+    
+    // استخدم fallback فقط للطرق الحرجة
+    const criticalMethods = ['getBalance', 'getTokenAccountsByOwner', 'getAccountInfo'];
+    if (criticalMethods.includes(method)) {
+      return fallbackRpcRequest(method, params);
+    }
+    
+    throw error;
+  }
+}
+
+// ✅ Export هذه الدالة
+export async function fallbackRpcRequest(method, params = []) {
+  try {
+    console.log(`🔄 Using fallback RPC for ${method}`);
+    const result = await makeRpcRequest(FALLBACK_RPC_URL, method, params);
+    return result;
+  } catch (error) {
+    console.error(`❌ Fallback also failed for ${method}:`, error.message);
+    
+    // قيمة افتراضية في حالة فشل كل شيء
+    if (method === 'getBalance') {
+      return { value: 0 };
+    } else if (method === 'getTokenAccountsByOwner') {
+      return { value: [] };
+    }
+    
     throw error;
   }
 }
@@ -62,8 +114,17 @@ export async function getSolBalance() {
     }
 
     const result = await heliusRpcRequest('getBalance', [pubKey]);
-    const balance = result?.value ? result.value / 1e9 : 0;
-    console.log(`✅ SOL Balance: ${balance} SOL`);
+    
+    // تحسين: معالجة مختلف أشكال الاستجابة
+    let balanceInLamports = 0;
+    if (typeof result === 'number') {
+      balanceInLamports = result;
+    } else if (result && typeof result === 'object') {
+      balanceInLamports = result.value || result.lamports || 0;
+    }
+    
+    const balance = balanceInLamports / 1e9;
+    console.log(`✅ SOL Balance: ${balance.toFixed(6)} SOL`);
     return balance;
   } catch (error) {
     console.error('❌ Error in getSolBalance:', error.message);
@@ -85,27 +146,42 @@ export async function getTokenAccounts() {
       { encoding: 'jsonParsed' },
     ]);
 
-    if (!result?.value) return [];
+    // تحسين: معالجة مختلف أشكال الاستجابة
+    let accounts = [];
+    if (result && Array.isArray(result)) {
+      accounts = result;
+    } else if (result && result.value && Array.isArray(result.value)) {
+      accounts = result.value;
+    }
 
-    const tokens = result.value.map((acc) => {
-      const info = acc.account.data.parsed.info;
-      const amount = Number(info.tokenAmount.amount);
-      const decimals = info.tokenAmount.decimals;
-      const uiAmount = info.tokenAmount.uiAmount || amount / Math.pow(10, decimals);
-      
-      return {
-        mint: info.mint,
-        amount: uiAmount,
-        decimals,
-        tokenAmount: info.tokenAmount,
-        pubkey: acc.pubkey,
-      };
-    });
+    const tokens = accounts.map((acc) => {
+      try {
+        const info = acc.account?.data?.parsed?.info;
+        if (!info) return null;
 
-    const filteredTokens = tokens.filter((t) => t.amount > 0);
-    console.log(`✅ Found ${filteredTokens.length} tokens with balance`);
-    
-    return filteredTokens;
+        const amount = Number(info.tokenAmount?.amount || 0);
+        const decimals = info.tokenAmount?.decimals || 0;
+        const mint = info.mint;
+        
+        if (!mint) return null;
+        
+        const uiAmount = amount / Math.pow(10, decimals);
+        
+        return {
+          mint,
+          amount: uiAmount,
+          decimals,
+          rawAmount: amount,
+          pubkey: acc.pubkey,
+        };
+      } catch (error) {
+        console.warn('⚠️ Error processing token account:', error.message);
+        return null;
+      }
+    }).filter(token => token !== null && token.amount > 0);
+
+    console.log(`✅ Found ${tokens.length} tokens with balance`);
+    return tokens;
   } catch (error) {
     console.error('❌ Error in getTokenAccounts:', error.message);
     return [];
@@ -118,7 +194,7 @@ export async function getMecoBalance() {
     const mecoToken = tokens.find(t => t.mint === MECO_MINT);
     
     if (mecoToken) {
-      console.log(`✅ MECO Balance: ${mecoToken.amount} MECO`);
+      console.log(`✅ MECO Balance: ${mecoToken.amount.toFixed(4)} MECO`);
       return mecoToken.amount;
     }
     
@@ -163,3 +239,86 @@ export async function getAccountInfo(publicKey) {
     return null;
   }
 }
+
+// دالة جديدة: الحصول على توازن محفظة محددة
+export async function getWalletBalance(walletAddress) {
+  try {
+    const result = await heliusRpcRequest('getBalance', [walletAddress]);
+    const balance = result?.value ? result.value / 1e9 : 0;
+    console.log(`💰 Wallet balance: ${balance.toFixed(6)} SOL`);
+    return balance;
+  } catch (error) {
+    console.error(`❌ Error getting wallet balance:`, error.message);
+    return 0;
+  }
+}
+
+// دالة جديدة: الحصول على أحدث blockhash
+export async function getLatestBlockhash() {
+  try {
+    const result = await heliusRpcRequest('getLatestBlockhash', []);
+    return result;
+  } catch (error) {
+    console.error('❌ Error getting latest blockhash:', error.message);
+    // قيمة افتراضية
+    return {
+      blockhash: '11111111111111111111111111111111',
+      lastValidBlockHeight: 0
+    };
+  }
+}
+
+// دالة جديدة: الحصول على رسوم الأولوية
+export async function getRecentPrioritizationFees() {
+  try {
+    const result = await heliusRpcRequest('getRecentPrioritizationFees', []);
+    return result || [];
+  } catch (error) {
+    console.error('❌ Error getting prioritization fees:', error.message);
+    return [];
+  }
+}
+
+// دالة مساعدة: التحقق من أرصدة المحافظ الإدارية
+export async function checkAdminWalletsBalance() {
+  try {
+    const wallets = [
+      WALLET_ADDRESSES.PRESALE_TREASURY,
+      WALLET_ADDRESSES.PROGRAM_WALLET,
+      WALLET_ADDRESSES.FEE_COLLECTOR
+    ].filter(wallet => wallet && wallet !== 'undefined');
+    
+    const balances = {};
+    
+    for (const wallet of wallets) {
+      try {
+        const balance = await getWalletBalance(wallet);
+        balances[wallet] = balance;
+      } catch (error) {
+        balances[wallet] = 'Error';
+      }
+    }
+    
+    console.log('📊 Admin Wallets Balances:', balances);
+    return balances;
+  } catch (error) {
+    console.error('❌ Error checking admin wallets:', error.message);
+    return {};
+  }
+}
+
+// ✅ التصدير الكامل للدوال
+export default {
+  heliusRpcRequest,
+  fallbackRpcRequest,
+  getSolBalance,
+  getTokenAccounts,
+  getMecoBalance,
+  getTokenBalance,
+  hasTokenAccount,
+  getAccountInfo,
+  getWalletBalance,
+  getLatestBlockhash,
+  getRecentPrioritizationFees,
+  checkAdminWalletsBalance,
+};
