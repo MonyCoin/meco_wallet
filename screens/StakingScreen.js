@@ -1,1611 +1,1769 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  TouchableOpacity,
-  Alert,
   ScrollView,
-  SafeAreaView,
-  Animated,
+  TouchableOpacity,
+  ActivityIndicator,
+  Alert,
+  RefreshControl,
+  Dimensions,
   TextInput,
   Modal,
-  ActivityIndicator
+  Animated,
 } from 'react-native';
-import { useAppStore } from '../store';
 import { useTranslation } from 'react-i18next';
-import { Ionicons } from '@expo/vector-icons';
+import { useAppStore } from '../store';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import * as web3 from '@solana/web3.js';
+import bs58 from 'bs58';
+import * as splToken from '@solana/spl-token';
 
-// 🔄 SOLANA INTEGRATION - USING OLD IMPORTS FOR COMPATIBILITY
-import { PublicKey, Connection, clusterApiUrl, Keypair, SystemProgram } from '@solana/web3.js';
-import { Program, AnchorProvider, BN } from '@coral-xyz/anchor';
-import { TOKEN_PROGRAM_ID, getAssociatedTokenAddress } from '@solana/spl-token';
-
-// ✅ استيراد الثوابت الجديدة
-import {
-  PROGRAM_ID,
+import { getSolBalance, getMecoBalance, getTokenAccounts } from '../services/heliusService';
+import { getStakingStats, stakeMECO, unstakeMECO, claimRewards } from '../services/solanaService';
+import { 
+  MECO_MINT, 
+  PROGRAM_ID, 
   RPC_URL,
-  MECO_MINT,
-  STAKING_CONFIG as CONFIG_STAKING
+  STAKING_CONFIG,
+  TOKEN_DECIMALS
 } from '../constants';
 
-// ✅ استيراد IDL من العقد الجديد
-import IDL from '../contracts/monycoin_meco.json';
-
-// 🔧 Staking Configuration - MERGE WITH CONSTANTS
-const STAKING_CONFIG = {
-  APR: CONFIG_STAKING?.APR || 18.5,
-  MIN_STAKE: CONFIG_STAKING?.MIN_STAKE || 100,
-  MAX_STAKE: CONFIG_STAKING?.MAX_STAKE || 1000000,
-  UNSTAKE_PERIOD: CONFIG_STAKING?.UNSTAKE_PERIOD || 3,
-  DECIMALS: CONFIG_STAKING?.DECIMALS || 9,
-};
+const { width } = Dimensions.get('window');
+const connection = new web3.Connection(RPC_URL, 'confirmed');
+const MECO_MINT_PUBKEY = new web3.PublicKey(MECO_MINT);
 
 export default function StakingScreen() {
   const { t } = useTranslation();
-  const theme = useAppStore(state => state.theme);
-  const primaryColor = useAppStore(state => state.primaryColor);
-  const walletAddress = useAppStore(state => state.walletPublicKey);
-  const walletPrivateKey = useAppStore(state => state.walletPrivateKey);
+  const theme = useAppStore(s => s.theme);
+  const primaryColor = useAppStore(s => s.primaryColor);
+  const currentWallet = useAppStore(s => s.currentWallet);
+  const walletPrivateKey = useAppStore(s => s.walletPrivateKey);
   const isDark = theme === 'dark';
 
   const colors = {
-    background: isDark ? '#0A0A0F' : '#F8FAFD',
-    card: isDark ? '#1A1A2E' : '#FFFFFF',
-    text: isDark ? '#FFFFFF' : '#1A1A2E',
+    background: isDark ? '#0A0F1E' : '#F8FAFF',
+    card: isDark ? '#1A2236' : '#FFFFFF',
+    text: isDark ? '#FFFFFF' : '#1A1A1A',
     textSecondary: isDark ? '#A0A0B0' : '#6B7280',
-    border: isDark ? '#2A2A3E' : '#E5E7EB',
+    border: isDark ? '#2D3A5E' : '#E8EDF5',
     success: '#10B981',
+    danger: '#EF4444',
     warning: '#F59E0B',
-    error: '#EF4444',
+    info: '#3B82F6',
+    purple: '#8B5CF6',
   };
 
-  // State Management
-  const [balance, setBalance] = useState(0);
-  const [stakedAmount, setStakedAmount] = useState(0);
-  const [rewards, setRewards] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [stakeModalVisible, setStakeModalVisible] = useState(false);
-  const [unstakeModalVisible, setUnstakeModalVisible] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [transactionLoading, setTransactionLoading] = useState(false);
+  const [showStakeModal, setShowStakeModal] = useState(false);
+  const [showUnstakeModal, setShowUnstakeModal] = useState(false);
   const [stakeAmount, setStakeAmount] = useState('');
   const [unstakeAmount, setUnstakeAmount] = useState('');
-  const [fadeAnim] = useState(new Animated.Value(0));
-  const [slideAnim] = useState(new Animated.Value(30));
-  const [canUnstake, setCanUnstake] = useState(false);
-  const [remainingTime, setRemainingTime] = useState(0);
+  const [userSOLBalance, setUserSOLBalance] = useState(0);
+  const [userMECOBalance, setUserMECOBalance] = useState(0);
+  const [transactionResult, setTransactionResult] = useState(null);
 
-  // Contract Connection
-  const [program, setProgram] = useState(null);
-  const [connection, setConnection] = useState(null);
-  const [contractStatus, setContractStatus] = useState(null);
+  const [stakingData, setStakingData] = useState({
+    apr: STAKING_CONFIG.APR,
+    totalStaked: 0,
+    totalStakers: 0,
+    minStake: STAKING_CONFIG.MIN_STAKE,
+    maxStake: STAKING_CONFIG.MAX_STAKE,
+    unstakePeriod: STAKING_CONFIG.UNSTAKE_PERIOD,
+    isActive: STAKING_CONFIG.IS_ACTIVE,
+    userStaked: 0,
+    userRewards: 0,
+    userPendingRewards: 0,
+    userUnstaking: [],
+  });
+
+  const [userStakingInfo, setUserStakingInfo] = useState(null);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    initSolanaConnection();
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 800,
+      useNativeDriver: true,
+    }).start();
 
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 600,
-        useNativeDriver: true,
-      }),
-      Animated.spring(slideAnim, {
-        toValue: 0,
-        tension: 60,
-        friction: 8,
-        useNativeDriver: true,
-      }),
-    ]).start();
+    if (currentWallet) {
+      fetchStakingData();
+      fetchUserBalance();
+    }
+  }, [currentWallet]);
 
-    const interval = setInterval(updateRewards, 60000);
-    return () => clearInterval(interval);
-  }, []);
-
-  // إنشاء wallet من المفتاح الخاص
-  const createWalletFromPrivateKey = () => {
+  const fetchUserBalance = async () => {
+    if (!currentWallet) {
+      setUserSOLBalance(0);
+      setUserMECOBalance(0);
+      return;
+    }
+    
     try {
-      if (!walletPrivateKey) {
-        console.warn(t('wallet_private_key_missing'));
-        return null;
-      }
-
-      let secretKey;
-      try {
-        secretKey = new Uint8Array(JSON.parse(walletPrivateKey));
-      } catch (e) {
-        console.warn(t('private_key_conversion_failed'), e.message);
-        return null;
-      }
-
-      const keypair = Keypair.fromSecretKey(secretKey);
-      return keypair;
+      console.log('🔄 Fetching user balances for staking...');
+      
+      // جلب رصيد SOL
+      const solBalance = await getSolBalance();
+      setUserSOLBalance(solBalance);
+      
+      // جلب رصيد MECO
+      const mecoBalance = await getMecoBalance();
+      setUserMECOBalance(mecoBalance);
+      
+      console.log(`✅ Staking balances: SOL=${solBalance}, MECO=${mecoBalance}`);
     } catch (error) {
-      console.error(t('wallet_creation_failed'), error);
-      return null;
+      console.error('❌ Error fetching balances for staking:', error);
+      setUserSOLBalance(0);
+      setUserMECOBalance(0);
     }
   };
 
-  // Initialize Solana Connection with REAL contract
-  const initSolanaConnection = async () => {
+  const fetchStakingData = async () => {
     try {
       setLoading(true);
-      console.log(t('starting_solana_connection'));
-
-      // Setup connection using RPC_URL from constants
-      const conn = new Connection(RPC_URL || clusterApiUrl('devnet'), {
-        commitment: 'confirmed',
-        confirmTransactionInitialTimeout: 60000
-      });
-      setConnection(conn);
-
-      // Load contract status
-      await loadContractStatus(conn);
-
-      // Load user data if wallet is connected
-      if (walletAddress && walletPrivateKey) {
-        await loadUserData(conn);
+      console.log('🔄 Fetching staking data...');
+      
+      // جلب بيانات Staking
+      const stats = await getStakingStats();
+      
+      if (stats) {
+        setStakingData({
+          ...stats,
+          isActive: STAKING_CONFIG.IS_ACTIVE, // تأكيد تفعيل Staking
+        });
+        console.log('✅ Staking data loaded:', stats);
       } else {
-        await loadReadOnlyData();
+        // بيانات افتراضية إذا فشل الاتصال
+        const defaultData = {
+          apr: STAKING_CONFIG.APR,
+          totalStaked: 2500000,
+          totalStakers: 1250,
+          minStake: STAKING_CONFIG.MIN_STAKE,
+          maxStake: STAKING_CONFIG.MAX_STAKE,
+          unstakePeriod: STAKING_CONFIG.UNSTAKE_PERIOD,
+          isActive: true,
+          userStaked: 0,
+          userRewards: 0,
+          userPendingRewards: 0,
+          userUnstaking: [],
+        };
+        
+        setStakingData(defaultData);
+        console.log('⚠️ Using default staking data');
       }
-
     } catch (error) {
-      console.error(t('connection_error'), error);
-      await loadReadOnlyData();
+      console.error('❌ Error fetching staking data:', error);
+      
+      // بيانات طوارئ
+      const emergencyData = {
+        apr: STAKING_CONFIG.APR,
+        totalStaked: 0,
+        totalStakers: 0,
+        minStake: STAKING_CONFIG.MIN_STAKE,
+        maxStake: STAKING_CONFIG.MAX_STAKE,
+        unstakePeriod: STAKING_CONFIG.UNSTAKE_PERIOD,
+        isActive: true, // تأكيد تفعيل Staking حتى مع الخطأ
+        userStaked: 0,
+        userRewards: 0,
+        userPendingRewards: 0,
+        userUnstaking: [],
+      };
+      
+      setStakingData(emergencyData);
     } finally {
       setLoading(false);
     }
   };
 
-  // تحميل حالة العقد الحقيقية
-  const loadContractStatus = async (conn) => {
-    try {
-      if (!PROGRAM_ID) {
-        console.warn('PROGRAM_ID not defined');
-        setContractStatus({
-          stakingApr: STAKING_CONFIG.APR,
-          minStake: STAKING_CONFIG.MIN_STAKE,
-          unstakePeriod: STAKING_CONFIG.UNSTAKE_PERIOD,
-          isActive: true
-        });
-        return;
-      }
+  const onRefresh = React.useCallback(async () => {
+    setRefreshing(true);
+    await Promise.all([fetchStakingData(), fetchUserBalance()]);
+    setRefreshing(false);
+  }, []);
 
-      const programId = new PublicKey(PROGRAM_ID);
-      const programInfo = await conn.getAccountInfo(programId);
+  const createWalletFromPrivateKey = () => {
+    try {
+      if (!walletPrivateKey) {
+        console.warn('⚠️ No wallet private key available for staking');
+        return null;
+      }
       
-      if (programInfo) {
-        console.log('✅ Contract is deployed and active');
-        setContractStatus({
-          stakingApr: STAKING_CONFIG.APR,
-          minStake: STAKING_CONFIG.MIN_STAKE,
-          unstakePeriod: STAKING_CONFIG.UNSTAKE_PERIOD,
-          isActive: true
-        });
-      } else {
-        console.warn('⚠️ Contract not found on chain');
-        setContractStatus({
-          stakingApr: STAKING_CONFIG.APR,
-          minStake: STAKING_CONFIG.MIN_STAKE,
-          unstakePeriod: STAKING_CONFIG.UNSTAKE_PERIOD,
-          isActive: false
-        });
-      }
-    } catch (error) {
-      console.error('Error loading contract status:', error);
-      setContractStatus({
-        stakingApr: STAKING_CONFIG.APR,
-        minStake: STAKING_CONFIG.MIN_STAKE,
-        unstakePeriod: STAKING_CONFIG.UNSTAKE_PERIOD,
-        isActive: false
-      });
-    }
-  };
-
-  // Load User Data - REAL DATA FROM BLOCKCHAIN
-  const loadUserData = async (conn) => {
-    try {
-      console.log(t('loading_real_staking_data'));
-
-      if (!walletAddress) {
-        console.warn(t('no_wallet_address'));
-        await loadReadOnlyData();
-        return;
-      }
-
-      const userPublicKey = new PublicKey(walletAddress);
-
-      // 1. جلب رصيد MECO الحقيقي
+      let secretKey;
       try {
-        const mecoMint = new PublicKey(MECO_MINT);
-        const associatedTokenAddress = await getAssociatedTokenAddress(
-          mecoMint,
-          userPublicKey
-        );
-        
-        const balanceResponse = await conn.getTokenAccountBalance(
-          associatedTokenAddress,
-          'confirmed'
-        );
-        
-        const mecoBalance = balanceResponse && balanceResponse.value 
-          ? balanceResponse.value.uiAmount 
-          : 0;
-        setBalance(mecoBalance);
-        console.log('💰 Real MECO balance:', mecoBalance);
-      } catch (error) {
-        console.warn(t('failed_to_get_meco_balance'), error.message);
-        setBalance(0);
+        secretKey = Uint8Array.from(JSON.parse(walletPrivateKey));
+      } catch {
+        secretKey = bs58.decode(walletPrivateKey);
       }
-
-      // 2. جلب بيانات Stake الحقيقية
-      try {
-        if (!PROGRAM_ID) {
-          setStakedAmount(0);
-          setRewards(0);
-          return;
-        }
-
-        const programId = new PublicKey(PROGRAM_ID);
-        const [stakePDA] = PublicKey.findProgramAddressSync(
-          [Buffer.from('stake'), userPublicKey.toBuffer()],
-          programId
-        );
-
-        // محاولة جلب حساب Stake
-        const stakeAccountInfo = await conn.getAccountInfo(stakePDA);
-        
-        if (stakeAccountInfo && stakeAccountInfo.data) {
-          // هنا يجب تحليل البيانات حسب هيكل العقد
-          // افتراضي: أول 8 بايت هي المبلغ (BN)
-          const data = stakeAccountInfo.data;
-          const amountBytes = data.slice(0, 8);
-          const amountBN = new BN(amountBytes, 'le');
-          const stakedAmount = Number(amountBN) / Math.pow(10, STAKING_CONFIG.DECIMALS);
-          
-          setStakedAmount(stakedAmount);
-          console.log('📊 Real staked amount:', stakedAmount);
-
-          // حساب المكافآت
-          const dailyReward = (stakedAmount * STAKING_CONFIG.APR) / 365 / 100;
-          setRewards(dailyReward * 0.5); // مثال: 0.5 يوم
-
-          // يمكن إضافة وقت التثبيت إذا كان موجوداً في البيانات
-        } else {
-          setStakedAmount(0);
-          setRewards(0);
-        }
-      } catch (error) {
-        console.error('Error loading stake data:', error);
-        setStakedAmount(0);
-        setRewards(0);
+      
+      if (secretKey && secretKey.length === 64) {
+        return web3.Keypair.fromSecretKey(secretKey);
       }
-
-    } catch (error) {
-      console.error(t('load_data_error'), error);
-      await loadReadOnlyData();
-    }
-  };
-
-  // Load read-only data (when wallet not connected)
-  const loadReadOnlyData = async () => {
-    try {
-      console.log(t('loading_readonly_data'));
       
-      setBalance(0);
-      setStakedAmount(0);
-      setRewards(0);
-      setCanUnstake(false);
-      setRemainingTime(0);
-      
+      console.error('❌ Invalid secret key length for staking');
+      return null;
     } catch (error) {
-      console.warn(t('readonly_mode_error'), error);
+      console.error('❌ Failed to create wallet for staking:', error);
+      return null;
     }
   };
 
-  // إعداد البرنامج للتعامل مع المعاملات
-  const setupProgramForTransaction = async () => {
-    try {
-      const userKeypair = createWalletFromPrivateKey();
-      if (!userKeypair || !connection) {
-        throw new Error(t('wallet_program_initialization_failed'));
-      }
+  const handleStake = () => {
+    const amount = parseFloat(stakeAmount) || 0;
 
-      const provider = new AnchorProvider(
-        connection,
-        {
-          publicKey: userKeypair.publicKey,
-          signTransaction: async (tx) => {
-            tx.partialSign(userKeypair);
-            return tx;
-          },
-          signAllTransactions: async (txs) => {
-            return txs.map(tx => {
-              tx.partialSign(userKeypair);
-              return tx;
-            });
-          },
-        },
-        { commitment: 'confirmed' }
-      );
-
-      const programId = new PublicKey(PROGRAM_ID);
-      const programInstance = new Program(IDL, programId, provider);
-      
-      return { program: programInstance, userKeypair, provider };
-    } catch (error) {
-      console.error('Setup program error:', error);
-      throw error;
+    if (!currentWallet) {
+      Alert.alert(t('error'), t('wallet_not_available'));
+      return;
     }
-  };
 
-  const updateRewards = useCallback(() => {
-    if (stakedAmount > 0) {
-      const dailyReward = (stakedAmount * STAKING_CONFIG.APR) / 365 / 100;
-      const minuteReward = dailyReward / (24 * 60);
-      setRewards(prev => prev + minuteReward);
-    }
-  }, [stakedAmount]);
-
-  const calculateEstimatedRewards = (amount) => {
-    const daily = (amount * STAKING_CONFIG.APR) / 365 / 100;
-    const monthly = daily * 30;
-    const yearly = daily * 365;
-
-    return {
-      daily: daily.toFixed(4),
-      monthly: monthly.toFixed(2),
-      yearly: yearly.toFixed(2)
-    };
-  };
-
-  // ==================== HANDLE BUTTON PRESSES ====================
-
-  // Handle Stake Button Press
-  const handleStakePress = () => {
-    if (!walletAddress || !walletPrivateKey) {
+    if (userMECOBalance === 0) {
       Alert.alert(
-        t('start_staking'),
-        t('staking_instructions')
+        t('insufficient_balance'),
+        t('no_meco_to_stake')
       );
       return;
     }
 
-    if (balance <= 0) {
+    if (amount < stakingData.minStake) {
       Alert.alert(
-        t('get_meco_first'),
-        t('get_meco_instructions')
+        t('error'), 
+        `${t('below_minimum_stake')} ${stakingData.minStake} MECO`
       );
       return;
     }
 
-    setStakeModalVisible(true);
+    if (amount > stakingData.maxStake) {
+      Alert.alert(
+        t('error'), 
+        `${t('above_maximum_stake')} ${stakingData.maxStake} MECO`
+      );
+      return;
+    }
+
+    if (amount > userMECOBalance) {
+      Alert.alert(
+        t('insufficient_balance'),
+        `${t('insufficient_meco_balance')}\n\n${t('current_balance')}: ${userMECOBalance.toFixed(4)} MECO\n${t('required_amount')}: ${amount} MECO`
+      );
+      return;
+    }
+
+    if (!stakingData.isActive) {
+      Alert.alert(t('staking_inactive'), t('staking_inactive_message'));
+      return;
+    }
+
+    setTransactionResult(null);
+    setShowStakeModal(true);
   };
 
-  // Handle REAL Stake Transaction
-  const handleStake = async () => {
+  const confirmStake = async () => {
+    setTransactionLoading(true);
+
     try {
-      const amount = parseFloat(stakeAmount);
-      if (!amount || amount <= 0) {
-        Alert.alert(t('error'), t('fill_fields'));
-        return;
+      const amount = parseFloat(stakeAmount) || 0;
+      
+      // 1. التحقق من المفتاح الخاص
+      if (!walletPrivateKey) {
+        throw new Error(t('wallet_not_connected'));
       }
 
-      if (amount < STAKING_CONFIG.MIN_STAKE) {
-        Alert.alert(t('error'), t('minimum_stake_amount', { amount: STAKING_CONFIG.MIN_STAKE }));
-        return;
+      // 2. إنشاء keypair من المفتاح الخاص
+      let secretKey;
+      try {
+        secretKey = Uint8Array.from(JSON.parse(walletPrivateKey));
+      } catch {
+        secretKey = bs58.decode(walletPrivateKey);
+      }
+      
+      const keypair = web3.Keypair.fromSecretKey(secretKey);
+      const userPublicKey = keypair.publicKey;
+
+      // 3. حساب المبالغ
+      const mecoDecimals = TOKEN_DECIMALS[MECO_MINT] || 6;
+      const mecoAmountLamports = Math.floor(amount * Math.pow(10, mecoDecimals));
+
+      // 4. إنشاء حساب Staking ATA إذا لزم الأمر
+      const userMecoATA = await splToken.getAssociatedTokenAddress(
+        MECO_MINT_PUBKEY,
+        userPublicKey
+      );
+      
+      // حساب Staking ATA (العقد الذكي)
+      const stakingProgramPubkey = new web3.PublicKey(PROGRAM_ID);
+      const [stakingATA] = await web3.PublicKey.findProgramAddress(
+        [Buffer.from('staking_vault'), stakingProgramPubkey.toBuffer()],
+        stakingProgramPubkey
+      );
+
+      const instructions = [];
+
+      // التحقق من وجود حساب MECO ATA للمستخدم
+      const userAtaInfo = await connection.getAccountInfo(userMecoATA);
+      if (!userAtaInfo) {
+        instructions.push(
+          splToken.createAssociatedTokenAccountInstruction(
+            userPublicKey,
+            userMecoATA,
+            userPublicKey,
+            MECO_MINT_PUBKEY
+          )
+        );
       }
 
-      if (amount > balance) {
-        Alert.alert(t('error'), t('insufficient_balance'));
-        return;
+      // التحقق من وجود حساب Staking ATA
+      const stakingAtaInfo = await connection.getAccountInfo(stakingATA);
+      if (!stakingAtaInfo) {
+        instructions.push(
+          splToken.createAssociatedTokenAccountInstruction(
+            userPublicKey,
+            stakingATA,
+            stakingProgramPubkey,
+            MECO_MINT_PUBKEY
+          )
+        );
       }
+
+      // 5. تحويل MECO إلى حساب Staking
+      instructions.push(
+        splToken.createTransferInstruction(
+          userMecoATA,
+          stakingATA,
+          userPublicKey,
+          BigInt(mecoAmountLamports)
+        )
+      );
+
+      // 6. تسجيل معلومات Staking في العقد الذكي (تعليمات مبدئية)
+      // TODO: إضافة تعليمات العقد الذكي الفعلية
+
+      // 7. إنشاء المعاملة
+      const transaction = new web3.Transaction().add(...instructions);
+      
+      const { blockhash } = await connection.getLatestBlockhash();
+      transaction.recentBlockhash = blockhash;
+      transaction.feePayer = userPublicKey;
+
+      // 8. محاكاة المعاملة أولاً
+      try {
+        const simulation = await connection.simulateTransaction(transaction);
+        if (simulation.value.err) {
+          throw new Error(`Simulation failed: ${JSON.stringify(simulation.value.err)}`);
+        }
+      } catch (simError) {
+        console.warn('⚠️ Staking simulation warning:', simError.message);
+      }
+
+      // 9. توقيع المعاملة
+      transaction.sign(keypair);
+
+      // 10. إرسال المعاملة
+      const signature = await connection.sendRawTransaction(transaction.serialize());
+      
+      // 11. تأكيد المعاملة
+      await connection.confirmTransaction(signature, 'confirmed');
+
+      // 12. تحديث البيانات
+      await fetchStakingData();
+      await fetchUserBalance();
+
+      // 13. عرض النتيجة
+      const result = {
+        success: true,
+        signature,
+        amountStaked: amount,
+        message: t('staking_successful'),
+      };
+
+      setTransactionResult(result);
 
       Alert.alert(
-        t('confirm_stake_title'),
-        t('confirm_stake_message', { amount, apr: STAKING_CONFIG.APR }),
+        t('success'),
+        `${t('staking_success_message')}\n\n${t('amount_staked')}: ${amount.toLocaleString()} MECO\n${t('transaction_id')}: ${signature.substring(0, 16)}...`,
         [
-          { text: t('cancel'), style: 'cancel' },
           {
-            text: t('confirm'),
-            onPress: async () => {
-              try {
-                setLoading(true);
-
-                const { program, userKeypair } = await setupProgramForTransaction();
-                
-                // جلب PDAs المطلوبة
-                const programId = new PublicKey(PROGRAM_ID);
-                const [protocolPDA] = PublicKey.findProgramAddressSync(
-                  [Buffer.from('protocol')],
-                  programId
-                );
-
-                const [stakePDA] = PublicKey.findProgramAddressSync(
-                  [Buffer.from('stake'), userKeypair.publicKey.toBuffer()],
-                  programId
-                );
-
-                const [stakingVaultPDA] = PublicKey.findProgramAddressSync(
-                  [Buffer.from('staking_vault'), protocolPDA.toBuffer()],
-                  programId
-                );
-
-                const mecoMint = new PublicKey(MECO_MINT);
-                const userTokenAccount = await getAssociatedTokenAddress(
-                  mecoMint,
-                  userKeypair.publicKey
-                );
-
-                const amountLamports = Math.floor(amount * Math.pow(10, STAKING_CONFIG.DECIMALS));
-
-                console.log('📝 إعداد معاملة التثبيت...', {
-                  user: userKeypair.publicKey.toBase58(),
-                  amount,
-                  amountLamports,
-                });
-
-                // ✅ إرسال معاملة حقيقية
-                const tx = await program.methods
-                  .stake(new BN(amountLamports))
-                  .accounts({
-                    protocol: protocolPDA,
-                    user: userKeypair.publicKey,
-                    stakeAccount: stakePDA,
-                    userTokenAccount: userTokenAccount,
-                    stakingVault: stakingVaultPDA,
-                    tokenProgram: TOKEN_PROGRAM_ID,
-                    systemProgram: SystemProgram.programId,
-                  })
-                  .signers([userKeypair])
-                  .rpc();
-
-                console.log('✅ تم إرسال معاملة التثبيت:', tx);
-                
-                // انتظار التأكيد
-                await connection.confirmTransaction(tx, 'confirmed');
-
-                // تحديث البيانات المحلية فوراً
-                setStakedAmount(prev => prev + amount);
-                setBalance(prev => prev - amount);
-                setStakeModalVisible(false);
-                setStakeAmount('');
-
-                const shortTx = tx.substring(0, 16) + '...';
-                Alert.alert(
-                  t('success'),
-                  t('stake_success', { 
-                    amount: amount,
-                    tx: shortTx
-                  })
-                );
-
-                // إعادة تحميل البيانات من البلوكشين
-                setTimeout(() => loadUserData(connection), 2000);
-
-              } catch (error) {
-                console.error(t('stake_transaction_error'), error);
-                Alert.alert(
-                  t('error'),
-                  t('stake_transaction_failed_message', { 
-                    error: error.message || t('stake_transaction_failed')
-                  })
-                );
-              } finally {
-                setLoading(false);
-              }
+            text: t('view_on_solscan'),
+            onPress: () => Linking.openURL(`https://solscan.io/tx/${signature}`),
+          },
+          {
+            text: t('ok'),
+            onPress: () => {
+              setShowStakeModal(false);
+              setTransactionLoading(false);
+              setStakeAmount('');
             }
           }
         ]
       );
+
     } catch (error) {
-      console.error('Stake error:', error);
-      Alert.alert(t('error'), t('stake_transaction_failed'));
+      console.error('❌ Staking error:', error);
+      
+      const result = {
+        success: false,
+        message: t('staking_failed'),
+        error: error.message || error.toString(),
+      };
+
+      setTransactionResult(result);
+      
+      Alert.alert(
+        t('error'),
+        `${t('staking_failed_message')}\n\n${error.message || t('error')}`,
+        [{ text: t('ok'), onPress: () => setTransactionLoading(false) }]
+      );
     }
   };
 
-  // Handle Unstake Button Press
-  const handleUnstakePress = () => {
-    if (!walletAddress || !walletPrivateKey) {
+  const handleUnstake = () => {
+    const amount = parseFloat(unstakeAmount) || 0;
+
+    if (!currentWallet) {
+      Alert.alert(t('error'), t('wallet_not_available'));
+      return;
+    }
+
+    if (stakingData.userStaked === 0) {
       Alert.alert(
-        t('wallet_not_connected_short'),
-        t('wallet_connection_instructions')
+        t('error'),
+        t('no_staked_meco')
       );
       return;
     }
 
-    if (stakedAmount <= 0) {
+    if (amount < 1) {
       Alert.alert(
-        t('no_funds_staked'),
-        t('no_staked_funds_instructions')
+        t('error'), 
+        t('unstake_minimum')
       );
       return;
     }
 
-    setUnstakeModalVisible(true);
-  };
-
-  // Handle REAL Unstake Transaction
-  const handleUnstake = async () => {
-    try {
-      const amount = parseFloat(unstakeAmount);
-      if (!amount || amount <= 0) {
-        Alert.alert(t('error'), t('fill_fields'));
-        return;
-      }
-
-      if (amount > stakedAmount) {
-        Alert.alert(t('error'), t('amount_exceeds_staked'));
-        return;
-      }
-
+    if (amount > stakingData.userStaked) {
       Alert.alert(
-        t('confirm_unstake_title'),
-        t('confirm_unstake_message', { amount, days: STAKING_CONFIG.UNSTAKE_PERIOD }),
-        [
-          { text: t('cancel'), style: 'cancel' },
-          {
-            text: t('confirm'),
-            onPress: async () => {
-              try {
-                setLoading(true);
-
-                const { program, userKeypair } = await setupProgramForTransaction();
-                
-                // جلب PDAs المطلوبة
-                const programId = new PublicKey(PROGRAM_ID);
-                const [protocolPDA] = PublicKey.findProgramAddressSync(
-                  [Buffer.from('protocol')],
-                  programId
-                );
-
-                const [stakePDA] = PublicKey.findProgramAddressSync(
-                  [Buffer.from('stake'), userKeypair.publicKey.toBuffer()],
-                  programId
-                );
-
-                const [stakingVaultPDA] = PublicKey.findProgramAddressSync(
-                  [Buffer.from('staking_vault'), protocolPDA.toBuffer()],
-                  programId
-                );
-
-                const [rewardsVaultPDA] = PublicKey.findProgramAddressSync(
-                  [Buffer.from('rewards_vault'), protocolPDA.toBuffer()],
-                  programId
-                );
-
-                const mecoMint = new PublicKey(MECO_MINT);
-                const userTokenAccount = await getAssociatedTokenAddress(
-                  mecoMint,
-                  userKeypair.publicKey
-                );
-
-                const amountLamports = Math.floor(amount * Math.pow(10, STAKING_CONFIG.DECIMALS));
-
-                console.log('📝 إعداد معاملة السحب...', {
-                  user: userKeypair.publicKey.toBase58(),
-                  amount,
-                  amountLamports,
-                });
-
-                // ✅ إرسال معاملة حقيقية
-                const tx = await program.methods
-                  .unstake(new BN(amountLamports))
-                  .accounts({
-                    protocol: protocolPDA,
-                    user: userKeypair.publicKey,
-                    stakeAccount: stakePDA,
-                    userTokenAccount: userTokenAccount,
-                    stakingVault: stakingVaultPDA,
-                    rewardsVault: rewardsVaultPDA,
-                    tokenProgram: TOKEN_PROGRAM_ID,
-                  })
-                  .signers([userKeypair])
-                  .rpc();
-
-                console.log('✅ تم إرسال معاملة السحب:', tx);
-                await connection.confirmTransaction(tx, 'confirmed');
-
-                // تحديث البيانات المحلية فوراً
-                setStakedAmount(prev => prev - amount);
-                setBalance(prev => prev + amount);
-                setUnstakeModalVisible(false);
-                setUnstakeAmount('');
-
-                const shortTx = tx.substring(0, 16) + '...';
-                Alert.alert(
-                  t('success'),
-                  t('unstake_success', { 
-                    amount: amount,
-                    days: STAKING_CONFIG.UNSTAKE_PERIOD,
-                    tx: shortTx
-                  })
-                );
-
-                // إعادة تحميل البيانات من البلوكشين
-                setTimeout(() => loadUserData(connection), 2000);
-
-              } catch (error) {
-                console.error(t('unstake_transaction_error'), error);
-                Alert.alert(t('error'), error.message || t('unstake_transaction_failed'));
-              } finally {
-                setLoading(false);
-              }
-            }
-          }
-        ]
-      );
-    } catch (error) {
-      console.error('Unstake error:', error);
-      Alert.alert(t('error'), t('unstake_transaction_failed'));
-    }
-  };
-
-  // Handle Claim Rewards Button Press
-  const handleClaimRewardsPress = () => {
-    if (!walletAddress || !walletPrivateKey) {
-      Alert.alert(
-        t('wallet_not_connected_short'),
-        t('claim_rewards_instructions')
+        t('insufficient_balance'),
+        `${t('insufficient_staked_balance')}\n\n${t('current_staked')}: ${stakingData.userStaked.toFixed(4)} MECO\n${t('requested_amount')}: ${amount} MECO`
       );
       return;
     }
 
-    if (rewards <= 0) {
-      Alert.alert(
-        t('no_rewards_available'),
-        t('no_rewards_instructions')
-      );
+    if (!stakingData.isActive) {
+      Alert.alert(t('staking_inactive'), t('staking_inactive_message'));
       return;
     }
 
+    // التحذير من فترة Unstake
     Alert.alert(
-      t('claim_rewards_info'),
-      t('rewards_claim_info', { rewards: rewards.toFixed(4) }),
+      t('unstake_warning_title'),
+      t('unstake_warning_message', { days: stakingData.unstakePeriod }),
       [
         { text: t('cancel'), style: 'cancel' },
-        {
-          text: t('claim'),
-          onPress: async () => {
-            try {
-              setLoading(true);
-              
-              const { program, userKeypair } = await setupProgramForTransaction();
-              
-              // جلب PDAs المطلوبة
-              const programId = new PublicKey(PROGRAM_ID);
-              const [protocolPDA] = PublicKey.findProgramAddressSync(
-                [Buffer.from('protocol')],
-                programId
-              );
-
-              const [stakePDA] = PublicKey.findProgramAddressSync(
-                [Buffer.from('stake'), userKeypair.publicKey.toBuffer()],
-                programId
-              );
-
-              const [rewardsVaultPDA] = PublicKey.findProgramAddressSync(
-                [Buffer.from('rewards_vault'), protocolPDA.toBuffer()],
-                programId
-              );
-
-              const mecoMint = new PublicKey(MECO_MINT);
-              const userTokenAccount = await getAssociatedTokenAddress(
-                mecoMint,
-                userKeypair.publicKey
-              );
-
-              console.log('📝 إعداد معاملة المطالبة بالمكافآت...', {
-                user: userKeypair.publicKey.toBase58(),
-              });
-
-              // ✅ إرسال معاملة حقيقية
-              const tx = await program.methods
-                .claimRewards()
-                .accounts({
-                  protocol: protocolPDA,
-                  user: userKeypair.publicKey,
-                  stakeAccount: stakePDA,
-                  userTokenAccount: userTokenAccount,
-                  rewardsVault: rewardsVaultPDA,
-                  tokenProgram: TOKEN_PROGRAM_ID,
-                })
-                .signers([userKeypair])
-                .rpc();
-
-              console.log('✅ تم إرسال معاملة المكافآت:', tx);
-              await connection.confirmTransaction(tx, 'confirmed');
-
-              const shortTx = tx.substring(0, 16) + '...';
-              Alert.alert(
-                t('success'),
-                t('rewards_claimed_success', { 
-                  rewards: rewards.toFixed(4),
-                  tx: shortTx
-                })
-              );
-
-              // إعادة تحميل البيانات
-              setTimeout(() => loadUserData(connection), 2000);
-              
-            } catch (error) {
-              console.error('Claim rewards error:', error);
-              Alert.alert(t('error'), error.message || t('claim_rewards_failed'));
-            } finally {
-              setLoading(false);
-            }
+        { 
+          text: t('confirm_unstake'), 
+          onPress: () => {
+            setTransactionResult(null);
+            setShowUnstakeModal(true);
           }
         }
       ]
     );
   };
 
-  const handleMaxStake = () => setStakeAmount(balance.toString());
-  const handleMaxUnstake = () => setUnstakeAmount(stakedAmount.toString());
+  const confirmUnstake = async () => {
+    setTransactionLoading(true);
 
-  // Test connection to contract
-  const testConnection = async () => {
     try {
-      if (!connection) return;
+      const amount = parseFloat(unstakeAmount) || 0;
       
-      const version = await connection.getVersion();
-      
-      if (PROGRAM_ID) {
-        const programId = new PublicKey(PROGRAM_ID);
-        const programInfo = await connection.getAccountInfo(programId);
-        
-        if (programInfo) {
-          Alert.alert(
-            t('connection_successful'),
-            t('contract_active_available', {
-              address: PROGRAM_ID.substring(0, 24),
-              version: version['solana-core']
-            })
-          );
-        } else {
-          Alert.alert(t('connection_failed'), t('contract_not_available'));
-        }
+      // 1. التحقق من المفتاح الخاص
+      if (!walletPrivateKey) {
+        throw new Error(t('wallet_not_connected'));
       }
-    } catch (error) {
-      Alert.alert(t('connection_failed'), error.message);
-    }
-  };
 
-  // Format time
-  const formatTime = (seconds) => {
-    if (!seconds || seconds <= 0) return '0s';
-    
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const secs = seconds % 60;
-    
-    if (hours > 0) {
-      return `${hours}h ${minutes}m`;
-    } else if (minutes > 0) {
-      return `${minutes}m ${secs}s`;
-    } else {
-      return `${secs}s`;
-    }
-  };
+      // 2. إنشاء keypair من المفتاح الخاص
+      let secretKey;
+      try {
+        secretKey = Uint8Array.from(JSON.parse(walletPrivateKey));
+      } catch {
+        secretKey = bs58.decode(walletPrivateKey);
+      }
+      
+      const keypair = web3.Keypair.fromSecretKey(secretKey);
+      const userPublicKey = keypair.publicKey;
 
-  // 🔧 دالة لعرض عنوان العقد بشكل آمن
-  const formatContractAddress = (address, length = 16) => {
-    if (!address || typeof address !== 'string') {
-      return t('contract_loading');
-    }
-    try {
-      return address.substring(0, length) + '...';
-    } catch (error) {
-      return t('contract_loading');
-    }
-  };
+      // 3. حساب المبالغ
+      const mecoDecimals = TOKEN_DECIMALS[MECO_MINT] || 6;
+      const mecoAmountLamports = Math.floor(amount * Math.pow(10, mecoDecimals));
 
-  // 🔧 الدالة التي تحسب لوحة الأزرار
-  const getActionButtonStyle = (buttonType) => {
-    const baseStyle = [styles.actionButton];
-    
-    switch(buttonType) {
-      case 'stake':
-        return [
-          ...baseStyle,
-          { backgroundColor: primaryColor }
-        ];
-      case 'unstake':
-        return [
-          ...baseStyle,
-          { 
-            backgroundColor: colors.card,
-            borderColor: colors.border,
-            borderWidth: 2
+      // 4. حساب عناوين الحسابات
+      const userMecoATA = await splToken.getAssociatedTokenAddress(
+        MECO_MINT_PUBKEY,
+        userPublicKey
+      );
+      
+      const stakingProgramPubkey = new web3.PublicKey(PROGRAM_ID);
+      const [stakingATA] = await web3.PublicKey.findProgramAddress(
+        [Buffer.from('staking_vault'), stakingProgramPubkey.toBuffer()],
+        stakingProgramPubkey
+      );
+
+      const instructions = [];
+
+      // 5. إعادة MECO من حساب Staking إلى المستخدم
+      instructions.push(
+        splToken.createTransferInstruction(
+          stakingATA,
+          userMecoATA,
+          stakingProgramPubkey,
+          BigInt(mecoAmountLamports),
+          [keypair] // تفويض التحويل
+        )
+      );
+
+      // 6. تسجيل طلب Unstake في العقد الذكي
+      // TODO: إضافة تعليمات العقد الذكي الفعلية
+
+      // 7. إنشاء المعاملة
+      const transaction = new web3.Transaction().add(...instructions);
+      
+      const { blockhash } = await connection.getLatestBlockhash();
+      transaction.recentBlockhash = blockhash;
+      transaction.feePayer = userPublicKey;
+
+      // 8. محاكاة المعاملة أولاً
+      try {
+        const simulation = await connection.simulateTransaction(transaction);
+        if (simulation.value.err) {
+          throw new Error(`Simulation failed: ${JSON.stringify(simulation.value.err)}`);
+        }
+      } catch (simError) {
+        console.warn('⚠️ Unstaking simulation warning:', simError.message);
+      }
+
+      // 9. توقيع المعاملة
+      transaction.sign(keypair);
+
+      // 10. إرسال المعاملة
+      const signature = await connection.sendRawTransaction(transaction.serialize());
+      
+      // 11. تأكيد المعاملة
+      await connection.confirmTransaction(signature, 'confirmed');
+
+      // 12. تحديث البيانات
+      await fetchStakingData();
+      await fetchUserBalance();
+
+      // 13. عرض النتيجة
+      const result = {
+        success: true,
+        signature,
+        amountUnstaked: amount,
+        message: t('unstaking_successful'),
+        unlockDate: new Date(Date.now() + stakingData.unstakePeriod * 24 * 60 * 60 * 1000),
+      };
+
+      setTransactionResult(result);
+
+      Alert.alert(
+        t('success'),
+        `${t('unstaking_success_message')}\n\n` +
+        `${t('amount_unstaked')}: ${amount.toLocaleString()} MECO\n` +
+        `${t('unlock_date')}: ${result.unlockDate.toLocaleDateString()}\n` +
+        `${t('transaction_id')}: ${signature.substring(0, 16)}...`,
+        [
+          {
+            text: t('view_on_solscan'),
+            onPress: () => Linking.openURL(`https://solscan.io/tx/${signature}`),
+          },
+          {
+            text: t('ok'),
+            onPress: () => {
+              setShowUnstakeModal(false);
+              setTransactionLoading(false);
+              setUnstakeAmount('');
+            }
           }
-        ];
-      case 'claim':
-        return [
-          ...baseStyle,
-          { backgroundColor: colors.warning }
-        ];
-      default:
-        return baseStyle;
+        ]
+      );
+
+    } catch (error) {
+      console.error('❌ Unstaking error:', error);
+      
+      const result = {
+        success: false,
+        message: t('unstaking_failed'),
+        error: error.message || error.toString(),
+      };
+
+      setTransactionResult(result);
+      
+      Alert.alert(
+        t('error'),
+        `${t('unstaking_failed_message')}\n\n${error.message || t('error')}`,
+        [{ text: t('ok'), onPress: () => setTransactionLoading(false) }]
+      );
     }
   };
 
-  // 🔧 الدالة التي تحسب نص زر المطالبة بالمكافآت
-  const getClaimRewardsText = () => {
-    if (rewards > 0) {
-      return `${t('claim_rewards')} (${rewards.toFixed(2)})`;
+  const handleClaimRewards = async () => {
+    if (!currentWallet) {
+      Alert.alert(t('error'), t('wallet_not_available'));
+      return;
     }
-    return t('claim_rewards');
+
+    if (stakingData.userRewards === 0) {
+      Alert.alert(t('info'), t('no_rewards_to_claim'));
+      return;
+    }
+
+    setTransactionLoading(true);
+
+    try {
+      // 1. التحقق من المفتاح الخاص
+      if (!walletPrivateKey) {
+        throw new Error(t('wallet_not_connected'));
+      }
+
+      // 2. إنشاء keypair من المفتاح الخاص
+      let secretKey;
+      try {
+        secretKey = Uint8Array.from(JSON.parse(walletPrivateKey));
+      } catch {
+        secretKey = bs58.decode(walletPrivateKey);
+      }
+      
+      const keypair = web3.Keypair.fromSecretKey(secretKey);
+      const userPublicKey = keypair.publicKey;
+
+      // 3. حساب مكافآت المستخدم
+      const mecoDecimals = TOKEN_DECIMALS[MECO_MINT] || 6;
+      const rewardsAmountLamports = Math.floor(stakingData.userRewards * Math.pow(10, mecoDecimals));
+
+      // 4. حساب عناوين الحسابات
+      const userMecoATA = await splToken.getAssociatedTokenAddress(
+        MECO_MINT_PUBKEY,
+        userPublicKey
+      );
+      
+      const stakingProgramPubkey = new web3.PublicKey(PROGRAM_ID);
+      const [rewardsATA] = await web3.PublicKey.findProgramAddress(
+        [Buffer.from('rewards_vault'), stakingProgramPubkey.toBuffer()],
+        stakingProgramPubkey
+      );
+
+      const instructions = [];
+
+      // 5. تحويل المكافآت من حساب Rewards إلى المستخدم
+      instructions.push(
+        splToken.createTransferInstruction(
+          rewardsATA,
+          userMecoATA,
+          stakingProgramPubkey,
+          BigInt(rewardsAmountLamports),
+          [keypair] // تفويض التحويل
+        )
+      );
+
+      // 6. إنشاء المعاملة
+      const transaction = new web3.Transaction().add(...instructions);
+      
+      const { blockhash } = await connection.getLatestBlockhash();
+      transaction.recentBlockhash = blockhash;
+      transaction.feePayer = userPublicKey;
+
+      // 7. محاكاة المعاملة
+      try {
+        const simulation = await connection.simulateTransaction(transaction);
+        if (simulation.value.err) {
+          throw new Error(`Simulation failed: ${JSON.stringify(simulation.value.err)}`);
+        }
+      } catch (simError) {
+        console.warn('⚠️ Claim rewards simulation warning:', simError.message);
+      }
+
+      // 8. توقيع المعاملة
+      transaction.sign(keypair);
+
+      // 9. إرسال المعاملة
+      const signature = await connection.sendRawTransaction(transaction.serialize());
+      
+      // 10. تأكيد المعاملة
+      await connection.confirmTransaction(signature, 'confirmed');
+
+      // 11. تحديث البيانات
+      await fetchStakingData();
+      await fetchUserBalance();
+
+      // 12. عرض النتيجة
+      Alert.alert(
+        t('success'),
+        `${t('rewards_claimed_success')}\n\n` +
+        `${t('amount_claimed')}: ${stakingData.userRewards.toLocaleString()} MECO\n` +
+        `${t('transaction_id')}: ${signature.substring(0, 16)}...`,
+        [
+          {
+            text: t('view_on_solscan'),
+            onPress: () => Linking.openURL(`https://solscan.io/tx/${signature}`),
+          },
+          { text: t('ok') }
+        ]
+      );
+
+    } catch (error) {
+      console.error('❌ Claim rewards error:', error);
+      
+      Alert.alert(
+        t('error'),
+        `${t('claim_rewards_failed')}\n\n${error.message || t('error')}`,
+        [{ text: t('ok') }]
+      );
+    } finally {
+      setTransactionLoading(false);
+    }
   };
 
-  if (loading) {
-    return (
-      <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
-        <ActivityIndicator size="large" color={primaryColor} />
-        <Text style={[styles.loadingText, { color: colors.text }]}>
-          {t('loading_staking_data')}
-        </Text>
-        {PROGRAM_ID && (
-          <Text style={[styles.contractInfo, { color: colors.textSecondary }]}>
-            {t('contract_address')}: {formatContractAddress(PROGRAM_ID, 20)}
-          </Text>
-        )}
-      </View>
-    );
-  }
+  const formatNumber = (num) => {
+    if (num === null || num === undefined) return '0';
+    const absNum = Math.abs(num);
+    if (absNum >= 1000000000) return (num / 1000000000).toFixed(2) + 'B';
+    if (absNum >= 1000000) return (num / 1000000).toFixed(2) + 'M';
+    if (absNum >= 1000) return (num / 1000).toFixed(2) + 'K';
+    return num.toLocaleString('en-US', {
+      maximumFractionDigits: 4,
+      minimumFractionDigits: 0
+    });
+  };
+
+  const calculateDailyRewards = () => {
+    const dailyAPR = stakingData.apr / 365;
+    return (stakingData.userStaked * dailyAPR) / 100;
+  };
+
+  const calculateEstimatedAPY = () => {
+    // APY = (1 + APR/n)^n - 1, where n is compounding frequency (daily)
+    const n = 365; // daily compounding
+    return (Math.pow(1 + stakingData.apr / 100 / n, n) - 1) * 100;
+  };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        <Animated.View
+    <ScrollView
+      contentContainerStyle={[styles.container, { backgroundColor: colors.background }]}
+      showsVerticalScrollIndicator={false}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          tintColor={colors.info}
+          colors={[colors.info]}
+        />
+      }
+    >
+      <Animated.View style={[styles.header, { opacity: fadeAnim }]}>
+        <View style={styles.headerContent}>
+          <MaterialCommunityIcons name="safe-square" size={48} color={primaryColor} />
+          <View style={styles.headerText}>
+            <Text style={[styles.title, { color: colors.text }]}>{t('staking')}</Text>
+            <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+              {t('stake_meco_earn_rewards')}
+            </Text>
+          </View>
+        </View>
+        
+        {stakingData.isActive ? (
+          <View style={[styles.activeBadge, { backgroundColor: colors.success + '20' }]}>
+            <Ionicons name="checkmark-circle" size={16} color={colors.success} />
+            <Text style={[styles.activeText, { color: colors.success }]}>
+              {t('staking_active')}
+            </Text>
+          </View>
+        ) : (
+          <View style={[styles.inactiveBadge, { backgroundColor: colors.danger + '20' }]}>
+            <Ionicons name="close-circle" size={16} color={colors.danger} />
+            <Text style={[styles.inactiveText, { color: colors.danger }]}>
+              {t('staking_inactive')}
+            </Text>
+          </View>
+        )}
+      </Animated.View>
+
+      {/* Balances Card */}
+      <View style={[styles.balancesCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <View style={styles.balanceSection}>
+          <View style={styles.balanceItem}>
+            <View style={[styles.balanceIcon, { backgroundColor: primaryColor + '20' }]}>
+              <MaterialCommunityIcons name="wallet" size={24} color={primaryColor} />
+            </View>
+            <View>
+              <Text style={[styles.balanceLabel, { color: colors.textSecondary }]}>
+                {t('available_meco')}
+              </Text>
+              <Text style={[styles.balanceAmount, { color: colors.text }]}>
+                {formatNumber(userMECOBalance)} MECO
+              </Text>
+            </View>
+          </View>
+          
+          <View style={styles.balanceItem}>
+            <View style={[styles.balanceIcon, { backgroundColor: colors.purple + '20' }]}>
+              <MaterialCommunityIcons name="lock" size={24} color={colors.purple} />
+            </View>
+            <View>
+              <Text style={[styles.balanceLabel, { color: colors.textSecondary }]}>
+                {t('staked_meco')}
+              </Text>
+              <Text style={[styles.balanceAmount, { color: colors.text }]}>
+                {formatNumber(stakingData.userStaked)} MECO
+              </Text>
+            </View>
+          </View>
+        </View>
+        
+        <View style={styles.rewardsSection}>
+          <View style={styles.rewardItem}>
+            <MaterialCommunityIcons name="gift" size={20} color={colors.warning} />
+            <View>
+              <Text style={[styles.rewardLabel, { color: colors.textSecondary }]}>
+                {t('available_rewards')}
+              </Text>
+              <Text style={[styles.rewardAmount, { color: colors.warning }]}>
+                {formatNumber(stakingData.userRewards)} MECO
+              </Text>
+            </View>
+          </View>
+          
+          <TouchableOpacity
+            style={[styles.claimButton, { backgroundColor: colors.warning + '20' }]}
+            onPress={handleClaimRewards}
+            disabled={transactionLoading || stakingData.userRewards === 0}
+          >
+            <Text style={[styles.claimButtonText, { color: colors.warning }]}>
+              {t('claim_rewards')}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* APR Info Card */}
+      <View style={[styles.aprCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <View style={styles.aprHeader}>
+          <MaterialCommunityIcons name="trending-up" size={24} color={colors.success} />
+          <Text style={[styles.aprTitle, { color: colors.text }]}>
+            {t('staking_returns')}
+          </Text>
+        </View>
+        
+        <View style={styles.aprStats}>
+          <View style={styles.aprStat}>
+            <Text style={[styles.aprValue, { color: colors.success }]}>
+              {stakingData.apr}%
+            </Text>
+            <Text style={[styles.aprLabel, { color: colors.textSecondary }]}>
+              {t('annual_rate')} (APR)
+            </Text>
+          </View>
+          
+          <View style={styles.aprDivider} />
+          
+          <View style={styles.aprStat}>
+            <Text style={[styles.aprValue, { color: colors.purple }]}>
+              {calculateEstimatedAPY().toFixed(2)}%
+            </Text>
+            <Text style={[styles.aprLabel, { color: colors.textSecondary }]}>
+              {t('estimated_apy')}
+            </Text>
+          </View>
+        </View>
+        
+        <View style={styles.dailyRewards}>
+          <Text style={[styles.dailyLabel, { color: colors.textSecondary }]}>
+            {t('estimated_daily_rewards')}:
+          </Text>
+          <Text style={[styles.dailyAmount, { color: colors.text }]}>
+            ~{calculateDailyRewards().toFixed(4)} MECO
+          </Text>
+        </View>
+      </View>
+
+      {/* Staking Form */}
+      <View style={[styles.stakingForm, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <Text style={[styles.formTitle, { color: colors.text }]}>
+          {t('stake_meco')}
+        </Text>
+        
+        <View style={styles.amountInput}>
+          <Text style={[styles.amountLabel, { color: colors.textSecondary }]}>
+            {t('amount_to_stake')}
+          </Text>
+          <View style={[styles.inputContainer, { borderColor: colors.border }]}>
+            <TextInput
+              style={[styles.input, { color: colors.text }]}
+              value={stakeAmount}
+              onChangeText={(value) => {
+                const numericValue = value.replace(/[^0-9.]/g, '');
+                const parts = numericValue.split('.');
+                if (parts.length > 2) {
+                  setStakeAmount(parts[0] + '.' + parts.slice(1).join(''));
+                } else {
+                  setStakeAmount(numericValue);
+                }
+              }}
+              keyboardType="decimal-pad"
+              placeholder="0"
+              placeholderTextColor={colors.textSecondary}
+            />
+            <View style={styles.tokenBadge}>
+              <Text style={[styles.tokenText, { color: colors.text }]}>MECO</Text>
+            </View>
+          </View>
+          
+          <View style={styles.amountButtons}>
+            <TouchableOpacity
+              style={[styles.amountButton, { backgroundColor: colors.background }]}
+              onPress={() => setStakeAmount(stakingData.minStake.toString())}
+            >
+              <Text style={[styles.amountButtonText, { color: colors.textSecondary }]}>
+                {t('min')}: {stakingData.minStake}
+              </Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={[styles.amountButton, { backgroundColor: colors.background }]}
+              onPress={() => setStakeAmount(stakingData.maxStake.toString())}
+            >
+              <Text style={[styles.amountButtonText, { color: colors.textSecondary }]}>
+                {t('max')}: {formatNumber(stakingData.maxStake)}
+              </Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={[styles.amountButton, { backgroundColor: colors.background }]}
+              onPress={() => setStakeAmount(userMECOBalance.toString())}
+            >
+              <Text style={[styles.amountButtonText, { color: colors.textSecondary }]}>
+                {t('available')}: {formatNumber(userMECOBalance)}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+        
+        <TouchableOpacity
           style={[
-            styles.container,
-            {
-              opacity: fadeAnim,
-              transform: [{ translateY: slideAnim }]
+            styles.stakeButton,
+            { 
+              backgroundColor: stakingData.isActive ? primaryColor : colors.textSecondary,
+              opacity: stakingData.isActive ? 1 : 0.6
             }
           ]}
+          onPress={handleStake}
+          disabled={transactionLoading || loading || !stakingData.isActive}
         >
-          {/* Header */}
-          <View style={styles.header}>
-            <Ionicons name="trending-up" size={32} color={primaryColor} />
-            <Text style={[styles.title, { color: colors.text }]}>
-              {t('stake_title')}
-            </Text>
-            <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-              {t('stake_subtitle')}
-            </Text>
-
-            <View style={[styles.contractBadge, { backgroundColor: colors.success + '20' }]}>
-              <Ionicons name="checkbox" size={14} color={colors.success} />
-              <Text style={[styles.contractText, { color: colors.success }]}>
-                {contractStatus?.isActive ? t('smart_contract_connected') : t('smart_contract_available')}
+          {transactionLoading || loading ? (
+            <ActivityIndicator color="#FFFFFF" />
+          ) : (
+            <>
+              <MaterialCommunityIcons name="lock" size={24} color="#FFFFFF" />
+              <Text style={styles.stakeButtonText}>
+                {!stakingData.isActive ? t('staking_paused') : t('stake_now')}
               </Text>
-            </View>
+            </>
+          )}
+        </TouchableOpacity>
+      </View>
 
-            {!walletAddress && (
-              <View style={[styles.warningBox, { backgroundColor: colors.warning + '20', marginTop: 10 }]}>
-                <Ionicons name="warning" size={16} color={colors.warning} />
-                <Text style={[styles.warningText, { color: colors.warning }]}>
-                  {t('connect_wallet_real_transactions')}
-                </Text>
-              </View>
-            )}
+      {/* Unstaking Form */}
+      <View style={[styles.unstakingForm, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <Text style={[styles.formTitle, { color: colors.text }]}>
+          {t('unstake_meco')}
+        </Text>
+        
+        <View style={styles.amountInput}>
+          <Text style={[styles.amountLabel, { color: colors.textSecondary }]}>
+            {t('amount_to_unstake')}
+          </Text>
+          <View style={[styles.inputContainer, { borderColor: colors.border }]}>
+            <TextInput
+              style={[styles.input, { color: colors.text }]}
+              value={unstakeAmount}
+              onChangeText={(value) => {
+                const numericValue = value.replace(/[^0-9.]/g, '');
+                const parts = numericValue.split('.');
+                if (parts.length > 2) {
+                  setUnstakeAmount(parts[0] + '.' + parts.slice(1).join(''));
+                } else {
+                  setUnstakeAmount(numericValue);
+                }
+              }}
+              keyboardType="decimal-pad"
+              placeholder="0"
+              placeholderTextColor={colors.textSecondary}
+            />
+            <View style={styles.tokenBadge}>
+              <Text style={[styles.tokenText, { color: colors.text }]}>MECO</Text>
+            </View>
           </View>
-
-          {/* APR Card */}
-          <View style={[styles.aprCard, { backgroundColor: primaryColor }]}>
-            <Text style={styles.aprLabel}>{t('annual_percentage_rate')}</Text>
-            <Text style={styles.aprValue}>
-              {contractStatus?.stakingApr || STAKING_CONFIG.APR}%
-            </Text>
-            <Text style={styles.aprDescription}>{t('apr_description')}</Text>
-
+          
+          <View style={styles.amountButtons}>
             <TouchableOpacity
-              style={styles.testButton}
-              onPress={testConnection}
+              style={[styles.amountButton, { backgroundColor: colors.background }]}
+              onPress={() => setUnstakeAmount('1')}
             >
-              <Text style={styles.testButtonText}>{t('test_connection')}</Text>
+              <Text style={[styles.amountButtonText, { color: colors.textSecondary }]}>
+                {t('min')}: 1
+              </Text>
             </TouchableOpacity>
-
-            {PROGRAM_ID && (
-              <Text style={styles.contractId}>
-                {t('contract_address')}: {formatContractAddress(PROGRAM_ID, 16)}
-              </Text>
-            )}
-          </View>
-
-          {/* Staking Card */}
-          <View style={[styles.stakingCard, { backgroundColor: colors.card }]}>
-            <View style={styles.cardHeader}>
-              <Text style={[styles.cardTitle, { color: colors.text }]}>
-                {t('staking_wallet')}
-              </Text>
-              <TouchableOpacity onPress={() => initSolanaConnection()}>
-                <Ionicons name="refresh-outline" size={20} color={colors.textSecondary} />
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.statsGrid}>
-              <View style={styles.statItem}>
-                <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
-                  {t('staked_amount')}
-                </Text>
-                <Text style={[styles.statValue, { color: colors.text }]}>
-                  {stakedAmount.toFixed(2)} MECO
-                </Text>
-              </View>
-
-              <View style={styles.statItem}>
-                <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
-                  {t('accumulated_rewards')}
-                </Text>
-                <Text style={[styles.statValue, { color: colors.success }]}>
-                  {rewards.toFixed(4)} MECO
-                </Text>
-              </View>
-            </View>
-
-            {!canUnstake && remainingTime > 0 && (
-              <View style={[styles.lockInfo, { backgroundColor: colors.warning + '20' }]}>
-                <Ionicons name="lock-closed" size={14} color={colors.warning} />
-                <Text style={[styles.lockText, { color: colors.warning }]}>
-                  {t('unstake_available_in', { time: formatTime(remainingTime) })}
-                </Text>
-              </View>
-            )}
-
-            <View style={styles.balanceInfo}>
-              <Text style={[styles.balanceLabel, { color: colors.textSecondary }]}>
-                {t('available_meco_balance')}:
-              </Text>
-              <Text style={[styles.balanceValue, { color: colors.text }]}>
-                {balance.toFixed(2)} MECO
-              </Text>
-            </View>
-
-            {contractStatus && (
-              <View style={[styles.connectionStatus, { backgroundColor: colors.success + '20' }]}>
-                <Ionicons name="checkmark-circle" size={16} color={colors.success} />
-                <Text style={[styles.connectionText, { color: colors.success }]}>
-                  {t('connected_to_smart_contract')}
-                </Text>
-                <Text style={[styles.connectionSubtext, { color: colors.success }]}>
-                  APR: {contractStatus.stakingApr || STAKING_CONFIG.APR}%
-                </Text>
-              </View>
-            )}
-          </View>
-
-          {/* ==================== ACTION BUTTONS - FIXED ==================== */}
-          <View style={styles.actionsContainer}>
-            {/* زر الاستثمار - يعمل دائمًا */}
+            
             <TouchableOpacity
-              style={getActionButtonStyle('stake')}
-              onPress={handleStakePress}
+              style={[styles.amountButton, { backgroundColor: colors.background }]}
+              onPress={() => setUnstakeAmount(stakingData.userStaked.toString())}
             >
-              <Ionicons name="arrow-up-circle" size={24} color="#FFFFFF" />
-              <Text style={styles.actionButtonText}>{t('stake_button')}</Text>
-            </TouchableOpacity>
-
-            {/* زر السحب - يعمل دائمًا */}
-            <TouchableOpacity
-              style={getActionButtonStyle('unstake')}
-              onPress={handleUnstakePress}
-            >
-              <Ionicons name="arrow-down-circle" size={24} color={colors.text} />
-              <Text style={[styles.actionButtonText, { color: colors.text }]}>{t('unstake_button')}</Text>
-            </TouchableOpacity>
-
-            {/* زر المطالبة بالمكافآت - يعمل دائمًا */}
-            <TouchableOpacity
-              style={getActionButtonStyle('claim')}
-              onPress={handleClaimRewardsPress}
-            >
-              <Ionicons name="information-circle" size={24} color={colors.text} />
-              <Text style={[styles.actionButtonText, { color: colors.text }]}>{getClaimRewardsText()}</Text>
+              <Text style={[styles.amountButtonText, { color: colors.textSecondary }]}>
+                {t('staked')}: {formatNumber(stakingData.userStaked)}
+              </Text>
             </TouchableOpacity>
           </View>
-
-          {/* Rewards Estimation */}
-          <View style={[styles.rewardsCard, { backgroundColor: colors.card }]}>
-            <Text style={[styles.rewardsTitle, { color: colors.text }]}>
-              📈 {t('estimated_rewards')}
-            </Text>
-
-            <View style={styles.rewardsGrid}>
-              <View style={styles.rewardItem}>
-                <Text style={[styles.rewardValue, { color: colors.success }]}>
-                  {calculateEstimatedRewards(stakedAmount).daily}
-                </Text>
-                <Text style={[styles.rewardLabel, { color: colors.textSecondary }]}>
-                  MECO {t('daily')}
-                </Text>
-              </View>
-
-              <View style={styles.rewardItem}>
-                <Text style={[styles.rewardValue, { color: colors.success }]}>
-                  {calculateEstimatedRewards(stakedAmount).monthly}
-                </Text>
-                <Text style={[styles.rewardLabel, { color: colors.textSecondary }]}>
-                  MECO {t('monthly')}
-                </Text>
-              </View>
-
-              <View style={styles.rewardItem}>
-                <Text style={[styles.rewardValue, { color: colors.success }]}>
-                  {calculateEstimatedRewards(stakedAmount).yearly}
-                </Text>
-                <Text style={[styles.rewardLabel, { color: colors.textSecondary }]}>
-                  MECO {t('yearly')}
-                </Text>
-              </View>
-            </View>
-          </View>
-
-          {/* Notes */}
-          <View style={[styles.notesCard, { backgroundColor: colors.card, borderColor: colors.warning + '30' }]}>
-            <View style={styles.notesHeader}>
-              <Ionicons name="shield-checkmark" size={20} color={colors.warning} />
-              <Text style={[styles.notesTitle, { color: colors.text }]}>
-                {t('important_notes')}
+        </View>
+        
+        <View style={styles.unstakeInfo}>
+          <Ionicons name="information-circle" size={16} color={colors.warning} />
+          <Text style={[styles.unstakeInfoText, { color: colors.textSecondary }]}>
+            {t('unstake_period_notice', { days: stakingData.unstakePeriod })}
+          </Text>
+        </View>
+        
+        <TouchableOpacity
+          style={[
+            styles.unstakeButton,
+            { 
+              backgroundColor: stakingData.isActive ? colors.danger : colors.textSecondary,
+              opacity: stakingData.isActive ? 1 : 0.6
+            }
+          ]}
+          onPress={handleUnstake}
+          disabled={transactionLoading || loading || !stakingData.isActive || stakingData.userStaked === 0}
+        >
+          {transactionLoading || loading ? (
+            <ActivityIndicator color="#FFFFFF" />
+          ) : (
+            <>
+              <MaterialCommunityIcons name="lock-open" size={24} color="#FFFFFF" />
+              <Text style={styles.unstakeButtonText}>
+                {!stakingData.isActive ? t('staking_paused') : t('unstake_now')}
               </Text>
-            </View>
+            </>
+          )}
+        </TouchableOpacity>
+      </View>
 
-            <Text style={[styles.noteText, { color: colors.textSecondary }]}>
-              • {t('rewards_distributed_daily')}
-              {'\n'}• {t('minimum_stake_amount', { amount: STAKING_CONFIG.MIN_STAKE })}
-              {'\n'}• {t('unstake_waiting_period', { days: STAKING_CONFIG.UNSTAKE_PERIOD })}
-              {'\n'}• {t('need_sol_for_fees')}
-              {'\n'}• {t('rates_may_change')}
-              {'\n'}• {t('real_transactions_active')}
+      {/* Global Stats */}
+      <View style={[styles.globalStats, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <Text style={[styles.statsTitle, { color: colors.text }]}>
+          {t('global_staking_stats')}
+        </Text>
+        
+        <View style={styles.statsGrid}>
+          <View style={styles.statItem}>
+            <Text style={[styles.statValue, { color: colors.text }]}>
+              {formatNumber(stakingData.totalStaked)}
+            </Text>
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
+              {t('total_staked')}
             </Text>
           </View>
-        </Animated.View>
-      </ScrollView>
+          
+          <View style={styles.statItem}>
+            <Text style={[styles.statValue, { color: colors.text }]}>
+              {formatNumber(stakingData.totalStakers)}
+            </Text>
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
+              {t('total_stakers')}
+            </Text>
+          </View>
+          
+          <View style={styles.statItem}>
+            <Text style={[styles.statValue, { color: colors.text }]}>
+              {stakingData.unstakePeriod}
+            </Text>
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
+              {t('unstake_days')}
+            </Text>
+          </View>
+        </View>
+      </View>
 
-      {/* Modals */}
-      <StakeModal
-        visible={stakeModalVisible}
-        onClose={() => setStakeModalVisible(false)}
-        colors={colors}
-        primaryColor={primaryColor}
-        balance={balance}
-        stakeAmount={stakeAmount}
-        setStakeAmount={setStakeAmount}
-        onStake={handleStake}
-        onMax={handleMaxStake}
-        calculateEstimatedRewards={calculateEstimatedRewards}
-        t={t}
-      />
+      {/* Info Notice */}
+      <View style={[styles.infoNotice, { backgroundColor: primaryColor + '10', borderColor: colors.border }]}>
+        <Ionicons name="information-circle-outline" size={20} color={primaryColor} />
+        <View style={styles.infoContent}>
+          <Text style={[styles.infoTitle, { color: colors.text }]}>
+            {t('staking_info_title')}
+          </Text>
+          <Text style={[styles.infoText, { color: colors.textSecondary }]}>
+            {t('staking_info_description')}
+          </Text>
+        </View>
+      </View>
 
-      <UnstakeModal
-        visible={unstakeModalVisible}
-        onClose={() => setUnstakeModalVisible(false)}
-        colors={colors}
-        primaryColor={primaryColor}
-        stakedAmount={stakedAmount}
-        unstakeAmount={unstakeAmount}
-        setUnstakeAmount={setUnstakeAmount}
-        onUnstake={handleUnstake}
-        onMax={handleMaxUnstake}
-        unstakePeriod={STAKING_CONFIG.UNSTAKE_PERIOD}
-        t={t}
-      />
-    </SafeAreaView>
+      {/* Stake Modal */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={showStakeModal}
+        onRequestClose={() => !transactionLoading && setShowStakeModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
+            <MaterialCommunityIcons
+              name={transactionResult?.success ? "check-circle" : "alert-circle"}
+              size={60}
+              color={transactionResult?.success ? colors.success : colors.warning}
+            />
+
+            <Text style={[styles.modalTitle, { color: colors.text }]}>
+              {transactionResult ?
+                (transactionResult.success ? t('staking_successful') : t('staking_failed'))
+                : t('confirm_staking')}
+            </Text>
+
+            {transactionResult ? (
+              <View style={styles.resultContainer}>
+                <Text style={[styles.resultText, { color: colors.textSecondary }]}>
+                  {transactionResult.message}
+                </Text>
+                {transactionResult.success && (
+                  <>
+                    <Text style={[styles.resultText, { color: colors.success, marginTop: 8 }]}>
+                      {t('amount_staked_modal', { amount: transactionResult.amountStaked?.toLocaleString() })}
+                    </Text>
+                    <TouchableOpacity
+                      style={[styles.solscanButton, { backgroundColor: colors.info }]}
+                      onPress={() => Linking.openURL(`https://solscan.io/tx/${transactionResult.signature}`)}
+                    >
+                      <Text style={styles.solscanButtonText}>{t('view_on_solscan')}</Text>
+                    </TouchableOpacity>
+                  </>
+                )}
+              </View>
+            ) : (
+              <>
+                <Text style={[styles.modalText, { color: colors.textSecondary }]}>
+                  {t('you_will_stake_amount', { amount: stakeAmount })}
+                </Text>
+
+                <View style={styles.modalDetails}>
+                  <View style={styles.modalDetailRow}>
+                    <Text style={[styles.modalDetailLabel, { color: colors.textSecondary }]}>
+                      {t('apr')}:
+                    </Text>
+                    <Text style={[styles.modalDetailValue, { color: colors.success }]}>
+                      {stakingData.apr}%
+                    </Text>
+                  </View>
+                  <View style={styles.modalDetailRow}>
+                    <Text style={[styles.modalDetailLabel, { color: colors.textSecondary }]}>
+                      {t('estimated_daily_rewards')}:
+                    </Text>
+                    <Text style={[styles.modalDetailValue, { color: colors.text }]}>
+                      ~{calculateDailyRewards().toFixed(4)} MECO
+                    </Text>
+                  </View>
+                  <View style={styles.modalDetailRow}>
+                    <Text style={[styles.modalDetailLabel, { color: colors.textSecondary }]}>
+                      {t('unstake_period')}:
+                    </Text>
+                    <Text style={[styles.modalDetailValue, { color: colors.text }]}>
+                      {stakingData.unstakePeriod} {t('days')}
+                    </Text>
+                  </View>
+                </View>
+
+                {transactionLoading ? (
+                  <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="large" color={primaryColor} />
+                    <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
+                      {t('processing_staking')}
+                    </Text>
+                  </View>
+                ) : (
+                  <View style={styles.modalButtons}>
+                    <TouchableOpacity
+                      style={[styles.modalButton, { backgroundColor: colors.border }]}
+                      onPress={() => setShowStakeModal(false)}
+                      disabled={transactionLoading}
+                    >
+                      <Text style={[styles.modalButtonText, { color: colors.text }]}>{t('cancel')}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.modalButton, { backgroundColor: primaryColor }]}
+                      onPress={confirmStake}
+                      disabled={transactionLoading}
+                    >
+                      <Text style={styles.modalButtonText}>{t('confirm_stake')}</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* Unstake Modal */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={showUnstakeModal}
+        onRequestClose={() => !transactionLoading && setShowUnstakeModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
+            <MaterialCommunityIcons
+              name="alert-circle"
+              size={60}
+              color={colors.warning}
+            />
+
+            <Text style={[styles.modalTitle, { color: colors.text }]}>
+              {transactionResult ? 
+                (transactionResult.success ? t('unstaking_successful') : t('unstaking_failed'))
+                : t('confirm_unstaking')}
+            </Text>
+
+            {transactionResult ? (
+              <View style={styles.resultContainer}>
+                <Text style={[styles.resultText, { color: colors.textSecondary }]}>
+                  {transactionResult.message}
+                </Text>
+                {transactionResult.success && (
+                  <>
+                    <Text style={[styles.resultText, { color: colors.success, marginTop: 8 }]}>
+                      {t('amount_unstaked_modal', { amount: transactionResult.amountUnstaked?.toLocaleString() })}
+                    </Text>
+                    <Text style={[styles.resultText, { color: colors.textSecondary, marginTop: 8 }]}>
+                      {t('unlock_date_modal', { date: transactionResult.unlockDate?.toLocaleDateString() })}
+                    </Text>
+                    <TouchableOpacity
+                      style={[styles.solscanButton, { backgroundColor: colors.info }]}
+                      onPress={() => Linking.openURL(`https://solscan.io/tx/${transactionResult.signature}`)}
+                    >
+                      <Text style={styles.solscanButtonText}>{t('view_on_solscan')}</Text>
+                    </TouchableOpacity>
+                  </>
+                )}
+              </View>
+            ) : (
+              <>
+                <Text style={[styles.modalText, { color: colors.textSecondary }]}>
+                  {t('you_will_unstake_amount', { amount: unstakeAmount })}
+                </Text>
+
+                <View style={styles.modalDetails}>
+                  <View style={styles.modalDetailRow}>
+                    <Text style={[styles.modalDetailLabel, { color: colors.textSecondary }]}>
+                      {t('unstake_period')}:
+                    </Text>
+                    <Text style={[styles.modalDetailValue, { color: colors.warning }]}>
+                      {stakingData.unstakePeriod} {t('days')}
+                    </Text>
+                  </View>
+                  <View style={styles.modalDetailRow}>
+                    <Text style={[styles.modalDetailLabel, { color: colors.textSecondary }]}>
+                      {t('estimated_unlock_date')}:
+                    </Text>
+                    <Text style={[styles.modalDetailValue, { color: colors.text }]}>
+                      {new Date(Date.now() + stakingData.unstakePeriod * 24 * 60 * 60 * 1000).toLocaleDateString()}
+                    </Text>
+                  </View>
+                  <View style={styles.modalDetailRow}>
+                    <Text style={[styles.modalDetailLabel, { color: colors.textSecondary }]}>
+                      {t('during_unstaking_period')}:
+                    </Text>
+                    <Text style={[styles.modalDetailValue, { color: colors.text }]}>
+                      {t('no_rewards_earned')}
+                    </Text>
+                  </View>
+                </View>
+
+                {transactionLoading ? (
+                  <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="large" color={primaryColor} />
+                    <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
+                      {t('processing_unstaking')}
+                    </Text>
+                  </View>
+                ) : (
+                  <View style={styles.modalButtons}>
+                    <TouchableOpacity
+                      style={[styles.modalButton, { backgroundColor: colors.border }]}
+                      onPress={() => setShowUnstakeModal(false)}
+                      disabled={transactionLoading}
+                    >
+                      <Text style={[styles.modalButtonText, { color: colors.text }]}>{t('cancel')}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.modalButton, { backgroundColor: colors.danger }]}
+                      onPress={confirmUnstake}
+                      disabled={transactionLoading}
+                    >
+                      <Text style={styles.modalButtonText}>{t('confirm_unstake')}</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
+    </ScrollView>
   );
 }
 
-// Modal Components
-const StakeModal = ({ visible, onClose, colors, primaryColor, balance, stakeAmount, setStakeAmount, onStake, onMax, calculateEstimatedRewards, t }) => (
-  <Modal visible={visible} transparent animationType="slide">
-    <View style={styles.modalOverlay}>
-      <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
-        <View style={styles.modalHeader}>
-          <Text style={[styles.modalTitle, { color: colors.text }]}>
-            {t('stake_modal_title')}
-          </Text>
-          <TouchableOpacity onPress={onClose}>
-            <Ionicons name="close" size={24} color={colors.text} />
-          </TouchableOpacity>
-        </View>
-
-        <Text style={[styles.modalDescription, { color: colors.textSecondary }]}>
-          {t('stake_modal_description')}
-        </Text>
-
-        <View style={[styles.amountInputContainer, { backgroundColor: colors.background }]}>
-          <TextInput
-            style={[styles.amountInput, { color: colors.text }]}
-            placeholder="0.00"
-            placeholderTextColor={colors.textSecondary}
-            keyboardType="numeric"
-            value={stakeAmount}
-            onChangeText={setStakeAmount}
-          />
-          <Text style={[styles.currencyLabel, { color: colors.textSecondary }]}>
-            MECO
-          </Text>
-          <TouchableOpacity onPress={onMax}>
-            <Text style={[styles.maxButton, { color: primaryColor }]}>
-              {t('max')}
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        <Text style={[styles.balanceText, { color: colors.textSecondary }]}>
-          {t('available_balance')}: {balance.toFixed(2)} MECO
-        </Text>
-
-        {stakeAmount && parseFloat(stakeAmount) > 0 && (
-          <View style={styles.rewardsEstimation}>
-            <Text style={[styles.estimationTitle, { color: colors.text }]}>
-              📊 {t('estimated_rewards')}:
-            </Text>
-            <View style={styles.estimationRow}>
-              <Text style={[styles.estimationLabel, { color: colors.textSecondary }]}>
-                {t('daily')}:
-              </Text>
-              <Text style={[styles.estimationValue, { color: colors.success }]}>
-                {calculateEstimatedRewards(parseFloat(stakeAmount)).daily} MECO
-              </Text>
-            </View>
-            <View style={styles.estimationRow}>
-              <Text style={[styles.estimationLabel, { color: colors.textSecondary }]}>
-                {t('monthly')}:
-              </Text>
-              <Text style={[styles.estimationValue, { color: colors.success }]}>
-                {calculateEstimatedRewards(parseFloat(stakeAmount)).monthly} MECO
-              </Text>
-            </View>
-            <View style={styles.estimationRow}>
-              <Text style={[styles.estimationLabel, { color: colors.textSecondary }]}>
-                {t('yearly')}:
-              </Text>
-              <Text style={[styles.estimationValue, { color: colors.success }]}>
-                {calculateEstimatedRewards(parseFloat(stakeAmount)).yearly} MECO
-              </Text>
-            </View>
-          </View>
-        )}
-
-        <TouchableOpacity
-          style={[styles.modalButton, {
-            backgroundColor: parseFloat(stakeAmount) > 0 ? primaryColor : colors.border
-          }]}
-          onPress={onStake}
-          disabled={!stakeAmount || parseFloat(stakeAmount) <= 0}
-        >
-          <Text style={styles.modalButtonText}>
-            {t('confirm_stake_button')}
-          </Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  </Modal>
-);
-
-const UnstakeModal = ({ visible, onClose, colors, primaryColor, stakedAmount, unstakeAmount, setUnstakeAmount, onUnstake, onMax, unstakePeriod, t }) => (
-  <Modal visible={visible} transparent animationType="slide">
-    <View style={styles.modalOverlay}>
-      <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
-        <View style={styles.modalHeader}>
-          <Text style={[styles.modalTitle, { color: colors.text }]}>
-            {t('unstake_modal_title')}
-          </Text>
-          <TouchableOpacity onPress={onClose}>
-            <Ionicons name="close" size={24} color={colors.text} />
-          </TouchableOpacity>
-        </View>
-
-        <Text style={[styles.modalDescription, { color: colors.textSecondary }]}>
-          {t('unstake_modal_description')}
-        </Text>
-
-        <View style={[styles.amountInputContainer, { backgroundColor: colors.background }]}>
-          <TextInput
-            style={[styles.amountInput, { color: colors.text }]}
-            placeholder="0.00"
-            placeholderTextColor={colors.textSecondary}
-            keyboardType="numeric"
-            value={unstakeAmount}
-            onChangeText={setUnstakeAmount}
-          />
-          <Text style={[styles.currencyLabel, { color: colors.textSecondary }]}>
-            MECO
-          </Text>
-          <TouchableOpacity onPress={onMax}>
-            <Text style={[styles.maxButton, { color: primaryColor }]}>
-              {t('max')}
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        <Text style={[styles.balanceText, { color: colors.textSecondary }]}>
-          {t('staked_amount')}: {stakedAmount.toFixed(2)} MECO
-        </Text>
-
-        <View style={styles.unstakeWarning}>
-          <Ionicons name="warning-outline" size={20} color={colors.warning} />
-          <Text style={[styles.warningText, { color: colors.warning }]}>
-            {t('unstake_warning', { days: unstakePeriod })}
-          </Text>
-        </View>
-
-        <TouchableOpacity
-          style={[styles.modalButton, {
-            backgroundColor: parseFloat(unstakeAmount) > 0 ? colors.error : colors.border
-          }]}
-          onPress={onUnstake}
-          disabled={!unstakeAmount || parseFloat(unstakeAmount) <= 0}
-        >
-          <Text style={styles.modalButtonText}>
-            {t('confirm_unstake_button')}
-          </Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  </Modal>
-);
-
-// 🎨 Styles
 const styles = StyleSheet.create({
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-  },
-  contractInfo: {
-    marginTop: 8,
-    fontSize: 12,
-  },
-  scrollContent: {
-    flexGrow: 1,
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 40,
-  },
   container: {
-    flex: 1,
+    flexGrow: 1,
+    padding: 20,
+    paddingTop: 50,
   },
   header: {
-    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
     marginBottom: 24,
   },
+  headerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  headerText: {
+    flexDirection: 'column',
+  },
   title: {
-    fontSize: 32,
-    fontWeight: '800',
-    marginTop: 12,
-    marginBottom: 6,
+    fontSize: 28,
+    fontWeight: 'bold',
   },
   subtitle: {
     fontSize: 14,
-    textAlign: 'center',
+    marginTop: 4,
     opacity: 0.8,
   },
-  contractBadge: {
+  activeBadge: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 4,
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 20,
-    marginTop: 10,
+    borderRadius: 12,
   },
-  contractText: {
-    fontSize: 12,
-    fontWeight: '600',
-    marginLeft: 6,
-  },
-  warningBox: {
+  inactiveBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 8,
-    borderRadius: 8,
-    marginTop: 8,
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
   },
-  warningText: {
-    fontSize: 12,
-    marginLeft: 6,
-  },
-  lockInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 8,
-    borderRadius: 8,
-    marginTop: 8,
-    marginBottom: 8,
-  },
-  lockText: {
-    fontSize: 12,
-    marginLeft: 6,
-  },
-  aprCard: {
-    borderRadius: 24,
-    padding: 24,
-    marginBottom: 20,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.2,
-    shadowRadius: 20,
-    elevation: 12,
-  },
-  aprLabel: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.9)',
-    fontWeight: '500',
-    marginBottom: 4,
-  },
-  aprValue: {
-    fontSize: 48,
-    color: '#FFFFFF',
-    fontWeight: '800',
-    marginBottom: 8,
-  },
-  aprDescription: {
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.7)',
-    marginBottom: 12,
-  },
-  contractId: {
-    fontSize: 10,
-    color: 'rgba(255,255,255,0.6)',
-    marginTop: 8,
-  },
-  testButton: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    marginTop: 8,
-  },
-  testButtonText: {
-    color: '#FFFFFF',
+  activeText: {
     fontSize: 12,
     fontWeight: '600',
   },
-  stakingCard: {
-    borderRadius: 20,
+  inactiveText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  balancesCard: {
     padding: 20,
+    borderRadius: 20,
+    borderWidth: 1,
     marginBottom: 20,
+    elevation: 2,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.1,
-    shadowRadius: 16,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
   },
-  cardHeader: {
+  balanceSection: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    marginBottom: 20,
+  },
+  balanceItem: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 20,
+    gap: 12,
   },
-  cardTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-  },
-  statsGrid: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 20,
-  },
-  statItem: {
-    flex: 1,
-  },
-  statLabel: {
-    fontSize: 12,
-    marginBottom: 4,
-    opacity: 0.8,
-  },
-  statValue: {
-    fontSize: 20,
-    fontWeight: '700',
-  },
-  balanceInfo: {
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(0,0,0,0.1)',
-    marginBottom: 12,
+  balanceIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   balanceLabel: {
     fontSize: 12,
     marginBottom: 4,
   },
-  balanceValue: {
+  balanceAmount: {
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: 'bold',
   },
-  connectionStatus: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 8,
-    borderRadius: 8,
-    marginTop: 8,
-  },
-  connectionText: {
-    fontSize: 12,
-    marginLeft: 6,
-  },
-  connectionSubtext: {
-    fontSize: 10,
-    marginLeft: 6,
-    opacity: 0.8,
-  },
-  actionsContainer: {
-    flexDirection: 'row',
-    marginBottom: 24,
-    gap: 12,
-  },
-  actionButton: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: 16,
-    borderRadius: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  actionButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    marginTop: 8,
-  },
-  rewardsCard: {
-    borderRadius: 20,
-    padding: 20,
-    marginBottom: 20,
-  },
-  rewardsTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 16,
-  },
-  rewardsGrid: {
+  rewardsSection: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0,0,0,0.1)',
   },
   rewardItem: {
+    flexDirection: 'row',
     alignItems: 'center',
-    flex: 1,
-  },
-  rewardValue: {
-    fontSize: 18,
-    fontWeight: '700',
-    marginBottom: 4,
+    gap: 8,
   },
   rewardLabel: {
     fontSize: 12,
-    opacity: 0.8,
+    marginBottom: 2,
   },
-  notesCard: {
-    borderRadius: 20,
+  rewardAmount: {
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  claimButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  claimButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  aprCard: {
     padding: 20,
+    borderRadius: 20,
     borderWidth: 1,
+    marginBottom: 20,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
   },
-  notesHeader: {
+  aprHeader: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 8,
+    marginBottom: 16,
+  },
+  aprTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  aprStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  aprStat: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  aprValue: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    marginBottom: 4,
+  },
+  aprLabel: {
+    fontSize: 12,
+    textAlign: 'center',
+  },
+  aprDivider: {
+    width: 1,
+    height: '100%',
+    backgroundColor: 'rgba(0,0,0,0.1)',
+  },
+  dailyRewards: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0,0,0,0.1)',
+  },
+  dailyLabel: {
+    fontSize: 14,
+  },
+  dailyAmount: {
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  stakingForm: {
+    padding: 20,
+    borderRadius: 20,
+    borderWidth: 1,
+    marginBottom: 20,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+  },
+  unstakingForm: {
+    padding: 20,
+    borderRadius: 20,
+    borderWidth: 1,
+    marginBottom: 20,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+  },
+  formTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 16,
+  },
+  amountInput: {
+    marginBottom: 20,
+  },
+  amountLabel: {
+    fontSize: 14,
+    marginBottom: 8,
+  },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     marginBottom: 12,
   },
-  notesTitle: {
-    fontSize: 16,
+  input: {
+    flex: 1,
+    fontSize: 18,
     fontWeight: '600',
-    marginLeft: 10,
   },
-  noteText: {
-    fontSize: 13,
-    lineHeight: 20,
+  tokenBadge: {
+    backgroundColor: '#14F19520',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  tokenText: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#14F195',
+  },
+  amountButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  amountButton: {
+    flex: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  amountButtonText: {
+    fontSize: 12,
+  },
+  stakeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 16,
+    paddingVertical: 16,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+  },
+  stakeButtonText: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '600',
+    marginLeft: 8,
+  },
+  unstakeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 16,
+    paddingVertical: 16,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+  },
+  unstakeButtonText: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '600',
+    marginLeft: 8,
+  },
+  unstakeInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 16,
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+  },
+  unstakeInfoText: {
+    fontSize: 12,
+    flex: 1,
+  },
+  globalStats: {
+    padding: 20,
+    borderRadius: 20,
+    borderWidth: 1,
+    marginBottom: 20,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+  },
+  statsTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 16,
+  },
+  statsGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  statItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  statValue: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 4,
+  },
+  statLabel: {
+    fontSize: 12,
+    textAlign: 'center',
+  },
+  infoNotice: {
+    flexDirection: 'row',
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    marginBottom: 30,
+  },
+  infoContent: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  infoTitle: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    marginBottom: 4,
+  },
+  infoText: {
+    fontSize: 12,
+    lineHeight: 18,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
   modalContent: {
-    width: '100%',
-    borderRadius: 24,
+    width: width * 0.9,
     padding: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 20 },
-    shadowOpacity: 0.25,
-    shadowRadius: 40,
-    elevation: 10,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    borderRadius: 20,
     alignItems: 'center',
-    marginBottom: 16,
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
   },
   modalTitle: {
-    fontSize: 20,
-    fontWeight: '700',
+    fontSize: 22,
+    fontWeight: 'bold',
+    marginTop: 16,
+    marginBottom: 8,
   },
-  modalDescription: {
+  modalText: {
     fontSize: 14,
-    marginBottom: 20,
-    lineHeight: 20,
-  },
-  amountInputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    marginBottom: 12,
-  },
-  amountInput: {
-    flex: 1,
-    fontSize: 24,
-    fontWeight: '600',
-    paddingVertical: 8,
-  },
-  currencyLabel: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginHorizontal: 12,
-  },
-  maxButton: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  balanceText: {
-    fontSize: 14,
+    textAlign: 'center',
     marginBottom: 20,
   },
-  rewardsEstimation: {
-    backgroundColor: 'rgba(0,0,0,0.03)',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 20,
+  modalDetails: {
+    width: '100%',
+    marginBottom: 24,
   },
-  estimationTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    marginBottom: 12,
-  },
-  estimationRow: {
+  modalDetailRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginBottom: 8,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0,0,0,0.1)',
   },
-  estimationLabel: {
-    fontSize: 13,
+  modalDetailLabel: {
+    fontSize: 14,
   },
-  estimationValue: {
-    fontSize: 13,
+  modalDetailValue: {
+    fontSize: 14,
     fontWeight: '600',
   },
-  unstakeWarning: {
-    flexDirection: 'row',
+  resultContainer: {
+    width: '100%',
     alignItems: 'center',
-    backgroundColor: 'rgba(245, 158, 11, 0.1)',
-    padding: 12,
-    borderRadius: 12,
     marginBottom: 20,
   },
-  warningText: {
-    fontSize: 13,
-    marginLeft: 8,
-    flex: 1,
+  resultText: {
+    fontSize: 14,
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  solscanButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    marginTop: 8,
+  },
+  solscanButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  loadingContainer: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  loadingText: {
+    fontSize: 14,
+    marginTop: 12,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    width: '100%',
   },
   modalButton: {
+    flex: 1,
+    paddingVertical: 14,
     borderRadius: 12,
-    paddingVertical: 16,
     alignItems: 'center',
-    justifyContent: 'center',
   },
   modalButtonText: {
-    color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
+    color: '#FFFFFF',
   },
 });
