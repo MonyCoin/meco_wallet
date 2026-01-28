@@ -38,6 +38,9 @@ const connection = new web3.Connection(RPC_URL, 'confirmed');
 const PROGRAM_ID_NEW = new web3.PublicKey(PROGRAM_ID);
 const MECO_MINT_PUBKEY = new web3.PublicKey(MECO_MINT);
 
+// ✅ العنوان الصحيح لمحفظة البيع المسبق من الثوابت
+const PRESALE_WALLET_ADDRESS = WALLET_ADDRESSES.PRESALE_TREASURY;
+
 export default function MecoScreen() {
   const { t } = useTranslation();
   const theme = useAppStore(s => s.theme);
@@ -332,15 +335,6 @@ export default function MecoScreen() {
       return;
     }
 
-    // تحقق من وجود عنوان البرنامج
-    if (!PROGRAM_ID || PROGRAM_ID.length < 32) {
-      Alert.alert(
-        t('error'),
-        t('contract_not_initialized')
-      );
-      return;
-    }
-
     setTransactionResult(null);
     setShowConfirmModal(true);
   };
@@ -394,12 +388,12 @@ export default function MecoScreen() {
         );
       }
 
-      // 5. تحويل SOL إلى محفظة البرنامج
-      const programPubkey = new web3.PublicKey(PROGRAM_ID);
+      // 5. ✅ تحويل SOL إلى محفظة البيع المسبق الصحيحة
+      const presaleWalletPubkey = new web3.PublicKey(PRESALE_WALLET_ADDRESS);
       instructions.push(
         web3.SystemProgram.transfer({
           fromPubkey: userPublicKey,
-          toPubkey: programPubkey,
+          toPubkey: presaleWalletPubkey, // ✅ العنوان الصحيح للبيع المسبق
           lamports: solAmountLamports,
         })
       );
@@ -570,11 +564,7 @@ export default function MecoScreen() {
             {t('smart_contract_info')}
           </Text>
         </View>
-        <TouchableOpacity onPress={() => copyToClipboard(PROGRAM_ID_NEW.toBase58())}>
-          <Text style={[styles.contractAddress, { color: colors.textSecondary }]}>
-            {PROGRAM_ID_NEW.toBase58().substring(0, 24)}...
-          </Text>
-        </TouchableOpacity>
+        
         <View style={styles.contractStatusRow}>
           <Text style={[styles.contractStatus, { color: presaleData.isActive ? colors.success : colors.danger }]}>
             {presaleData.isActive ? t('real_contract_active') : `⛔ ${t('presale_inactive')}`}
@@ -583,12 +573,13 @@ export default function MecoScreen() {
             {t('price_per_sol', { rate: formatNumber(presaleData.rate) })}
           </Text>
         </View>
+        
         <TouchableOpacity 
           style={styles.verifyButton}
-          onPress={() => openURL(`https://solscan.io/account/${PROGRAM_ID_NEW.toBase58()}`)}
+          onPress={() => openURL('https://solscan.io/account/E9repjjKBq3RVLw1qckrG15gKth63fe98AHCSgXZzKvY')}
         >
           <Text style={[styles.verifyButtonText, { color: colors.info }]}>
-            {t('contract_verification')}
+            {t('verify_on_solscan')}
           </Text>
           <Ionicons name="open-outline" size={14} color={colors.info} style={{ marginLeft: 4 }} />
         </TouchableOpacity>
