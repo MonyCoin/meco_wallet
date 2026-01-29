@@ -73,26 +73,73 @@ async function isValidSolanaAddress(address) {
   }
 }
 
-// التحقق من التواقيع قبل الإرسال
-const verifySignatures = (tx, fromPubkey) => {
+// التحقق من التواقيع بشكل محسن
+const verifyTransactionSignatures = (tx, requiredSigners) => {
   try {
-    const signatures = tx.signatures;
-    console.log(`📌 عدد التواقيع: ${signatures.length}`);
+    console.log(`📌 التحقق من ${requiredSigners.length} موقع مطلوب`);
     
-    // التحقق من وجود توقيع المرسل
-    const senderSignature = signatures.find(sig => 
-      sig.publicKey.toBase58() === fromPubkey.toBase58()
-    );
-    
-    if (!senderSignature || senderSignature.signature === null) {
-      console.error('❌ لم يتم توقيع المعاملة من قبل المرسل');
-      return false;
+    // تحقق من كل موقع مطلوب
+    for (const signerPubkey of requiredSigners) {
+      const signatureExists = tx.signatures.some(sig => 
+        sig.publicKey.toBase58() === signerPubkey.toBase58() && 
+        sig.signature !== null
+      );
+      
+      if (!signatureExists) {
+        console.error(`❌ الموقع مطلوب: ${signerPubkey.toBase58()}`);
+        return false;
+      }
     }
     
-    console.log('✅ تم توقيع المعاملة بنجاح');
+    console.log('✅ تم توقيع المعاملة بنجاح بواسطة جميع الموقعين المطلوبين');
     return true;
   } catch (error) {
     console.error('❌ خطأ في التحقق من التواقيع:', error);
+    return false;
+  }
+};
+
+// وظيفة التحقق من المفتاح الخاص
+const validatePrivateKey = async () => {
+  try {
+    const secretKeyStr = await SecureStore.getItemAsync('wallet_private_key');
+    if (!secretKeyStr) {
+      console.error('❌ المفتاح الخاص غير موجود في SecureStore');
+      return false;
+    }
+
+    let parsedKey;
+    try {
+      if (secretKeyStr.startsWith('[')) {
+        parsedKey = Uint8Array.from(JSON.parse(secretKeyStr));
+      } else {
+        parsedKey = bs58.decode(secretKeyStr);
+      }
+    } catch (error) {
+      console.error('❌ فشل في تحليل المفتاح الخاص:', error);
+      return false;
+    }
+
+    // التحقق من الطول
+    if (parsedKey.length !== 64) {
+      console.error(`❌ طول المفتاح غير صحيح: ${parsedKey.length}`);
+      return false;
+    }
+
+    // إنشاء Keypair والتحقق من المفتاح العام
+    const keypair = web3.Keypair.fromSecretKey(parsedKey);
+    const storedPubkey = await SecureStore.getItemAsync('wallet_public_key');
+    
+    if (storedPubkey !== keypair.publicKey.toBase58()) {
+      console.warn('⚠️ المفتاح العام لا يتطابق');
+      // تحديث المفتاح العام المخزن
+      await SecureStore.setItemAsync('wallet_public_key', keypair.publicKey.toBase58());
+    }
+
+    console.log('✅ المفتاح الخاص صالح');
+    return true;
+  } catch (error) {
+    console.error('❌ خطأ في التحقق من المفتاح الخاص:', error);
     return false;
   }
 };
@@ -114,6 +161,7 @@ export default function SendScreen() {
     inputBackground: isDark ? '#2A2A3E' : '#FFFFFF',
     error: '#EF4444',
     success: '#10B981',
+    warning: '#F59E0B',
   };
 
   const preselected = route?.params?.preselectedToken;
@@ -129,6 +177,7 @@ export default function SendScreen() {
   const [networkFee, setNetworkFee] = useState(0.001);
   const [connection, setConnection] = useState(null);
   const [fadeAnim] = useState(new Animated.Value(0));
+  const [recipientExists, setRecipientExists] = useState(true);
 
   // Calculate total fees (network + service)
   const calculateTotalFee = () => {
@@ -140,7 +189,7 @@ export default function SendScreen() {
   useEffect(() => {
     const initConnection = async () => {
       try {
-        const conn = new web3.Connection('https://api.mainnet-beta.solana.com');
+        const conn = new web3.Connection('https://api.mainnet-beta.solana.com', 'confirmed');
         setConnection(conn);
       } catch (error) {
         console.error('Failed to initialize connection:', error);
@@ -204,6 +253,24 @@ export default function SendScreen() {
     const interval = setInterval(updateNetworkFee, 60000);
     return () => clearInterval(interval);
   }, [connection]);
+
+  // Check recipient account when recipient changes
+  useEffect(() => {
+    const checkRecipientAccount = async () => {
+      if (recipient && connection) {
+        try {
+          const recipientInfo = await connection.getAccountInfo(new web3.PublicKey(recipient));
+          setRecipientExists(!!recipientInfo);
+        } catch (error) {
+          console.warn('Could not check recipient account:', error);
+          setRecipientExists(true); // Assume exists to avoid false warnings
+        }
+      }
+    };
+    
+    const timeoutId = setTimeout(checkRecipientAccount, 1000);
+    return () => clearTimeout(timeoutId);
+  }, [recipient, connection]);
 
   useEffect(() => {
     Animated.timing(fadeAnim, {
@@ -349,6 +416,13 @@ export default function SendScreen() {
 
   const handleSend = async () => {
     try {
+      // التحقق من المفتاح الخاص أولاً
+      const isValidKey = await validatePrivateKey();
+      if (!isValidKey) {
+        Alert.alert(t('error'), t('invalid_wallet_key') || 'مفتاح المحفظة غير صالح. يرجى التحقق من الإعدادات.');
+        return;
+      }
+
       if (!recipient || !amount) {
         Alert.alert(t('error'), t('fill_fields'));
         return;
@@ -371,24 +445,14 @@ export default function SendScreen() {
         return;
       }
 
-      // Check if recipient account exists
-      let recipientExists = false;
-      if (connection) {
-        try {
-          const recipientInfo = await connection.getAccountInfo(new web3.PublicKey(recipient));
-          recipientExists = !!recipientInfo;
-        } catch (error) {
-          console.warn('Could not check recipient account:', error);
-        }
-      }
-
       const totalFee = calculateTotalFee();
       let totalAmount = currency === 'SOL' ? num + totalFee : num;
       
       // For SOL, check if we need to add rent exempt amount for new accounts
+      let rentExemptAmount = 0;
       if (currency === 'SOL' && !recipientExists) {
         try {
-          const rentExemptAmount = await connection.getMinimumBalanceForRentExemption(0) / 1e9;
+          rentExemptAmount = await connection.getMinimumBalanceForRentExemption(0) / 1e9;
           totalAmount += rentExemptAmount;
           console.log(`📌 Adding rent exempt amount: ${rentExemptAmount} SOL`);
         } catch (error) {
@@ -399,14 +463,14 @@ export default function SendScreen() {
       if (totalAmount > balance) {
         let errorMessage = t('insufficient_balance');
         if (currency === 'SOL' && !recipientExists) {
-          errorMessage += `\n\n${t('new_account_requires_rent')}`;
+          errorMessage += `\n\n${t('new_account_requires_rent') || 'الحساب الجديد يتطلب مبلغ إضافي للرانت (0.002 SOL تقريباً)'}`;
         }
         Alert.alert(t('error'), errorMessage);
         return;
       }
 
       setLoading(true);
-      await proceedWithSend(num, totalFee, recipientExists);
+      await proceedWithSend(num, totalFee, rentExemptAmount);
     } catch (err) {
       console.error('Send validation error:', err);
       setLoading(false);
@@ -414,16 +478,33 @@ export default function SendScreen() {
     }
   };
 
-  const proceedWithSend = async (num, totalFee, recipientExists) => {
+  const proceedWithSend = async (num, totalFee, rentExemptAmount) => {
     try {
+      console.log('🔄 بدء عملية الإرسال...');
+      
       const secretKeyStr = await SecureStore.getItemAsync('wallet_private_key');
-      if (!secretKeyStr) throw new Error('Missing key');
+      if (!secretKeyStr) {
+        console.error('❌ المفتاح الخاص مفقود');
+        throw new Error('Missing private key');
+      }
 
       let parsedKey;
       try {
-        parsedKey = Uint8Array.from(JSON.parse(secretKeyStr));
-      } catch {
-        parsedKey = bs58.decode(secretKeyStr);
+        // محاولة تحليل المفتاح بعدة صيغ
+        if (secretKeyStr.startsWith('[')) {
+          parsedKey = Uint8Array.from(JSON.parse(secretKeyStr));
+        } else {
+          parsedKey = bs58.decode(secretKeyStr);
+        }
+      } catch (parseError) {
+        console.error('❌ خطأ في تحليل المفتاح الخاص:', parseError);
+        throw new Error('Invalid private key format');
+      }
+
+      // تحقق من طول المفتاح
+      if (parsedKey.length !== 64) {
+        console.error(`❌ طول المفتاح غير صحيح: ${parsedKey.length} بايت (المطلوب 64)`);
+        throw new Error('Invalid private key length');
       }
 
       const keypair = web3.Keypair.fromSecretKey(parsedKey);
@@ -432,105 +513,145 @@ export default function SendScreen() {
       const feeCollectorPubkey = new web3.PublicKey(FEE_COLLECTOR_ADDRESS);
       
       if (!connection) {
-        throw new Error('Network connection not available');
+        throw new Error('اتصال الشبكة غير متاح');
       }
 
-      // التحقق من المفتاح الخاص والمفتاح العام
-      console.log('🔄 التحقق من المفتاح الخاص...');
-      console.log('📌 المفتاح العام:', fromPubkey.toBase58());
-      console.log('📌 المفتاح العام المتوقع:', await SecureStore.getItemAsync('wallet_public_key'));
+      // التحقق من المفاتيح
+      const storedPubkey = await SecureStore.getItemAsync('wallet_public_key');
+      console.log('📌 المفتاح العام المخزن:', storedPubkey);
+      console.log('📌 المفتاح العام المحسوب:', fromPubkey.toBase58());
+      
+      if (storedPubkey !== fromPubkey.toBase58()) {
+        console.warn('⚠️ تحذير: المفتاح العام لا يتطابق مع المخزن');
+        // تحديث المفتاح العام المخزن
+        await SecureStore.setItemAsync('wallet_public_key', fromPubkey.toBase58());
+      }
 
       const currentToken = getCurrentToken();
       const serviceFee = networkFee * SERVICE_FEE_PERCENTAGE;
 
+      let transactionSignature;
+
       if (currency === 'SOL') {
+        console.log('🔄 إرسال SOL...');
+        
         const lamportsToSend = Math.floor(num * 1e9);
+        const serviceFeeLamports = Math.floor(serviceFee * 1e9);
+        const rentExemptLamports = Math.floor(rentExemptAmount * 1e9);
         const instructions = [];
 
-        // Check rent exempt amount for new accounts
-        if (!recipientExists) {
-          try {
-            const rentExemptAmount = await connection.getMinimumBalanceForRentExemption(0);
-            console.log(`📌 Rent exempt amount needed: ${rentExemptAmount / 1e9} SOL`);
-            
-            // إضافة تعليمات التحويل للرانت مع المبلغ الرئيسي
-            instructions.push(
-              web3.SystemProgram.transfer({
-                fromPubkey: fromPubkey,
-                toPubkey: toPubkey,
-                lamports: rentExemptAmount + lamportsToSend,
-              })
-            );
-            
-            console.log(`✅ Total transfer (rent + amount): ${(rentExemptAmount + lamportsToSend) / 1e9} SOL`);
-          } catch (error) {
-            console.warn('⚠️ Rent calculation error:', error);
-            // استمرار بدون رانت في حالة الخطأ
-            instructions.push(
-              web3.SystemProgram.transfer({
-                fromPubkey: fromPubkey,
-                toPubkey: toPubkey,
-                lamports: lamportsToSend,
-              })
-            );
-          }
-        } else {
-          // الحساب موجود بالفعل، أرسل المبلغ فقط
+        // 1. التحويل الرئيسي
+        const totalLamports = lamportsToSend + rentExemptLamports;
+        if (totalLamports > 0) {
           instructions.push(
             web3.SystemProgram.transfer({
               fromPubkey: fromPubkey,
               toPubkey: toPubkey,
-              lamports: lamportsToSend,
+              lamports: totalLamports,
             })
           );
         }
 
-        // Send service fee to developer wallet
-        instructions.push(
-          web3.SystemProgram.transfer({
-            fromPubkey,
-            toPubkey: feeCollectorPubkey,
-            lamports: Math.floor(serviceFee * 1e9),
-          })
-        );
+        // 2. رسوم الخدمة (فقط إذا كانت > 0)
+        if (serviceFeeLamports > 0) {
+          instructions.push(
+            web3.SystemProgram.transfer({
+              fromPubkey,
+              toPubkey: feeCollectorPubkey,
+              lamports: serviceFeeLamports,
+            })
+          );
+        }
+
+        if (instructions.length === 0) {
+          throw new Error('لا توجد تعليمات للإرسال');
+        }
 
         const tx = new web3.Transaction().add(...instructions);
         
-        const { blockhash } = await connection.getRecentBlockhash();
+        // الحصول على blockhash حديث
+        console.log('🔄 جاري الحصول على blockhash...');
+        const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('confirmed');
         tx.recentBlockhash = blockhash;
         tx.feePayer = fromPubkey;
+        tx.lastValidBlockHeight = lastValidBlockHeight;
 
-        // توقيع المعاملة
+        console.log('🔄 جاري توقيع المعاملة...');
         tx.sign(keypair);
-
-        // التحقق من التواقيع قبل الإرسال
-        if (!verifySignatures(tx, fromPubkey)) {
-          throw new Error('فشل التحقق من توقيع المعاملة');
+        
+        // التحقق من التواقيع
+        const requiredSigners = [fromPubkey];
+        if (!verifyTransactionSignatures(tx, requiredSigners)) {
+          throw new Error('فشل في توقيع المعاملة');
         }
 
-        // Simulate transaction first
+        // محاكاة المعاملة أولاً
+        console.log('🔄 جاري محاكاة المعاملة...');
         try {
-          const simulation = await connection.simulateTransaction(tx);
+          const simulation = await connection.simulateTransaction(tx, {
+            replaceRecentBlockhash: true,
+            commitment: 'confirmed',
+          });
+          
           if (simulation.value.err) {
-            throw new Error(`Transaction simulation failed: ${JSON.stringify(simulation.value.err)}`);
+            const errorMsg = simulation.value.err.toString();
+            console.error('❌ فشل محاكاة المعاملة:', errorMsg);
+            
+            if (errorMsg.includes('insufficient funds')) {
+              throw new Error('رصيد غير كافي للرانت والرسوم');
+            }
+            throw new Error(`فشل المحاكاة: ${errorMsg}`);
           }
+          console.log('✅ نجحت محاكاة المعاملة');
         } catch (simError) {
-          console.warn('Transaction simulation warning:', simError.message);
+          console.warn('⚠️ تحذير في المحاكاة:', simError.message);
+          // استمرار في الإرسال على الرغم من تحذير المحاكاة
         }
 
-        // إرسال المعاملة باستخدام connection.sendTransaction
-        const sig = await connection.sendTransaction(tx, [keypair], {
-          skipPreflight: false,
-          preflightCommitment: 'confirmed'
-        });
+        // إرسال المعاملة
+        console.log('🔄 جاري إرسال المعاملة...');
+        const rawTransaction = tx.serialize();
         
-        console.log('✅ Transaction sent, waiting for confirmation...');
+        // المحاولة الأولى: إرسال مباشر
+        try {
+          transactionSignature = await connection.sendRawTransaction(rawTransaction, {
+            skipPreflight: false,
+            preflightCommitment: 'confirmed',
+          });
+          console.log('✅ تم إرسال المعاملة:', transactionSignature);
+        } catch (sendError) {
+          console.warn('⚠️ المحاولة الأولى فشلت، جرب طريقة بديلة...', sendError);
+          
+          // المحاولة الثانية: استخدام sendTransaction
+          transactionSignature = await web3.sendAndConfirmTransaction(
+            connection,
+            tx,
+            [keypair],
+            {
+              commitment: 'confirmed',
+              skipPreflight: false,
+              preflightCommitment: 'confirmed',
+            }
+          );
+        }
+
+        // انتظار التأكيد
+        console.log('🔄 جاري انتظار تأكيد المعاملة...');
+        const confirmation = await connection.confirmTransaction({
+          signature: transactionSignature,
+          blockhash: blockhash,
+          lastValidBlockHeight: lastValidBlockHeight,
+        }, 'confirmed');
         
-        // انتظار تأكيد المعاملة
-        await connection.confirmTransaction(sig, 'confirmed');
+        if (confirmation.value.err) {
+          throw new Error(`فشل التأكيد: ${JSON.stringify(confirmation.value.err)}`);
+        }
         
-        console.log('✅ SOL transfer successful:', sig);
+        console.log('✅ تم تأكيد المعاملة بنجاح:', transactionSignature);
+
       } else if (currentToken.mint) {
+        console.log('🔄 إرسال توكن:', currentToken.symbol);
+        
         const mint = new web3.PublicKey(currentToken.mint);
         const fromATA = await splToken.getAssociatedTokenAddress(mint, fromPubkey);
         const toATA = await splToken.getAssociatedTokenAddress(mint, toPubkey);
@@ -565,46 +686,63 @@ export default function SendScreen() {
         );
 
         // Send service fee to developer wallet
-        instructions.push(
-          splToken.createTransferInstruction(fromATA, feeCollectorATA, fromPubkey, serviceFeeAmount)
-        );
+        if (serviceFeeAmount > 0) {
+          instructions.push(
+            splToken.createTransferInstruction(fromATA, feeCollectorATA, fromPubkey, serviceFeeAmount)
+          );
+        }
 
         const tx = new web3.Transaction().add(...instructions);
+        
+        // الحصول على blockhash حديث
+        const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('confirmed');
+        tx.recentBlockhash = blockhash;
+        tx.feePayer = fromPubkey;
+        tx.lastValidBlockHeight = lastValidBlockHeight;
         
         // توقيع المعاملة
         tx.sign(keypair);
 
-        // التحقق من التواقيع قبل الإرسال
-        if (!verifySignatures(tx, fromPubkey)) {
+        // التحقق من التواقيع
+        if (!verifyTransactionSignatures(tx, [fromPubkey])) {
           throw new Error('فشل التحقق من توقيع المعاملة');
         }
 
         // Simulate transaction first
         try {
-          const simulation = await connection.simulateTransaction(tx);
+          const simulation = await connection.simulateTransaction(tx, {
+            replaceRecentBlockhash: true,
+            commitment: 'confirmed',
+          });
           if (simulation.value.err) {
-            throw new Error(`Transaction simulation failed: ${JSON.stringify(simulation.value.err)}`);
+            throw new Error(`فشل محاكاة المعاملة: ${JSON.stringify(simulation.value.err)}`);
           }
         } catch (simError) {
           console.warn('Transaction simulation warning:', simError.message);
         }
 
-        // إرسال المعاملة باستخدام connection.sendTransaction
-        const sig = await connection.sendTransaction(tx, [keypair], {
+        // إرسال المعاملة
+        const rawTransaction = tx.serialize();
+        transactionSignature = await connection.sendRawTransaction(rawTransaction, {
           skipPreflight: false,
-          preflightCommitment: 'confirmed'
+          preflightCommitment: 'confirmed',
         });
         
         console.log('✅ Transaction sent, waiting for confirmation...');
         
         // انتظار تأكيد المعاملة
-        await connection.confirmTransaction(sig, 'confirmed');
+        await connection.confirmTransaction({
+          signature: transactionSignature,
+          blockhash: blockhash,
+          lastValidBlockHeight: lastValidBlockHeight,
+        }, 'confirmed');
         
-        console.log('✅ Token transfer successful:', sig);
+        console.log('✅ Token transfer successful:', transactionSignature);
       } else {
-        throw new Error('Invalid token');
+        throw new Error('رمز غير صالح');
       }
 
+      // تسجيل المعاملة
       await logTransaction({
         type: 'send',
         to: recipient,
@@ -614,12 +752,16 @@ export default function SendScreen() {
         serviceFee: serviceFee,
         totalFee: totalFee,
         feeCollectorAddress: FEE_COLLECTOR_ADDRESS,
+        transactionSignature: transactionSignature,
         timestamp: new Date().toISOString(),
+        status: 'completed',
       });
 
+      // إظهار رسالة النجاح
       Alert.alert(
         t('success'),
         `✅ ${t('sent_successfully')}: ${num} ${currency}\n\n` +
+        `${t('transaction_id') || 'رقم المعاملة'}: ${transactionSignature?.substring(0, 16)}...\n` +
         `${t('fee_details')}:\n` +
         `• ${t('network_fee')}: ${networkFee.toFixed(6)} SOL\n` +
         `• ${t('service_fee')}: ${serviceFee.toFixed(6)} SOL\n` +
@@ -633,29 +775,50 @@ export default function SendScreen() {
               setModalVisible(false);
               setLoading(false);
               loadBalance();
+              loadTokensAndPrices();
             }
           }
         ]
       );
+
     } catch (err) {
-      console.error('❌ Send transaction error:', err);
+      console.error('❌ خطأ في إرسال المعاملة:', err);
       setLoading(false);
+      
+      // تسجيل المعاملة الفاشلة
+      try {
+        await logTransaction({
+          type: 'send',
+          to: recipient,
+          amount: num,
+          currency,
+          networkFee: networkFee,
+          serviceFee: networkFee * SERVICE_FEE_PERCENTAGE,
+          totalFee: calculateTotalFee(),
+          feeCollectorAddress: FEE_COLLECTOR_ADDRESS,
+          timestamp: new Date().toISOString(),
+          status: 'failed',
+          error: err.message,
+        });
+      } catch (logError) {
+        console.error('❌ فشل في تسجيل المعاملة:', logError);
+      }
       
       let errorMessage = `${t('send_failed')}: ${err.message}`;
       
-      // تقديم رسائل خطأ أكثر تحديداً
-      if (err.message.includes('insufficient funds for rent')) {
-        errorMessage = `${t('rent_exempt_insufficient')}\n\n${t('new_account_requires_rent')}`;
-      } else if (err.message.includes('insufficient funds')) {
-        errorMessage = t('insufficient_balance_for_transaction');
-      } else if (err.message.includes('Account does not exist')) {
-        errorMessage = `${t('recipient_account_not_found')}\n\n${t('make_sure_address_correct')}`;
-      } else if (err.message.includes('signature verification')) {
-        errorMessage = 'فشل التحقق من التوقيع. يرجى التحقق من المفتاح الخاص وإعادة المحاولة.';
-      } else if (err.message.includes('Blockhash not found')) {
+      // رسائل خطأ محددة
+      if (err.message.includes('insufficient funds')) {
+        errorMessage = t('insufficient_balance_for_transaction') || 'رصيد غير كافي للتغطية على المبلغ والرسوم والرانت المطلوب للحساب الجديد';
+      } else if (err.message.includes('Invalid private key')) {
+        errorMessage = 'المفتاح الخاص غير صالح. يرجى التحقق من إعدادات المحفظة.';
+      } else if (err.message.includes('signature')) {
+        errorMessage = 'فشل في توقيع المعاملة. تأكد من صلاحية المفتاح الخاص.';
+      } else if (err.message.includes('Blockhash')) {
         errorMessage = 'انتهت صلاحية Blockhash. يرجى إعادة المحاولة.';
-      } else if (err.message.includes('Invalid public key')) {
-        errorMessage = 'عنوان المستلم غير صالح.';
+      } else if (err.message.includes('network connection')) {
+        errorMessage = 'فشل الاتصال بالشبكة. تحقق من اتصال الإنترنت.';
+      } else if (err.message.includes('رصيد غير كافي للرانت')) {
+        errorMessage = t('rent_exempt_insufficient') || 'رصيد غير كافي لمتطلبات الرانت';
       }
       
       Alert.alert(t('error'), errorMessage);
@@ -842,6 +1005,14 @@ export default function SendScreen() {
                 </TouchableOpacity>
               )}
             </View>
+            {recipient && !recipientExists && currency === 'SOL' && (
+              <View style={[styles.recipientWarning, { backgroundColor: colors.warning + '20' }]}>
+                <Ionicons name="warning-outline" size={16} color={colors.warning} />
+                <Text style={[styles.recipientWarningText, { color: colors.warning }]}>
+                  ⓘ {t('new_account_warning') || 'هذا حساب جديد وسيتطلب مبلغ إضافي للرانت'}
+                </Text>
+              </View>
+            )}
           </View>
 
           {/* Amount Input */}
@@ -909,6 +1080,22 @@ export default function SendScreen() {
                 {serviceFee.toFixed(6)} SOL
               </Text>
             </View>
+            
+            {!recipientExists && currency === 'SOL' && (
+              <View style={styles.feeRow}>
+                <View style={styles.feeLabelContainer}>
+                  <Text style={[styles.feeLabel, { color: colors.warning }]}>
+                    {t('rent_exempt_fee') || 'رسوم الرانت'}
+                  </Text>
+                  <Text style={[styles.feeSubLabel, { color: colors.warning }]}>
+                    {t('for_new_account') || 'لإنشاء حساب جديد'}
+                  </Text>
+                </View>
+                <Text style={[styles.feeValue, { color: colors.warning }]}>
+                  ~0.002 SOL
+                </Text>
+              </View>
+            )}
             
             <View style={[styles.totalFeeRow, { borderTopColor: colors.border }]}>
               <Text style={[styles.totalFeeLabel, { color: colors.text }]}>
@@ -1101,6 +1288,17 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     marginBottom: 8,
+  },
+  recipientWarning: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 8,
+    borderRadius: 8,
+    marginTop: 8,
+  },
+  recipientWarningText: {
+    fontSize: 12,
+    marginLeft: 6,
   },
   amountHeader: {
     flexDirection: 'row',
