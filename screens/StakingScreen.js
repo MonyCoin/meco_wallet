@@ -12,6 +12,7 @@ import {
   TextInput,
   Modal,
   Animated,
+  Linking
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useAppStore } from '../store';
@@ -19,20 +20,24 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import * as web3 from '@solana/web3.js';
 import bs58 from 'bs58';
 import * as splToken from '@solana/spl-token';
+import { BN } from 'bn.js';
 
-import { getSolBalance, getMecoBalance, getTokenAccounts } from '../services/heliusService';
-import { getStakingStats, stakeMECO, unstakeMECO, claimRewards } from '../services/solanaService';
+import { getSolBalance, getMecoBalance } from '../services/heliusService';
 import { 
   MECO_MINT, 
   PROGRAM_ID, 
   RPC_URL,
   STAKING_CONFIG,
-  TOKEN_DECIMALS
+  TOKEN_DECIMALS,
+  PDA_SEEDS,
+  INSTRUCTION_CODES,
+  EXTERNAL_LINKS
 } from '../constants';
 
 const { width } = Dimensions.get('window');
 const connection = new web3.Connection(RPC_URL, 'confirmed');
 const MECO_MINT_PUBKEY = new web3.PublicKey(MECO_MINT);
+const PROGRAM_ID_PUBKEY = new web3.PublicKey(PROGRAM_ID);
 
 export default function StakingScreen() {
   const { t } = useTranslation();
@@ -80,9 +85,9 @@ export default function StakingScreen() {
     userUnstaking: [],
   });
 
-  const [userStakingInfo, setUserStakingInfo] = useState(null);
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
+  // 📱 تأثيرات الدخول
   useEffect(() => {
     Animated.timing(fadeAnim, {
       toValue: 1,
@@ -96,6 +101,7 @@ export default function StakingScreen() {
     }
   }, [currentWallet]);
 
+  // 💰 جلب أرصدة المستخدم
   const fetchUserBalance = async () => {
     if (!currentWallet) {
       setUserSOLBalance(0);
@@ -104,17 +110,13 @@ export default function StakingScreen() {
     }
     
     try {
-      console.log('🔄 Fetching user balances for staking...');
+      const [solBalance, mecoBalance] = await Promise.all([
+        getSolBalance(),
+        getMecoBalance()
+      ]);
       
-      // جلب رصيد SOL
-      const solBalance = await getSolBalance();
       setUserSOLBalance(solBalance);
-      
-      // جلب رصيد MECO
-      const mecoBalance = await getMecoBalance();
       setUserMECOBalance(mecoBalance);
-      
-      console.log(`✅ Staking balances: SOL=${solBalance}, MECO=${mecoBalance}`);
     } catch (error) {
       console.error('❌ Error fetching balances for staking:', error);
       setUserSOLBalance(0);
@@ -122,75 +124,126 @@ export default function StakingScreen() {
     }
   };
 
+  // 📊 جلب بيانات Staking من العقد الذكي
   const fetchStakingData = async () => {
     try {
       setLoading(true);
-      console.log('🔄 Fetching staking data...');
       
-      // جلب بيانات Staking
-      const stats = await getStakingStats();
-      
-      if (stats) {
+      if (!currentWallet) {
         setStakingData({
-          ...stats,
-          isActive: STAKING_CONFIG.IS_ACTIVE, // تأكيد تفعيل Staking
-        });
-        console.log('✅ Staking data loaded:', stats);
-      } else {
-        // بيانات افتراضية إذا فشل الاتصال
-        const defaultData = {
           apr: STAKING_CONFIG.APR,
-          totalStaked: 2500000,
-          totalStakers: 1250,
+          totalStaked: 0,
+          totalStakers: 0,
           minStake: STAKING_CONFIG.MIN_STAKE,
           maxStake: STAKING_CONFIG.MAX_STAKE,
           unstakePeriod: STAKING_CONFIG.UNSTAKE_PERIOD,
-          isActive: true,
+          isActive: STAKING_CONFIG.IS_ACTIVE,
           userStaked: 0,
           userRewards: 0,
           userPendingRewards: 0,
           userUnstaking: [],
-        };
-        
-        setStakingData(defaultData);
-        console.log('⚠️ Using default staking data');
+        });
+        return;
       }
+
+      const userPublicKey = new web3.PublicKey(currentWallet);
+
+      // حساب PDAs الجديدة
+      const [stakingConfigPDA] = await web3.PublicKey.findProgramAddress(
+        [Buffer.from(PDA_SEEDS.STAKING_CONFIG)],
+        PROGRAM_ID_PUBKEY
+      );
+
+      const [stakingVaultPDA] = await web3.PublicKey.findProgramAddress(
+        [Buffer.from(PDA_SEEDS.STAKING_VAULT)],
+        PROGRAM_ID_PUBKEY
+      );
+
+      const [rewardVaultPDA] = await web3.PublicKey.findProgramAddress(
+        [Buffer.from(PDA_SEEDS.REWARD_VAULT)],
+        PROGRAM_ID_PUBKEY
+      );
+
+      const [stakePDA] = await web3.PublicKey.findProgramAddress(
+        [Buffer.from(PDA_SEEDS.STAKE_ACCOUNT), userPublicKey.toBuffer()],
+        PROGRAM_ID_PUBKEY
+      );
+
+      // جلب أرصدة الحسابات من الشبكة
+      const [vaultBalance, rewardBalance, stakeAccountInfo, configInfo] = await Promise.all([
+        connection.getTokenAccountBalance(stakingVaultPDA).catch(() => ({ value: { uiAmount: 0 } })),
+        connection.getTokenAccountBalance(rewardVaultPDA).catch(() => ({ value: { uiAmount: 0 } })),
+        connection.getAccountInfo(stakePDA).catch(() => null),
+        connection.getAccountInfo(stakingConfigPDA).catch(() => null),
+      ]);
+
+      // حساب بيانات المستخدم
+      let userStaked = 0;
+      let userRewards = 0;
+
+      if (stakeAccountInfo && stakeAccountInfo.data.length >= 56) {
+        const data = stakeAccountInfo.data;
+        const amountBuffer = data.slice(32, 40);
+        userStaked = new BN(amountBuffer, 'le').toNumber() / Math.pow(10, TOKEN_DECIMALS[MECO_MINT]);
+        
+        const rewardBuffer = data.slice(48, 56);
+        userRewards = new BN(rewardBuffer, 'le').toNumber() / Math.pow(10, TOKEN_DECIMALS[MECO_MINT]);
+      }
+
+      // حساب إجمالي عدد Stakers
+      let totalStakers = 0;
+      if (configInfo && configInfo.data.length >= 40) {
+        const stakersBuffer = configInfo.data.slice(8, 16);
+        totalStakers = new BN(stakersBuffer, 'le').toNumber();
+      }
+
+      setStakingData({
+        apr: STAKING_CONFIG.APR,
+        totalStaked: vaultBalance.value.uiAmount || 0,
+        totalStakers: totalStakers,
+        minStake: STAKING_CONFIG.MIN_STAKE,
+        maxStake: STAKING_CONFIG.MAX_STAKE,
+        unstakePeriod: STAKING_CONFIG.UNSTAKE_PERIOD,
+        isActive: STAKING_CONFIG.IS_ACTIVE,
+        userStaked: userStaked,
+        userRewards: userRewards,
+        userPendingRewards: 0,
+        userUnstaking: [],
+      });
+      
     } catch (error) {
       console.error('❌ Error fetching staking data:', error);
       
       // بيانات طوارئ
-      const emergencyData = {
+      setStakingData({
         apr: STAKING_CONFIG.APR,
         totalStaked: 0,
         totalStakers: 0,
         minStake: STAKING_CONFIG.MIN_STAKE,
         maxStake: STAKING_CONFIG.MAX_STAKE,
         unstakePeriod: STAKING_CONFIG.UNSTAKE_PERIOD,
-        isActive: true, // تأكيد تفعيل Staking حتى مع الخطأ
+        isActive: true,
         userStaked: 0,
         userRewards: 0,
         userPendingRewards: 0,
         userUnstaking: [],
-      };
-      
-      setStakingData(emergencyData);
+      });
     } finally {
       setLoading(false);
     }
   };
 
+  // 🔄 تحديث البيانات
   const onRefresh = React.useCallback(async () => {
     setRefreshing(true);
     await Promise.all([fetchStakingData(), fetchUserBalance()]);
     setRefreshing(false);
   }, []);
 
+  // 🔐 إنشاء wallet من المفتاح الخاص
   const createWalletFromPrivateKey = () => {
     try {
-      if (!walletPrivateKey) {
-        console.warn('⚠️ No wallet private key available for staking');
-        return null;
-      }
+      if (!walletPrivateKey) return null;
       
       let secretKey;
       try {
@@ -199,11 +252,10 @@ export default function StakingScreen() {
         secretKey = bs58.decode(walletPrivateKey);
       }
       
-      if (secretKey && secretKey.length === 64) {
+      if (secretKey?.length === 64) {
         return web3.Keypair.fromSecretKey(secretKey);
       }
       
-      console.error('❌ Invalid secret key length for staking');
       return null;
     } catch (error) {
       console.error('❌ Failed to create wallet for staking:', error);
@@ -211,6 +263,7 @@ export default function StakingScreen() {
     }
   };
 
+  // 💳 معالجة ضغط Staking
   const handleStake = () => {
     const amount = parseFloat(stakeAmount) || 0;
 
@@ -220,26 +273,17 @@ export default function StakingScreen() {
     }
 
     if (userMECOBalance === 0) {
-      Alert.alert(
-        t('insufficient_balance'),
-        t('no_meco_to_stake')
-      );
+      Alert.alert(t('insufficient_balance'), t('no_meco_to_stake'));
       return;
     }
 
     if (amount < stakingData.minStake) {
-      Alert.alert(
-        t('error'), 
-        `${t('below_minimum_stake')} ${stakingData.minStake} MECO`
-      );
+      Alert.alert(t('error'), `${t('below_minimum_stake')} ${stakingData.minStake} MECO`);
       return;
     }
 
     if (amount > stakingData.maxStake) {
-      Alert.alert(
-        t('error'), 
-        `${t('above_maximum_stake')} ${stakingData.maxStake} MECO`
-      );
+      Alert.alert(t('error'), `${t('above_maximum_stake')} ${stakingData.maxStake} MECO`);
       return;
     }
 
@@ -260,6 +304,7 @@ export default function StakingScreen() {
     setShowStakeModal(true);
   };
 
+  // 🔥 تأكيد عملية Staking
   const confirmStake = async () => {
     setTransactionLoading(true);
 
@@ -267,38 +312,45 @@ export default function StakingScreen() {
       const amount = parseFloat(stakeAmount) || 0;
       
       // 1. التحقق من المفتاح الخاص
-      if (!walletPrivateKey) {
+      const keypair = createWalletFromPrivateKey();
+      if (!keypair) {
         throw new Error(t('wallet_not_connected'));
       }
 
-      // 2. إنشاء keypair من المفتاح الخاص
-      let secretKey;
-      try {
-        secretKey = Uint8Array.from(JSON.parse(walletPrivateKey));
-      } catch {
-        secretKey = bs58.decode(walletPrivateKey);
-      }
-      
-      const keypair = web3.Keypair.fromSecretKey(secretKey);
       const userPublicKey = keypair.publicKey;
 
-      // 3. حساب المبالغ
+      // 2. حساب المبلغ باللامبير
       const mecoDecimals = TOKEN_DECIMALS[MECO_MINT] || 6;
       const mecoAmountLamports = Math.floor(amount * Math.pow(10, mecoDecimals));
 
-      // 4. إنشاء حساب Staking ATA إذا لزم الأمر
+      // 3. حساب PDAs باستخدام البذور الصحيحة
+      const [stakingConfigPDA] = await web3.PublicKey.findProgramAddress(
+        [Buffer.from(PDA_SEEDS.STAKING_CONFIG)],
+        PROGRAM_ID_PUBKEY
+      );
+
+      const [stakingVaultPDA] = await web3.PublicKey.findProgramAddress(
+        [Buffer.from(PDA_SEEDS.STAKING_VAULT)],
+        PROGRAM_ID_PUBKEY
+      );
+
+      const [stakingAuthPDA] = await web3.PublicKey.findProgramAddress(
+        [Buffer.from(PDA_SEEDS.STAKING_AUTH)],
+        PROGRAM_ID_PUBKEY
+      );
+
+      const [stakePDA] = await web3.PublicKey.findProgramAddress(
+        [Buffer.from(PDA_SEEDS.STAKE_ACCOUNT), userPublicKey.toBuffer()],
+        PROGRAM_ID_PUBKEY
+      );
+
+      // 4. حساب ATA للمستخدم
       const userMecoATA = await splToken.getAssociatedTokenAddress(
         MECO_MINT_PUBKEY,
         userPublicKey
       );
-      
-      // حساب Staking ATA (العقد الذكي)
-      const stakingProgramPubkey = new web3.PublicKey(PROGRAM_ID);
-      const [stakingATA] = await web3.PublicKey.findProgramAddress(
-        [Buffer.from('staking_vault'), stakingProgramPubkey.toBuffer()],
-        stakingProgramPubkey
-      );
 
+      // 5. إنشاء تعليمات المعاملة
       const instructions = [];
 
       // التحقق من وجود حساب MECO ATA للمستخدم
@@ -314,40 +366,61 @@ export default function StakingScreen() {
         );
       }
 
-      // التحقق من وجود حساب Staking ATA
-      const stakingAtaInfo = await connection.getAccountInfo(stakingATA);
-      if (!stakingAtaInfo) {
-        instructions.push(
-          splToken.createAssociatedTokenAccountInstruction(
-            userPublicKey,
-            stakingATA,
-            stakingProgramPubkey,
-            MECO_MINT_PUBKEY
-          )
-        );
-      }
-
-      // 5. تحويل MECO إلى حساب Staking
+      // التحويل من حساب المستخدم إلى stakingVault
       instructions.push(
         splToken.createTransferInstruction(
           userMecoATA,
-          stakingATA,
+          stakingVaultPDA,
           userPublicKey,
-          BigInt(mecoAmountLamports)
+          mecoAmountLamports
         )
       );
 
-      // 6. تسجيل معلومات Staking في العقد الذكي (تعليمات مبدئية)
-      // TODO: إضافة تعليمات العقد الذكي الفعلية
+      // إنشاء حساب staking للمستخدم (إذا كان أول مرة)
+      const stakeAccountInfo = await connection.getAccountInfo(stakePDA);
+      if (!stakeAccountInfo) {
+        instructions.push(
+          web3.SystemProgram.createAccount({
+            fromPubkey: userPublicKey,
+            newAccountPubkey: stakePDA,
+            lamports: await connection.getMinimumBalanceForRentExemption(56),
+            space: 56,
+            programId: PROGRAM_ID_PUBKEY,
+          })
+        );
+      }
 
-      // 7. إنشاء المعاملة
+      // تعليمة العقد الذكي لتسجيل الـ Stake
+      const stakeInstruction = new web3.TransactionInstruction({
+        programId: PROGRAM_ID_PUBKEY,
+        keys: [
+          { pubkey: userPublicKey, isSigner: true, isWritable: true },
+          { pubkey: userMecoATA, isSigner: false, isWritable: true },
+          { pubkey: stakingVaultPDA, isSigner: false, isWritable: true },
+          { pubkey: stakingConfigPDA, isSigner: false, isWritable: true },
+          { pubkey: stakePDA, isSigner: false, isWritable: true },
+          { pubkey: stakingAuthPDA, isSigner: false, isWritable: false },
+          { pubkey: splToken.TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+          { pubkey: web3.SystemProgram.programId, isSigner: false, isWritable: false },
+          { pubkey: web3.SYSVAR_RENT_PUBKEY, isSigner: false, isWritable: false },
+        ],
+        data: Buffer.from([
+          INSTRUCTION_CODES.STAKE,
+          ...new BN(mecoAmountLamports).toArray('le', 8),
+          ...new BN(stakingData.unstakePeriod).toArray('le', 8)
+        ]),
+      });
+
+      instructions.push(stakeInstruction);
+
+      // 6. إنشاء وإرسال المعاملة
       const transaction = new web3.Transaction().add(...instructions);
-      
       const { blockhash } = await connection.getLatestBlockhash();
       transaction.recentBlockhash = blockhash;
       transaction.feePayer = userPublicKey;
+      transaction.sign(keypair);
 
-      // 8. محاكاة المعاملة أولاً
+      // 7. محاكاة المعاملة
       try {
         const simulation = await connection.simulateTransaction(transaction);
         if (simulation.value.err) {
@@ -357,20 +430,15 @@ export default function StakingScreen() {
         console.warn('⚠️ Staking simulation warning:', simError.message);
       }
 
-      // 9. توقيع المعاملة
-      transaction.sign(keypair);
-
-      // 10. إرسال المعاملة
+      // 8. إرسال المعاملة
       const signature = await connection.sendRawTransaction(transaction.serialize());
-      
-      // 11. تأكيد المعاملة
       await connection.confirmTransaction(signature, 'confirmed');
 
-      // 12. تحديث البيانات
+      // 9. تحديث البيانات
       await fetchStakingData();
       await fetchUserBalance();
 
-      // 13. عرض النتيجة
+      // 10. عرض النتيجة
       const result = {
         success: true,
         signature,
@@ -386,7 +454,7 @@ export default function StakingScreen() {
         [
           {
             text: t('view_on_solscan'),
-            onPress: () => Linking.openURL(`https://solscan.io/tx/${signature}`),
+            onPress: () => Linking.openURL(EXTERNAL_LINKS.SOLSCAN_TX(signature)),
           },
           {
             text: t('ok'),
@@ -418,6 +486,7 @@ export default function StakingScreen() {
     }
   };
 
+  // 📤 معالجة ضغط Unstake
   const handleUnstake = () => {
     const amount = parseFloat(unstakeAmount) || 0;
 
@@ -427,18 +496,12 @@ export default function StakingScreen() {
     }
 
     if (stakingData.userStaked === 0) {
-      Alert.alert(
-        t('error'),
-        t('no_staked_meco')
-      );
+      Alert.alert(t('error'), t('no_staked_meco'));
       return;
     }
 
     if (amount < 1) {
-      Alert.alert(
-        t('error'), 
-        t('unstake_minimum')
-      );
+      Alert.alert(t('error'), t('unstake_minimum'));
       return;
     }
 
@@ -455,7 +518,6 @@ export default function StakingScreen() {
       return;
     }
 
-    // التحذير من فترة Unstake
     Alert.alert(
       t('unstake_warning_title'),
       t('unstake_warning_message', { days: stakingData.unstakePeriod }),
@@ -472,68 +534,72 @@ export default function StakingScreen() {
     );
   };
 
+  // 🔥 تأكيد عملية Unstake
   const confirmUnstake = async () => {
     setTransactionLoading(true);
 
     try {
-      const amount = parseFloat(unstakeAmount) || 0;
-      
       // 1. التحقق من المفتاح الخاص
-      if (!walletPrivateKey) {
+      const keypair = createWalletFromPrivateKey();
+      if (!keypair) {
         throw new Error(t('wallet_not_connected'));
       }
 
-      // 2. إنشاء keypair من المفتاح الخاص
-      let secretKey;
-      try {
-        secretKey = Uint8Array.from(JSON.parse(walletPrivateKey));
-      } catch {
-        secretKey = bs58.decode(walletPrivateKey);
-      }
-      
-      const keypair = web3.Keypair.fromSecretKey(secretKey);
       const userPublicKey = keypair.publicKey;
 
-      // 3. حساب المبالغ
-      const mecoDecimals = TOKEN_DECIMALS[MECO_MINT] || 6;
-      const mecoAmountLamports = Math.floor(amount * Math.pow(10, mecoDecimals));
+      // 2. حساب PDAs
+      const [stakingConfigPDA] = await web3.PublicKey.findProgramAddress(
+        [Buffer.from(PDA_SEEDS.STAKING_CONFIG)],
+        PROGRAM_ID_PUBKEY
+      );
 
-      // 4. حساب عناوين الحسابات
+      const [stakingVaultPDA] = await web3.PublicKey.findProgramAddress(
+        [Buffer.from(PDA_SEEDS.STAKING_VAULT)],
+        PROGRAM_ID_PUBKEY
+      );
+
+      const [stakingAuthPDA] = await web3.PublicKey.findProgramAddress(
+        [Buffer.from(PDA_SEEDS.STAKING_AUTH)],
+        PROGRAM_ID_PUBKEY
+      );
+
+      const [stakePDA] = await web3.PublicKey.findProgramAddress(
+        [Buffer.from(PDA_SEEDS.STAKE_ACCOUNT), userPublicKey.toBuffer()],
+        PROGRAM_ID_PUBKEY
+      );
+
+      // 3. حساب ATA للمستخدم
       const userMecoATA = await splToken.getAssociatedTokenAddress(
         MECO_MINT_PUBKEY,
         userPublicKey
       );
-      
-      const stakingProgramPubkey = new web3.PublicKey(PROGRAM_ID);
-      const [stakingATA] = await web3.PublicKey.findProgramAddress(
-        [Buffer.from('staking_vault'), stakingProgramPubkey.toBuffer()],
-        stakingProgramPubkey
-      );
 
-      const instructions = [];
+      // 4. تعليمة العقد الذكي للـ Unstake
+      const unstakeInstruction = new web3.TransactionInstruction({
+        programId: PROGRAM_ID_PUBKEY,
+        keys: [
+          { pubkey: userPublicKey, isSigner: true, isWritable: true },
+          { pubkey: userMecoATA, isSigner: false, isWritable: true },
+          { pubkey: stakingVaultPDA, isSigner: false, isWritable: true },
+          { pubkey: stakingConfigPDA, isSigner: false, isWritable: true },
+          { pubkey: stakePDA, isSigner: false, isWritable: true },
+          { pubkey: stakingAuthPDA, isSigner: false, isWritable: false },
+          { pubkey: splToken.TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+          { pubkey: web3.SystemProgram.programId, isSigner: false, isWritable: false },
+        ],
+        data: Buffer.from([
+          INSTRUCTION_CODES.UNSTAKE,
+        ]),
+      });
 
-      // 5. إعادة MECO من حساب Staking إلى المستخدم
-      instructions.push(
-        splToken.createTransferInstruction(
-          stakingATA,
-          userMecoATA,
-          stakingProgramPubkey,
-          BigInt(mecoAmountLamports),
-          [keypair] // تفويض التحويل
-        )
-      );
-
-      // 6. تسجيل طلب Unstake في العقد الذكي
-      // TODO: إضافة تعليمات العقد الذكي الفعلية
-
-      // 7. إنشاء المعاملة
-      const transaction = new web3.Transaction().add(...instructions);
-      
+      // 5. إنشاء وإرسال المعاملة
+      const transaction = new web3.Transaction().add(unstakeInstruction);
       const { blockhash } = await connection.getLatestBlockhash();
       transaction.recentBlockhash = blockhash;
       transaction.feePayer = userPublicKey;
+      transaction.sign(keypair);
 
-      // 8. محاكاة المعاملة أولاً
+      // 6. محاكاة المعاملة
       try {
         const simulation = await connection.simulateTransaction(transaction);
         if (simulation.value.err) {
@@ -543,26 +609,22 @@ export default function StakingScreen() {
         console.warn('⚠️ Unstaking simulation warning:', simError.message);
       }
 
-      // 9. توقيع المعاملة
-      transaction.sign(keypair);
-
-      // 10. إرسال المعاملة
+      // 7. إرسال المعاملة
       const signature = await connection.sendRawTransaction(transaction.serialize());
-      
-      // 11. تأكيد المعاملة
       await connection.confirmTransaction(signature, 'confirmed');
 
-      // 12. تحديث البيانات
+      // 8. تحديث البيانات
       await fetchStakingData();
       await fetchUserBalance();
 
-      // 13. عرض النتيجة
+      // 9. عرض النتيجة
+      const unlockDate = new Date(Date.now() + stakingData.unstakePeriod * 24 * 60 * 60 * 1000);
       const result = {
         success: true,
         signature,
-        amountUnstaked: amount,
+        amountUnstaked: stakingData.userStaked,
         message: t('unstaking_successful'),
-        unlockDate: new Date(Date.now() + stakingData.unstakePeriod * 24 * 60 * 60 * 1000),
+        unlockDate,
       };
 
       setTransactionResult(result);
@@ -570,13 +632,13 @@ export default function StakingScreen() {
       Alert.alert(
         t('success'),
         `${t('unstaking_success_message')}\n\n` +
-        `${t('amount_unstaked')}: ${amount.toLocaleString()} MECO\n` +
-        `${t('unlock_date')}: ${result.unlockDate.toLocaleDateString()}\n` +
+        `${t('amount_unstaked')}: ${stakingData.userStaked.toLocaleString()} MECO\n` +
+        `${t('unlock_date')}: ${unlockDate.toLocaleDateString()}\n` +
         `${t('transaction_id')}: ${signature.substring(0, 16)}...`,
         [
           {
             text: t('view_on_solscan'),
-            onPress: () => Linking.openURL(`https://solscan.io/tx/${signature}`),
+            onPress: () => Linking.openURL(EXTERNAL_LINKS.SOLSCAN_TX(signature)),
           },
           {
             text: t('ok'),
@@ -608,6 +670,7 @@ export default function StakingScreen() {
     }
   };
 
+  // 🎁 سحب المكافآت
   const handleClaimRewards = async () => {
     if (!currentWallet) {
       Alert.alert(t('error'), t('wallet_not_available'));
@@ -623,58 +686,66 @@ export default function StakingScreen() {
 
     try {
       // 1. التحقق من المفتاح الخاص
-      if (!walletPrivateKey) {
+      const keypair = createWalletFromPrivateKey();
+      if (!keypair) {
         throw new Error(t('wallet_not_connected'));
       }
 
-      // 2. إنشاء keypair من المفتاح الخاص
-      let secretKey;
-      try {
-        secretKey = Uint8Array.from(JSON.parse(walletPrivateKey));
-      } catch {
-        secretKey = bs58.decode(walletPrivateKey);
-      }
-      
-      const keypair = web3.Keypair.fromSecretKey(secretKey);
       const userPublicKey = keypair.publicKey;
 
-      // 3. حساب مكافآت المستخدم
-      const mecoDecimals = TOKEN_DECIMALS[MECO_MINT] || 6;
-      const rewardsAmountLamports = Math.floor(stakingData.userRewards * Math.pow(10, mecoDecimals));
+      // 2. حساب PDAs
+      const [stakingConfigPDA] = await web3.PublicKey.findProgramAddress(
+        [Buffer.from(PDA_SEEDS.STAKING_CONFIG)],
+        PROGRAM_ID_PUBKEY
+      );
 
-      // 4. حساب عناوين الحسابات
+      const [rewardVaultPDA] = await web3.PublicKey.findProgramAddress(
+        [Buffer.from(PDA_SEEDS.REWARD_VAULT)],
+        PROGRAM_ID_PUBKEY
+      );
+
+      const [stakingAuthPDA] = await web3.PublicKey.findProgramAddress(
+        [Buffer.from(PDA_SEEDS.STAKING_AUTH)],
+        PROGRAM_ID_PUBKEY
+      );
+
+      const [stakePDA] = await web3.PublicKey.findProgramAddress(
+        [Buffer.from(PDA_SEEDS.STAKE_ACCOUNT), userPublicKey.toBuffer()],
+        PROGRAM_ID_PUBKEY
+      );
+
+      // 3. حساب ATA للمستخدم
       const userMecoATA = await splToken.getAssociatedTokenAddress(
         MECO_MINT_PUBKEY,
         userPublicKey
       );
-      
-      const stakingProgramPubkey = new web3.PublicKey(PROGRAM_ID);
-      const [rewardsATA] = await web3.PublicKey.findProgramAddress(
-        [Buffer.from('rewards_vault'), stakingProgramPubkey.toBuffer()],
-        stakingProgramPubkey
-      );
 
-      const instructions = [];
+      // 4. تعليمة العقد الذكي لسحب المكافآت
+      const claimInstruction = new web3.TransactionInstruction({
+        programId: PROGRAM_ID_PUBKEY,
+        keys: [
+          { pubkey: userPublicKey, isSigner: true, isWritable: true },
+          { pubkey: userMecoATA, isSigner: false, isWritable: true },
+          { pubkey: rewardVaultPDA, isSigner: false, isWritable: true },
+          { pubkey: stakingConfigPDA, isSigner: false, isWritable: true },
+          { pubkey: stakePDA, isSigner: false, isWritable: true },
+          { pubkey: stakingAuthPDA, isSigner: false, isWritable: false },
+          { pubkey: splToken.TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+          { pubkey: web3.SystemProgram.programId, isSigner: false, isWritable: false },
+        ],
+        data: Buffer.from([
+          INSTRUCTION_CODES.CLAIM_REWARDS,
+        ]),
+      });
 
-      // 5. تحويل المكافآت من حساب Rewards إلى المستخدم
-      instructions.push(
-        splToken.createTransferInstruction(
-          rewardsATA,
-          userMecoATA,
-          stakingProgramPubkey,
-          BigInt(rewardsAmountLamports),
-          [keypair] // تفويض التحويل
-        )
-      );
-
-      // 6. إنشاء المعاملة
-      const transaction = new web3.Transaction().add(...instructions);
-      
+      // 5. إنشاء وإرسال المعاملة
+      const transaction = new web3.Transaction().add(claimInstruction);
       const { blockhash } = await connection.getLatestBlockhash();
       transaction.recentBlockhash = blockhash;
       transaction.feePayer = userPublicKey;
+      transaction.sign(keypair);
 
-      // 7. محاكاة المعاملة
+      // 6. محاكاة المعاملة
       try {
         const simulation = await connection.simulateTransaction(transaction);
         if (simulation.value.err) {
@@ -684,20 +755,15 @@ export default function StakingScreen() {
         console.warn('⚠️ Claim rewards simulation warning:', simError.message);
       }
 
-      // 8. توقيع المعاملة
-      transaction.sign(keypair);
-
-      // 9. إرسال المعاملة
+      // 7. إرسال المعاملة
       const signature = await connection.sendRawTransaction(transaction.serialize());
-      
-      // 10. تأكيد المعاملة
       await connection.confirmTransaction(signature, 'confirmed');
 
-      // 11. تحديث البيانات
+      // 8. تحديث البيانات
       await fetchStakingData();
       await fetchUserBalance();
 
-      // 12. عرض النتيجة
+      // 9. عرض النتيجة
       Alert.alert(
         t('success'),
         `${t('rewards_claimed_success')}\n\n` +
@@ -706,9 +772,9 @@ export default function StakingScreen() {
         [
           {
             text: t('view_on_solscan'),
-            onPress: () => Linking.openURL(`https://solscan.io/tx/${signature}`),
+            onPress: () => Linking.openURL(EXTERNAL_LINKS.SOLSCAN_TX(signature)),
           },
-          { text: t('ok') }
+          { text: t('ok'), onPress: () => setTransactionLoading(false) }
         ]
       );
 
@@ -718,13 +784,12 @@ export default function StakingScreen() {
       Alert.alert(
         t('error'),
         `${t('claim_rewards_failed')}\n\n${error.message || t('error')}`,
-        [{ text: t('ok') }]
+        [{ text: t('ok'), onPress: () => setTransactionLoading(false) }]
       );
-    } finally {
-      setTransactionLoading(false);
     }
   };
 
+  // 🔢 تنسيق الأرقام
   const formatNumber = (num) => {
     if (num === null || num === undefined) return '0';
     const absNum = Math.abs(num);
@@ -737,16 +802,29 @@ export default function StakingScreen() {
     });
   };
 
+  // 📈 حساب المكافآت اليومية
   const calculateDailyRewards = () => {
     const dailyAPR = stakingData.apr / 365;
     return (stakingData.userStaked * dailyAPR) / 100;
   };
 
+  // 📊 حساب APY المتوقع
   const calculateEstimatedAPY = () => {
-    // APY = (1 + APR/n)^n - 1, where n is compounding frequency (daily)
-    const n = 365; // daily compounding
+    const n = 365;
     return (Math.pow(1 + stakingData.apr / 100 / n, n) - 1) * 100;
   };
+
+  // 📱 عرض حالة التحميل
+  if (loading && !currentWallet) {
+    return (
+      <View style={[styles.loadingContainerFull, { backgroundColor: colors.background }]}>
+        <ActivityIndicator size="large" color={primaryColor} />
+        <Text style={[styles.loadingTextFull, { color: colors.text }]}>
+          {t('loading_data')}
+        </Text>
+      </View>
+    );
+  }
 
   return (
     <ScrollView
@@ -761,6 +839,7 @@ export default function StakingScreen() {
         />
       }
     >
+      {/* 🏁 الهيدر */}
       <Animated.View style={[styles.header, { opacity: fadeAnim }]}>
         <View style={styles.headerContent}>
           <MaterialCommunityIcons name="safe-square" size={48} color={primaryColor} />
@@ -789,7 +868,7 @@ export default function StakingScreen() {
         )}
       </Animated.View>
 
-      {/* Balances Card */}
+      {/* 💼 بطاقة الأرصدة */}
       <View style={[styles.balancesCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
         <View style={styles.balanceSection}>
           <View style={styles.balanceItem}>
@@ -846,7 +925,7 @@ export default function StakingScreen() {
         </View>
       </View>
 
-      {/* APR Info Card */}
+      {/* 📊 بطاقة APR */}
       <View style={[styles.aprCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
         <View style={styles.aprHeader}>
           <MaterialCommunityIcons name="trending-up" size={24} color={colors.success} />
@@ -887,7 +966,7 @@ export default function StakingScreen() {
         </View>
       </View>
 
-      {/* Staking Form */}
+      {/* 📝 نموذج Staking */}
       <View style={[styles.stakingForm, { backgroundColor: colors.card, borderColor: colors.border }]}>
         <Text style={[styles.formTitle, { color: colors.text }]}>
           {t('stake_meco')}
@@ -973,7 +1052,7 @@ export default function StakingScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Unstaking Form */}
+      {/* 📤 نموذج Unstaking */}
       <View style={[styles.unstakingForm, { backgroundColor: colors.card, borderColor: colors.border }]}>
         <Text style={[styles.formTitle, { color: colors.text }]}>
           {t('unstake_meco')}
@@ -1057,7 +1136,7 @@ export default function StakingScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Global Stats */}
+      {/* 📈 إحصائيات عامة */}
       <View style={[styles.globalStats, { backgroundColor: colors.card, borderColor: colors.border }]}>
         <Text style={[styles.statsTitle, { color: colors.text }]}>
           {t('global_staking_stats')}
@@ -1093,7 +1172,7 @@ export default function StakingScreen() {
         </View>
       </View>
 
-      {/* Info Notice */}
+      {/* ℹ️ معلومات هامة */}
       <View style={[styles.infoNotice, { backgroundColor: primaryColor + '10', borderColor: colors.border }]}>
         <Ionicons name="information-circle-outline" size={20} color={primaryColor} />
         <View style={styles.infoContent}>
@@ -1106,7 +1185,7 @@ export default function StakingScreen() {
         </View>
       </View>
 
-      {/* Stake Modal */}
+      {/* ⚡ نافذة تأكيد Staking */}
       <Modal
         animationType="slide"
         transparent={true}
@@ -1139,7 +1218,7 @@ export default function StakingScreen() {
                     </Text>
                     <TouchableOpacity
                       style={[styles.solscanButton, { backgroundColor: colors.info }]}
-                      onPress={() => Linking.openURL(`https://solscan.io/tx/${transactionResult.signature}`)}
+                      onPress={() => Linking.openURL(EXTERNAL_LINKS.SOLSCAN_TX(transactionResult.signature))}
                     >
                       <Text style={styles.solscanButtonText}>{t('view_on_solscan')}</Text>
                     </TouchableOpacity>
@@ -1210,7 +1289,7 @@ export default function StakingScreen() {
         </View>
       </Modal>
 
-      {/* Unstake Modal */}
+      {/* ⚡ نافذة تأكيد Unstake */}
       <Modal
         animationType="slide"
         transparent={true}
@@ -1246,7 +1325,7 @@ export default function StakingScreen() {
                     </Text>
                     <TouchableOpacity
                       style={[styles.solscanButton, { backgroundColor: colors.info }]}
-                      onPress={() => Linking.openURL(`https://solscan.io/tx/${transactionResult.signature}`)}
+                      onPress={() => Linking.openURL(EXTERNAL_LINKS.SOLSCAN_TX(transactionResult.signature))}
                     >
                       <Text style={styles.solscanButtonText}>{t('view_on_solscan')}</Text>
                     </TouchableOpacity>
@@ -1320,11 +1399,21 @@ export default function StakingScreen() {
   );
 }
 
+// 🎨 الأنماط المحسنة
 const styles = StyleSheet.create({
   container: {
     flexGrow: 1,
     padding: 20,
     paddingTop: 50,
+  },
+  loadingContainerFull: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingTextFull: {
+    marginTop: 16,
+    fontSize: 16,
   },
   header: {
     flexDirection: 'row',
