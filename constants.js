@@ -1,26 +1,25 @@
-// constants.js - ملف الثوابت المحدث مع إدارة منظمة
-// تم التحديث بناءً على هيكلية المشروع الحقيقية على Solana
+// constants.js - ملف الثوابت المصحح
 
-// 🔵 1. العقد الذكي (Program ID) - الكود المنشور على Solana
-export const PROGRAM_ID = '6SVpAYhP7XkKtW6SuRbdTRv1pjaVUDZP3ZQg9rLqGLzp';
+// 🔵 1. العقد الذكي (Program ID) - مؤكد
+export const PROGRAM_ID = 'A95VLbgDEpCctsDgAUc42HpsKYNLfjBo6u6ZdGTbRQMZ';
 
-// 🟢 2. محفظة البيع المسبق (للاستقبال الفعلي لأموال الشراء)
+// 🟢 2. محفظة البيع المسبق (Treasury) - مؤكد
 export const PRESALE_WALLET_ADDRESS = 'E9repjjKBq3RVLw1qckrG15gKth63fe98AHCSgXZzKvY';
 
-// 🟡 3. محفظة إدارة المشروع (للتحكم في العقد الذكي)
-export const PROGRAM_WALLET_ADDRESS = 'HQdvKi4Kk5kqo7F2mcpWLU7qmrLUC2tXPTNDvEyKz55Z';
+// 🔴 3. محفظة إدارة المشروع (Admin) - مؤكد
+export const PROGRAM_WALLET_ADDRESS = 'BNSuEN6GaRF76sc5m7nfNwxDRjxXtsZpctvPpd8sRLCv';
 
-// 🔴 4. عنوان توكن MECO على الشبكة الرئيسية
+// 🟡 4. عنوان توكن MECO - مؤكد
 export const MECO_MINT = '7hBNyFfwYTv65z3ZudMAyKBw3BLMKxyKXsr5xM51Za4i';
 
 // 🌐 5. اتصال الشبكة
-export const RPC_URL = 'https://api.mainnet-beta.solana.com';
+export const RPC_URL = 'https://api.devnet.solana.com';
 
 // ⚙️ 6. إعدادات البيع المسبق
 export const PRESALE_CONFIG = {
   MIN_SOL: 0.05,
   MAX_SOL: 1,
-  RATE: 250000,
+  RATE: 250000, // 250,000 MECO لكل 1 SOL
   TOTAL_TOKENS: 50000000,
   DECIMALS: 6,
   IS_ACTIVE: true,
@@ -28,7 +27,7 @@ export const PRESALE_CONFIG = {
 
 // ⚙️ 7. إعدادات التخزين
 export const STAKING_CONFIG = {
-  APR: 18.5,
+  APR: 10,
   MIN_STAKE: 100,
   MAX_STAKE: 1000000,
   UNSTAKE_PERIOD: 3,
@@ -36,24 +35,29 @@ export const STAKING_CONFIG = {
   IS_ACTIVE: true,
 };
 
-// 🔑 8. عناوين المحافظ المنظمة
+// 🔑 8. عناوين المحافظ - مصححة ومبسطة
 export const WALLET_ADDRESSES = {
-  // المحفظة الرئيسية لاستقبال أموال البيع المسبق
-  PRESALE_TREASURY: PRESALE_WALLET_ADDRESS,
+  // المحافظ الأساسية (مؤكدة)
+  PRESALE_TREASURY: 'E9repjjKBq3RVLw1qckrG15gKth63fe98AHCSgXZzKvY',
+  PROGRAM_WALLET: 'BNSuEN6GaRF76sc5m7nfNwxDRjxXtsZpctvPpd8sRLCv',
   
-  // محفظة إدارة العقد الذكي والمشروع
-  PROGRAM_WALLET: PROGRAM_WALLET_ADDRESS,
+  // المحافظ الإضافية (يجب تأكيدها أو إزالتها)
+  // FEE_COLLECTOR: '',    // ⚠️ تحتاج تأكيد
+  // TEAM_WALLET: '',       // ⚠️ تحتاج تأكيد
+  // LIQUIDITY_WALLET: '',  // ⚠️ تحتاج تأكيد
+  // RESERVE_WALLET: '',    // ⚠️ تحتاج تأكيد
   
-  // محفظة تحصيل الرسوم (إن وجدت)
-  FEE_COLLECTOR: 'HXkEZSKictbSYan9ZxQGaHpFrbA4eLDyNtEDxVBkdFy6',
+  // محفظة الحرق القياسية (ثابتة في Solana)
+  BURN_WALLET: 'So11111111111111111111111111111111111111112',
 };
 
 // 🗂️ 9. بيانات PDA للعقد الذكي
 export const PDA_SEEDS = {
-  PROTOCOL: 'protocol',
-  PRESALE_VAULT: 'presale_vault',
+  CONFIG: 'config',
+  STAKING_CONFIG: 'staking_config',
   STAKING_VAULT: 'staking_vault',
-  REWARDS_VAULT: 'rewards_vault',
+  REWARD_VAULT: 'reward_vault',
+  STAKING_AUTH: 'staking_auth',
   STAKE_ACCOUNT: 'stake',
 };
 
@@ -63,24 +67,30 @@ export const NETWORK_CONFIG = {
   MAINNET: 'mainnet-beta',
   COMMITMENT: 'confirmed',
   TIMEOUT: 60000,
+  MAX_RETRIES: 3,
+  CONFIRMATION_TIMEOUT: 30000,
 };
 
 // 🔗 11. الروابط الخارجية
 export const EXTERNAL_LINKS = {
   // روابط Solscan للتحقق
-  SOLSCAN_PROGRAM: `https://solscan.io/account/${PROGRAM_ID}`,
-  SOLSCAN_PRESALE_WALLET: `https://solscan.io/account/${PRESALE_WALLET_ADDRESS}`,
-  SOLSCAN_PROGRAM_WALLET: `https://solscan.io/account/${PROGRAM_WALLET_ADDRESS}`,
-  SOLSCAN_TOKEN: `https://solscan.io/token/${MECO_MINT}`,
-  SOLSCAN_TX: (txId) => `https://solscan.io/tx/${txId}`,
-  SOLSCAN_ACCOUNT: (address) => `https://solscan.io/account/${address}`,
+  SOLSCAN_PROGRAM: `https://solscan.io/account/${PROGRAM_ID}?cluster=devnet`,
+  SOLSCAN_PRESALE_WALLET: `https://solscan.io/account/${PRESALE_WALLET_ADDRESS}?cluster=devnet`,
+  SOLSCAN_PROGRAM_WALLET: `https://solscan.io/account/${PROGRAM_WALLET_ADDRESS}?cluster=devnet`,
+  SOLSCAN_TOKEN: `https://solscan.io/token/${MECO_MINT}?cluster=devnet`,
+  SOLSCAN_TX: (txId) => `https://solscan.io/tx/${txId}?cluster=devnet`,
+  SOLSCAN_ACCOUNT: (address) => `https://solscan.io/account/${address}?cluster=devnet`,
   
-  // روابط التواصل والمواقع
+  // روابط التواصل
   TELEGRAM: 'https://t.me/monycoin1',
   TWITTER: 'https://x.com/MoniCoinMECO',
   WEBSITE: 'https://monycoin1.blogspot.com/',
   GITHUB: 'https://monycoin.github.io/meco-token/MECO_Presale_Funds.html',
   BIRDEYE: `https://birdeye.so/token/${MECO_MINT}?chain=solana`,
+  
+  // روابط المراجعة الأمنية
+  RUGCHECK: `https://rugcheck.xyz/tokens/${MECO_MINT}`,
+  DEXSCREENER: `https://dexscreener.com/solana/${MECO_MINT}`,
 };
 
 // 💰 12. رسوم المعاملات
@@ -89,21 +99,19 @@ export const TRANSACTION_FEES = {
   PRIORITY: 0.00001,
   MAX: 0.00005,
   RENT_EXEMPT: 0.001,
+  COMPUTE_UNIT_PRICE: 100000,
 };
 
 // ❌ 13. رسائل الأخطاء
 export const ERROR_MESSAGES = {
   WALLET_NOT_CONNECTED: 'المحفظة غير متصلة',
   INSUFFICIENT_BALANCE: 'الرصيد غير كافي',
-  BELOW_MINIMUM: 'المبلغ أقل من الحد الأدنى',
-  ABOVE_MAXIMUM: 'المبلغ أعلى من الحد الأقصى',
+  BELOW_MINIMUM: 'المبلغ أقل من الحد الأدنى (0.05 SOL)',
+  ABOVE_MAXIMUM: 'المبلغ أعلى من الحد الأقصى (1 SOL)',
   PRESALE_INACTIVE: 'البيع المسبق غير نشط',
-  STAKING_INACTIVE: 'Staking غير نشط',
   TRANSACTION_FAILED: 'فشلت المعاملة',
   NETWORK_ERROR: 'خطأ في الشبكة',
   CONTRACT_ERROR: 'خطأ في العقد الذكي',
-  INVALID_ADDRESS: 'عنوان غير صالح',
-  INSUFFICIENT_RENT: 'رصيد غير كافي لتغطية Rent',
 };
 
 // 🪙 14. بيانات التوكنات
@@ -115,7 +123,8 @@ export const TOKENS = {
     supply: 1000000000,
     mint: MECO_MINT,
     logoURI: 'https://raw.githubusercontent.com/saadeh73/meco-project/main/meco-logo.png',
-    icon: 'rocket-outline',
+    icon: 'rocket-launch',
+    description: 'الرمز الرسمي لمشروع MonyCoin',
   },
   SOL: {
     name: 'Solana',
@@ -123,23 +132,8 @@ export const TOKENS = {
     decimals: 9,
     mint: 'So11111111111111111111111111111111111111112',
     logoURI: 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png',
-    icon: 'diamond-outline',
-  },
-  USDC: {
-    name: 'USD Coin',
-    symbol: 'USDC',
-    decimals: 6,
-    mint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
-    logoURI: 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v/logo.png',
-    icon: 'wallet-outline',
-  },
-  USDT: {
-    name: 'Tether USD',
-    symbol: 'USDT',
-    decimals: 6,
-    mint: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB',
-    logoURI: 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB/logo.png',
-    icon: 'cash-outline',
+    icon: 'diamond',
+    description: 'عملة Solana الأساسية',
   },
 };
 
@@ -147,52 +141,35 @@ export const TOKENS = {
 export const TOKEN_DECIMALS = {
   [MECO_MINT]: 6,
   'So11111111111111111111111111111111111111112': 9,
-  'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v': 6,
-  'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB': 6,
 };
 
 // 📝 16. أكواد التعليمات للعقد الذكي
 export const INSTRUCTION_CODES = {
-  INITIALIZE: 0,
-  BUY_PRESALE: 1,
-  STAKE: 2,
-  UNSTAKE: 3,
-  CLAIM_REWARDS: 4,
-  WITHDRAW_FUNDS: 5,
+  INITIALIZE_PRESALE: 0,
+  PURCHASE_TOKENS: 1,
+  INITIALIZE_STAKING: 2,
+  STAKE: 3,
+  UNSTAKE: 4,
+  CLAIM_REWARDS: 5,
+  UPDATE_CONFIG: 6,
+  EMERGENCY_WITHDRAW: 7,
 };
 
-// ⚠️ 17. أكواد أخطاء البرنامج
-export const PROGRAM_ERRORS = {
-  NOT_INITIALIZED: 100,
-  ALREADY_INITIALIZED: 101,
-  INVALID_AMOUNT: 102,
-  PRESALE_INACTIVE: 103,
-  STAKING_INACTIVE: 104,
-  INSUFFICIENT_BALANCE: 105,
-  STAKE_NOT_FOUND: 106,
-  CLAIM_NOT_AVAILABLE: 107,
-  UNAUTHORIZED: 108,
-};
-
-// 👑 18. قائمة المحافظ الإدارية
+// 👑 18. قائمة المحافظ الإدارية - مصححة
 export const ADMIN_WALLETS = [
-  PROGRAM_WALLET_ADDRESS,      // محفظة إدارة العقد الذكي
-  PRESALE_WALLET_ADDRESS,      // محفظة البيع المسبق
-  'HXkEZSKictbSYan9ZxQGaHpFrbA4eLDyNtEDxVBkdFy6', // محفظة الرسوم
+  'BNSuEN6GaRF76sc5m7nfNwxDRjxXtsZpctvPpd8sRLCv', // PROGRAM_WALLET
+  'E9repjjKBq3RVLw1qckrG15gKth63fe98AHCSgXZzKvY', // PRESALE_WALLET
 ];
 
-// 🎯 19. إصدار البرنامج
-export const PROGRAM_VERSION = '2.0.1';
-
-// 📅 20. تواريخ إطلاق المشروع
-export const LAUNCH_DATES = {
-  PRESALE_START: '2024-01-15',
-  STAKING_START: '2024-01-20',
-  TOKEN_LAUNCH: '2024-02-01',
+// 🏷️ 23. تسميات المحافظ - مصححة
+export const WALLET_LABELS = {
+  'BNSuEN6GaRF76sc5m7nfNwxDRjxXtsZpctvPpd8sRLCv': 'MECO Management Wallet',
+  'E9repjjKBq3RVLw1qckrG15gKth63fe98AHCSgXZzKvY': 'MECO Presale Treasury',
+  'So11111111111111111111111111111111111111112': 'Burn Wallet',
 };
 
-// ✅ تم تحديث ملف الثوابت بنظام إدارة واضح:
-// 1. العقد الذكي (PROGRAM_ID) - للتفاعل مع البرنامج
-// 2. محفظة البيع (PRESALE_WALLET_ADDRESS) - لاستقبال أموال الشراء
-// 3. محفظة الإدارة (PROGRAM_WALLET_ADDRESS) - لإدارة المشروع
-// 4. روابط التحقق الصحيحة على Solscan لكل عنوان
+// 📈 24. معدلات التحويل
+export const CONVERSION_RATES = {
+  SOL_TO_MECO: 250000,
+  MECO_TO_SOL: 0.000004,
+};
