@@ -261,17 +261,15 @@ export default function WalletScreen() {
         )}
       </Animated.View>
 
-      {/* أزرار الإجراءات (تم إزالة زر Swap) */}
+      {/* أزرار الإجراءات (تم إزالة زر Swap و Staking) */}
       <View style={styles.actionsSection}>
         {[
           { icon: 'arrow-up-outline', label: t('send'), screen: 'Send' },
           { icon: 'arrow-down-outline', label: t('receive'), screen: 'Receive' },
-          // تم إزالة زر Swap من هنا
-          { icon: 'trending-up-outline', label: t('staking'), screen: 'Staking' },
         ].map((action, i) => (
           <TouchableOpacity
             key={i}
-            style={[styles.actionButton, { width: (width - 64) / 3 }]} // تعديل العرض لثلاثة أزرار
+            style={[styles.actionButton, { width: (width - 48) / 2 }]} // تعديل العرض لزرين فقط
             onPress={() => navigation.navigate(action.screen)}
           >
             <View style={[styles.actionIcon, { backgroundColor: primaryColor + '20' }]}>
@@ -490,7 +488,7 @@ const styles = StyleSheet.create({
   },
   actionButton: {
     alignItems: 'center',
-    // تم تعديل العرض في الكود الرئيسي ليتناسب مع 3 أزرار
+    // تم تعديل العرض في الكود الرئيسي ليتناسب مع زرين فقط
   },
   actionIcon: {
     width: 56,

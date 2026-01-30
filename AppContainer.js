@@ -20,12 +20,9 @@ import WalletScreen from './screens/WalletScreen';
 import SettingsScreen from './screens/SettingsScreen';
 import ReceiveScreen from './screens/ReceiveScreen';
 import SendScreen from './screens/SendScreen';
-// تم إزالة SwapScreen من هنا
 import BackupScreen from './screens/BackupScreen';
 import TransactionHistoryScreen from './screens/TransactionHistoryScreen';
-import MecoScreen from './screens/MecoScreen';
 import MarketScreen from './screens/MarketScreen';
-import StakingScreen from './screens/StakingScreen';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -41,7 +38,6 @@ function BottomTabs() {
         const icons = {
           Settings: 'settings-outline',
           Wallet: 'wallet-outline',
-          Meco: 'logo-bitcoin',
           Market: 'stats-chart-outline',
         };
 
@@ -55,10 +51,9 @@ function BottomTabs() {
         };
       }}
     >
-      <Tab.Screen name="Settings" component={SettingsScreen} options={{ tabBarLabel: t('user_settings') }} />
       <Tab.Screen name="Wallet" component={WalletScreen} options={{ tabBarLabel: t('wallet') }} />
-      <Tab.Screen name="Meco" component={MecoScreen} options={{ tabBarLabel: t('meco') }} />
       <Tab.Screen name="Market" component={MarketScreen} options={{ tabBarLabel: t('market') }} />
+      <Tab.Screen name="Settings" component={SettingsScreen} options={{ tabBarLabel: t('user_settings') }} />
     </Tab.Navigator>
   );
 }
@@ -135,8 +130,6 @@ export default function AppContainer() {
         <Stack.Screen name="BottomTabs" component={BottomTabs} options={{ headerShown: false }} />
         <Stack.Screen name="Send" component={SendScreen} options={{ title: 'إرسال' }} />
         <Stack.Screen name="Receive" component={ReceiveScreen} options={{ title: 'استقبال' }} />
-        {/* تم إزالة شاشة Swap من هنا */}
-        <Stack.Screen name="Staking" component={StakingScreen} options={{ title: 'Staking' }} />
         <Stack.Screen name="Backup" component={BackupScreen} options={{ title: 'نسخ احتياطي' }} />
         <Stack.Screen name="TransactionHistory" component={TransactionHistoryScreen} options={{ title: 'السجل' }} />
       </Stack.Navigator>

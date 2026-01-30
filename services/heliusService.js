@@ -1,10 +1,9 @@
 // services/heliusService.js
 import * as SecureStore from 'expo-secure-store';
-import { MECO_MINT, RPC_URL, WALLET_ADDRESSES } from '../constants';
 
 const HELIUS_API_KEY = '886a8252-15e3-4eef-bc26-64bd552dded0';
 const HELIUS_BASE_URL = `https://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`;
-const FALLBACK_RPC_URL = RPC_URL || 'https://api.mainnet-beta.solana.com';
+const FALLBACK_RPC_URL = 'https://api.mainnet-beta.solana.com';
 
 // تحسين: إضافة retry logic مع فترات انتظار متدرجة
 const MAX_RETRIES = 2;
@@ -188,24 +187,6 @@ export async function getTokenAccounts() {
   }
 }
 
-export async function getMecoBalance() {
-  try {
-    const tokens = await getTokenAccounts();
-    const mecoToken = tokens.find(t => t.mint === MECO_MINT);
-    
-    if (mecoToken) {
-      console.log(`✅ MECO Balance: ${mecoToken.amount.toFixed(4)} MECO`);
-      return mecoToken.amount;
-    }
-    
-    console.log('ℹ️ No MECO balance found');
-    return 0;
-  } catch (error) {
-    console.error('❌ Error in getMecoBalance:', error.message);
-    return 0;
-  }
-}
-
 export async function getTokenBalance(mintAddress) {
   try {
     const tokens = await getTokenAccounts();
@@ -279,46 +260,16 @@ export async function getRecentPrioritizationFees() {
   }
 }
 
-// دالة مساعدة: التحقق من أرصدة المحافظ الإدارية
-export async function checkAdminWalletsBalance() {
-  try {
-    const wallets = [
-      WALLET_ADDRESSES.PRESALE_TREASURY,
-      WALLET_ADDRESSES.PROGRAM_WALLET,
-      WALLET_ADDRESSES.FEE_COLLECTOR
-    ].filter(wallet => wallet && wallet !== 'undefined');
-    
-    const balances = {};
-    
-    for (const wallet of wallets) {
-      try {
-        const balance = await getWalletBalance(wallet);
-        balances[wallet] = balance;
-      } catch (error) {
-        balances[wallet] = 'Error';
-      }
-    }
-    
-    console.log('📊 Admin Wallets Balances:', balances);
-    return balances;
-  } catch (error) {
-    console.error('❌ Error checking admin wallets:', error.message);
-    return {};
-  }
-}
-
 // ✅ التصدير الكامل للدوال
 export default {
   heliusRpcRequest,
   fallbackRpcRequest,
   getSolBalance,
   getTokenAccounts,
-  getMecoBalance,
   getTokenBalance,
   hasTokenAccount,
   getAccountInfo,
   getWalletBalance,
   getLatestBlockhash,
   getRecentPrioritizationFees,
-  checkAdminWalletsBalance,
 };
