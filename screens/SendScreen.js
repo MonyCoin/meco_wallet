@@ -3,7 +3,7 @@ import {
   View, Text, TextInput, TouchableOpacity,
   StyleSheet, Alert, Modal, FlatList,
   Dimensions, Animated, ScrollView,
-  KeyboardAvoidingView, Platform
+  KeyboardAvoidingView, Platform, ActivityIndicator
 } from 'react-native';
 import { useAppStore } from '../store';
 import { useTranslation } from 'react-i18next';
@@ -99,13 +99,13 @@ const verifyTransactionSignatures = (tx, requiredSigners) => {
   }
 };
 
-// وظيفة التحقق من المفتاح الخاص
+// وظيفة التحقق من المفتاح الخاص - محسنة
 const validatePrivateKey = async () => {
   try {
     const secretKeyStr = await SecureStore.getItemAsync('wallet_private_key');
     if (!secretKeyStr) {
       console.error('❌ المفتاح الخاص غير موجود في SecureStore');
-      return false;
+      return { valid: false, error: 'Missing private key' };
     }
 
     let parsedKey;
@@ -117,30 +117,44 @@ const validatePrivateKey = async () => {
       }
     } catch (error) {
       console.error('❌ فشل في تحليل المفتاح الخاص:', error);
-      return false;
+      return { valid: false, error: 'Invalid private key format' };
     }
 
-    // التحقق من الطول
-    if (parsedKey.length !== 64) {
+    // التحقق من الطول - قبول 32 أو 64 بايت
+    if (parsedKey.length !== 64 && parsedKey.length !== 32) {
       console.error(`❌ طول المفتاح غير صحيح: ${parsedKey.length}`);
-      return false;
+      return { valid: false, error: 'Invalid private key length' };
     }
 
-    // إنشاء Keypair والتحقق من المفتاح العام
-    const keypair = web3.Keypair.fromSecretKey(parsedKey);
+    // إنشاء Keypair
+    let keypair;
+    if (parsedKey.length === 64) {
+      keypair = web3.Keypair.fromSecretKey(parsedKey);
+    } else {
+      // إذا كان طوله 32 بايت، قد يكون seed
+      keypair = web3.Keypair.fromSeed(parsedKey.slice(0, 32));
+    }
+    
+    const fromPubkey = keypair.publicKey;
     const storedPubkey = await SecureStore.getItemAsync('wallet_public_key');
     
-    if (storedPubkey !== keypair.publicKey.toBase58()) {
-      console.warn('⚠️ المفتاح العام لا يتطابق');
-      // تحديث المفتاح العام المخزن
-      await SecureStore.setItemAsync('wallet_public_key', keypair.publicKey.toBase58());
+    console.log('🔑 Public key validation:', {
+      stored: storedPubkey,
+      calculated: fromPubkey.toBase58(),
+      match: storedPubkey === fromPubkey.toBase58()
+    });
+    
+    // إذا كان المفتاح العام لا يتطابق، قم بتحديثه
+    if (!storedPubkey || storedPubkey !== fromPubkey.toBase58()) {
+      console.log('🔄 Updating stored public key...');
+      await SecureStore.setItemAsync('wallet_public_key', fromPubkey.toBase58());
     }
 
     console.log('✅ المفتاح الخاص صالح');
-    return true;
+    return { valid: true, keypair };
   } catch (error) {
     console.error('❌ خطأ في التحقق من المفتاح الخاص:', error);
-    return false;
+    return { valid: false, error: error.message };
   }
 };
 
@@ -170,10 +184,16 @@ export default function SendScreen() {
   const [currency, setCurrency] = useState(preselected || 'SOL');
   const [modalVisible, setModalVisible] = useState(false);
   const [balance, setBalance] = useState(0);
-  const [prices, setPrices] = useState({});
+  const [prices, setPrices] = useState({
+    'SOL': 185,
+    'USDT': 1,
+    'USDC': 1,
+    'MECO': 0.00617
+  });
   const [availableTokens, setAvailableTokens] = useState([]);
   const [loading, setLoading] = useState(false);
   const [loadingTokens, setLoadingTokens] = useState(true);
+  const [loadingPrices, setLoadingPrices] = useState(false);
   const [networkFee, setNetworkFee] = useState(0.001);
   const [connection, setConnection] = useState(null);
   const [fadeAnim] = useState(new Animated.Value(0));
@@ -189,30 +209,73 @@ export default function SendScreen() {
   useEffect(() => {
     const initConnection = async () => {
       try {
-        const conn = new web3.Connection('https://api.mainnet-beta.solana.com', 'confirmed');
+        // استخدام عدة endpoints للاحتياط
+        const endpoints = [
+          'https://api.mainnet-beta.solana.com',
+          'https://solana-api.projectserum.com',
+          'https://rpc.ankr.com/solana'
+        ];
+        
+        let conn;
+        for (const endpoint of endpoints) {
+          try {
+            conn = new web3.Connection(endpoint, 'confirmed');
+            await conn.getVersion(); // اختبار الاتصال
+            console.log(`✅ Connected to ${endpoint}`);
+            break;
+          } catch (error) {
+            console.log(`❌ Failed to connect to ${endpoint}`);
+            continue;
+          }
+        }
+        
+        if (!conn) {
+          conn = new web3.Connection('https://api.mainnet-beta.solana.com', 'confirmed');
+        }
+        
         setConnection(conn);
       } catch (error) {
         console.error('Failed to initialize connection:', error);
+        // إنشاء اتصال افتراضي
+        const conn = new web3.Connection('https://api.mainnet-beta.solana.com', 'confirmed');
+        setConnection(conn);
       }
     };
     initConnection();
   }, []);
 
-  // Update prices periodically
+  // Update prices periodically - مع معالجة أفضل للأخطاء
   useEffect(() => {
     const updatePrices = async () => {
       try {
+        setLoadingPrices(true);
         const priceData = await fetchPrices();
-        setPrices(priceData);
+        console.log('📊 Prices fetched:', priceData);
+        
+        if (priceData && typeof priceData === 'object') {
+          // دمج الأسعار الجديدة مع الأسعار الافتراضية
+          const mergedPrices = {
+            'SOL': 185,
+            'USDT': 1,
+            'USDC': 1,
+            'MECO': 0.00617,
+            ...priceData
+          };
+          setPrices(mergedPrices);
+        } else {
+          console.warn('⚠️ Invalid price data received');
+        }
       } catch (error) {
         console.warn('Failed to update prices:', error);
-        // Default prices in case of failure
+        // الحفاظ على الأسعار الافتراضية
         setPrices({
           'SOL': 185,
           'USDT': 1,
           'USDC': 1,
           'MECO': 0.00617
         });
+      } finally {
+        setLoadingPrices(false);
       }
     };
     
@@ -227,13 +290,17 @@ export default function SendScreen() {
       try {
         if (!connection) return;
         
-        const fees = await connection.getRecentPrioritizationFees?.();
         let fee = 0.001; // Default value
         
-        if (fees && fees.length > 0) {
-          // Calculate average fees
-          const totalFees = fees.reduce((sum, f) => sum + f.prioritizationFee, 0);
-          fee = (totalFees / fees.length) / 1e9;
+        try {
+          const fees = await connection.getRecentPrioritizationFees?.();
+          if (fees && fees.length > 0) {
+            // Calculate average fees
+            const totalFees = fees.reduce((sum, f) => sum + f.prioritizationFee, 0);
+            fee = (totalFees / fees.length) / 1e9;
+          }
+        } catch (error) {
+          console.log('⚠️ Using default network fee');
         }
         
         // Minimum 0.000005 SOL and maximum 0.01 SOL
@@ -261,6 +328,7 @@ export default function SendScreen() {
         try {
           const recipientInfo = await connection.getAccountInfo(new web3.PublicKey(recipient));
           setRecipientExists(!!recipientInfo);
+          console.log(`📌 Recipient account exists: ${!!recipientInfo}`);
         } catch (error) {
           console.warn('Could not check recipient account:', error);
           setRecipientExists(true); // Assume exists to avoid false warnings
@@ -411,14 +479,17 @@ export default function SendScreen() {
 
   const getUsdValue = (amount, symbol) => {
     const price = prices[symbol] || 0;
-    return (parseFloat(amount || 0) * price).toFixed(2);
+    const value = (parseFloat(amount || 0) * price);
+    return isNaN(value) ? '0.00' : value.toFixed(2);
   };
 
   const handleSend = async () => {
     try {
+      console.log('🔄 Starting send process...');
+      
       // التحقق من المفتاح الخاص أولاً
-      const isValidKey = await validatePrivateKey();
-      if (!isValidKey) {
+      const keyValidation = await validatePrivateKey();
+      if (!keyValidation.valid) {
         Alert.alert(t('error'), t('invalid_wallet_key') || 'مفتاح المحفظة غير صالح. يرجى التحقق من الإعدادات.');
         return;
       }
@@ -445,14 +516,17 @@ export default function SendScreen() {
         return;
       }
 
+      // تحميل الرصيد الحالي أولاً
+      await loadBalance();
+      
       const totalFee = calculateTotalFee();
       let totalAmount = currency === 'SOL' ? num + totalFee : num;
       
-      // For SOL, check if we need to add rent exempt amount for new accounts
+      // حساب الرانت للحسابات الجديدة
       let rentExemptAmount = 0;
       if (currency === 'SOL' && !recipientExists) {
         try {
-          rentExemptAmount = await connection.getMinimumBalanceForRentExemption(0) / 1e9;
+          rentExemptAmount = 0.002; // قيمة ثابتة للرانت
           totalAmount += rentExemptAmount;
           console.log(`📌 Adding rent exempt amount: ${rentExemptAmount} SOL`);
         } catch (error) {
@@ -460,17 +534,33 @@ export default function SendScreen() {
         }
       }
       
+      console.log('💰 Balance check:', {
+        balance,
+        num,
+        totalFee,
+        rentExemptAmount,
+        totalAmount,
+        currency
+      });
+      
       if (totalAmount > balance) {
-        let errorMessage = t('insufficient_balance');
-        if (currency === 'SOL' && !recipientExists) {
-          errorMessage += `\n\n${t('new_account_requires_rent') || 'الحساب الجديد يتطلب مبلغ إضافي للرانت (0.002 SOL تقريباً)'}`;
+        let errorMessage = `${t('insufficient_balance')}\n\n`;
+        errorMessage += `${t('your_balance') || 'رصيدك'}: ${balance.toFixed(6)} ${currency}\n`;
+        errorMessage += `${t('amount_to_send') || 'المبلغ المراد إرساله'}: ${num.toFixed(6)} ${currency}\n`;
+        errorMessage += `${t('network_fee')}: ${totalFee.toFixed(6)} SOL\n`;
+        
+        if (rentExemptAmount > 0) {
+          errorMessage += `${t('rent_exempt_fee') || 'رسوم إنشاء الحساب'}: ${rentExemptAmount.toFixed(6)} SOL\n`;
         }
+        
+        errorMessage += `\n${t('total_required') || 'المبلغ المطلوب إجمالاً'}: ${totalAmount.toFixed(6)} ${currency}`;
+        
         Alert.alert(t('error'), errorMessage);
         return;
       }
 
       setLoading(true);
-      await proceedWithSend(num, totalFee, rentExemptAmount);
+      await proceedWithSend(num, totalFee, rentExemptAmount, keyValidation.keypair);
     } catch (err) {
       console.error('Send validation error:', err);
       setLoading(false);
@@ -478,36 +568,10 @@ export default function SendScreen() {
     }
   };
 
-  const proceedWithSend = async (num, totalFee, rentExemptAmount) => {
+  const proceedWithSend = async (num, totalFee, rentExemptAmount, keypair) => {
     try {
       console.log('🔄 بدء عملية الإرسال...');
       
-      const secretKeyStr = await SecureStore.getItemAsync('wallet_private_key');
-      if (!secretKeyStr) {
-        console.error('❌ المفتاح الخاص مفقود');
-        throw new Error('Missing private key');
-      }
-
-      let parsedKey;
-      try {
-        // محاولة تحليل المفتاح بعدة صيغ
-        if (secretKeyStr.startsWith('[')) {
-          parsedKey = Uint8Array.from(JSON.parse(secretKeyStr));
-        } else {
-          parsedKey = bs58.decode(secretKeyStr);
-        }
-      } catch (parseError) {
-        console.error('❌ خطأ في تحليل المفتاح الخاص:', parseError);
-        throw new Error('Invalid private key format');
-      }
-
-      // تحقق من طول المفتاح
-      if (parsedKey.length !== 64) {
-        console.error(`❌ طول المفتاح غير صحيح: ${parsedKey.length} بايت (المطلوب 64)`);
-        throw new Error('Invalid private key length');
-      }
-
-      const keypair = web3.Keypair.fromSecretKey(parsedKey);
       const fromPubkey = keypair.publicKey;
       const toPubkey = new web3.PublicKey(recipient);
       const feeCollectorPubkey = new web3.PublicKey(FEE_COLLECTOR_ADDRESS);
@@ -518,14 +582,11 @@ export default function SendScreen() {
 
       // التحقق من المفاتيح
       const storedPubkey = await SecureStore.getItemAsync('wallet_public_key');
-      console.log('📌 المفتاح العام المخزن:', storedPubkey);
-      console.log('📌 المفتاح العام المحسوب:', fromPubkey.toBase58());
-      
-      if (storedPubkey !== fromPubkey.toBase58()) {
-        console.warn('⚠️ تحذير: المفتاح العام لا يتطابق مع المخزن');
-        // تحديث المفتاح العام المخزن
-        await SecureStore.setItemAsync('wallet_public_key', fromPubkey.toBase58());
-      }
+      console.log('🔑 Public key check:', {
+        stored: storedPubkey,
+        calculated: fromPubkey.toBase58(),
+        match: storedPubkey === fromPubkey.toBase58()
+      });
 
       const currentToken = getCurrentToken();
       const serviceFee = networkFee * SERVICE_FEE_PERCENTAGE;
@@ -615,22 +676,21 @@ export default function SendScreen() {
         // المحاولة الأولى: إرسال مباشر
         try {
           transactionSignature = await connection.sendRawTransaction(rawTransaction, {
-            skipPreflight: false,
+            skipPreflight: true,
             preflightCommitment: 'confirmed',
           });
           console.log('✅ تم إرسال المعاملة:', transactionSignature);
         } catch (sendError) {
           console.warn('⚠️ المحاولة الأولى فشلت، جرب طريقة بديلة...', sendError);
           
-          // المحاولة الثانية: استخدام sendTransaction
+          // المحاولة الثانية: باستخدام sendAndConfirmTransaction
           transactionSignature = await web3.sendAndConfirmTransaction(
             connection,
             tx,
             [keypair],
             {
               commitment: 'confirmed',
-              skipPreflight: false,
-              preflightCommitment: 'confirmed',
+              skipPreflight: true,
             }
           );
         }
@@ -724,7 +784,7 @@ export default function SendScreen() {
         // إرسال المعاملة
         const rawTransaction = tx.serialize();
         transactionSignature = await connection.sendRawTransaction(rawTransaction, {
-          skipPreflight: false,
+          skipPreflight: true,
           preflightCommitment: 'confirmed',
         });
         
@@ -947,9 +1007,18 @@ export default function SendScreen() {
             </Text>
             
             <View style={styles.balanceValue}>
-              <Text style={[styles.usdValue, { color: colors.textSecondary }]}>
-                ≈ ${getUsdValue(balance.toString(), currency)} USD
-              </Text>
+              {loadingPrices ? (
+                <View style={styles.priceLoading}>
+                  <ActivityIndicator size="small" color={primaryColor} />
+                  <Text style={[styles.priceLoadingText, { color: colors.textSecondary }]}>
+                    {t('calculating_value') || 'جاري حساب القيمة...'}
+                  </Text>
+                </View>
+              ) : (
+                <Text style={[styles.usdValue, { color: colors.textSecondary }]}>
+                  ≈ ${getUsdValue(balance.toString(), currency)} USD
+                </Text>
+              )}
             </View>
           </View>
 
@@ -1009,7 +1078,7 @@ export default function SendScreen() {
               <View style={[styles.recipientWarning, { backgroundColor: colors.warning + '20' }]}>
                 <Ionicons name="warning-outline" size={16} color={colors.warning} />
                 <Text style={[styles.recipientWarningText, { color: colors.warning }]}>
-                  ⓘ {t('new_account_warning') || 'هذا حساب جديد وسيتطلب مبلغ إضافي للرانت'}
+                  ⓘ {t('new_account_warning') || 'هذا حساب جديد وسيتطلب مبلغ إضافي للرانت (حوالي 0.002 SOL)'}
                 </Text>
               </View>
             )}
@@ -1085,7 +1154,7 @@ export default function SendScreen() {
               <View style={styles.feeRow}>
                 <View style={styles.feeLabelContainer}>
                   <Text style={[styles.feeLabel, { color: colors.warning }]}>
-                    {t('rent_exempt_fee') || 'رسوم الرانت'}
+                    {t('rent_exempt_fee') || 'رسوم إنشاء الحساب'}
                   </Text>
                   <Text style={[styles.feeSubLabel, { color: colors.warning }]}>
                     {t('for_new_account') || 'لإنشاء حساب جديد'}
@@ -1121,7 +1190,10 @@ export default function SendScreen() {
           >
             {loading ? (
               <View style={styles.loadingContainer}>
-                <Ionicons name="ellipsis-horizontal" size={24} color="#FFFFFF" />
+                <ActivityIndicator size="small" color="#FFFFFF" />
+                <Text style={[styles.loadingText, { color: '#FFFFFF', marginLeft: 8 }]}>
+                  {t('sending') || 'جاري الإرسال...'}
+                </Text>
               </View>
             ) : (
               <>
@@ -1166,7 +1238,7 @@ export default function SendScreen() {
 
             {loadingTokens ? (
               <View style={styles.loadingContainer}>
-                <Ionicons name="ellipsis-horizontal" size={24} color={colors.text} />
+                <ActivityIndicator size="small" color={primaryColor} />
                 <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
                   {t('loading_tokens')}
                 </Text>
@@ -1245,6 +1317,14 @@ const styles = StyleSheet.create({
   usdValue: {
     fontSize: 16,
     fontWeight: '500',
+  },
+  priceLoading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  priceLoadingText: {
+    fontSize: 14,
+    marginLeft: 8,
   },
   tokenSelector: {
     borderRadius: 16,
@@ -1401,6 +1481,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  loadingText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
   sendButtonText: {
     color: '#FFFFFF',
     fontSize: 16,
@@ -1496,11 +1580,5 @@ const styles = StyleSheet.create({
   noBalanceText: {
     fontSize: 12,
     fontStyle: 'italic',
-  },
-  loadingText: {
-    fontSize: 14,
-    marginLeft: 12,
-    marginTop: 20,
-    textAlign: 'center',
   },
 });

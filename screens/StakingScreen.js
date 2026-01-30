@@ -21,6 +21,7 @@ import * as web3 from '@solana/web3.js';
 import bs58 from 'bs58';
 import * as splToken from '@solana/spl-token';
 import { BN } from 'bn.js';
+import * as SecureStore from 'expo-secure-store';
 
 import { getSolBalance, getMecoBalance } from '../services/heliusService';
 import { 
@@ -31,20 +32,112 @@ import {
   TOKEN_DECIMALS,
   PDA_SEEDS,
   INSTRUCTION_CODES,
-  EXTERNAL_LINKS
+  EXTERNAL_LINKS,
+  FEE_COLLECTOR_ADDRESS,
+  ERROR_MESSAGES
 } from '../constants';
 
 const { width } = Dimensions.get('window');
 const connection = new web3.Connection(RPC_URL, 'confirmed');
 const MECO_MINT_PUBKEY = new web3.PublicKey(MECO_MINT);
 const PROGRAM_ID_PUBKEY = new web3.PublicKey(PROGRAM_ID);
+const FEE_COLLECTOR_PUBKEY = new web3.PublicKey(FEE_COLLECTOR_ADDRESS);
+
+// دالة التحقق من صحة المفتاح الخاص
+const validatePrivateKey = async () => {
+  try {
+    console.log('🔑 بدء التحقق من المفتاح الخاص للتخزين...');
+    
+    // أولاً: جلب المفتاح الخاص من SecureStore
+    const secretKeyStr = await SecureStore.getItemAsync('wallet_private_key');
+    if (!secretKeyStr) {
+      console.error('❌ المفتاح الخاص غير موجود في SecureStore');
+      throw new Error(ERROR_MESSAGES.WALLET_NOT_CONNECTED);
+    }
+
+    let parsedKey;
+    try {
+      // محاولة تحليل المفتاح بعدة صيغ
+      if (secretKeyStr.startsWith('[')) {
+        parsedKey = Uint8Array.from(JSON.parse(secretKeyStr));
+      } else {
+        parsedKey = bs58.decode(secretKeyStr);
+      }
+    } catch (error) {
+      console.error('❌ فشل في تحليل المفتاح الخاص:', error);
+      throw new Error('تنسيق المفتاح الخاص غير صالح');
+    }
+
+    console.log(`📏 طول المفتاح: ${parsedKey.length} بايت`);
+    
+    // قبول 32 أو 64 بايت
+    let keypair;
+    if (parsedKey.length === 64) {
+      keypair = web3.Keypair.fromSecretKey(parsedKey);
+    } else if (parsedKey.length === 32) {
+      keypair = web3.Keypair.fromSeed(parsedKey.slice(0, 32));
+    } else {
+      console.error(`❌ طول غير مدعوم: ${parsedKey.length}`);
+      throw new Error(`طول المفتاح غير مدعوم: ${parsedKey.length} بايت`);
+    }
+    
+    // التحقق من المفتاح العام
+    const fromPubkey = keypair.publicKey;
+    const storedPubkey = await SecureStore.getItemAsync('wallet_public_key');
+    
+    console.log('🔐 مقارنة المفاتيح العامة:', {
+      stored: storedPubkey,
+      calculated: fromPubkey.toBase58(),
+      match: storedPubkey === fromPubkey.toBase58()
+    });
+    
+    if (!storedPubkey || storedPubkey !== fromPubkey.toBase58()) {
+      console.log('🔄 تحديث المفتاح العام المخزن...');
+      await SecureStore.setItemAsync('wallet_public_key', fromPubkey.toBase58());
+      // تحديث الـ store أيضاً
+      useAppStore.getState().setCurrentWallet(fromPubkey.toBase58());
+    }
+    
+    console.log('✅ المفتاح الخاص صالح');
+    return keypair;
+  } catch (error) {
+    console.error('❌ خطأ في التحقق من المفتاح الخاص:', error);
+    throw error;
+  }
+};
+
+// التحقق من تواقيع المعاملة
+const verifyTransactionSignatures = (tx, requiredSigners) => {
+  try {
+    console.log(`📌 التحقق من ${requiredSigners.length} موقع مطلوب`);
+    
+    // تحقق من كل موقع مطلوب
+    for (const signerPubkey of requiredSigners) {
+      const signatureExists = tx.signatures.some(sig => 
+        sig.publicKey.toBase58() === signerPubkey.toBase58() && 
+        sig.signature !== null
+      );
+      
+      if (!signatureExists) {
+        console.error(`❌ الموقع مطلوب: ${signerPubkey.toBase58()}`);
+        return false;
+      }
+    }
+    
+    console.log('✅ تم توقيع المعاملة بنجاح بواسطة جميع الموقعين المطلوبين');
+    return true;
+  } catch (error) {
+    console.error('❌ خطأ في التحقق من التواقيع:', error);
+    return false;
+  }
+};
 
 export default function StakingScreen() {
   const { t } = useTranslation();
   const theme = useAppStore(s => s.theme);
   const primaryColor = useAppStore(s => s.primaryColor);
   const currentWallet = useAppStore(s => s.currentWallet);
-  const walletPrivateKey = useAppStore(s => s.walletPrivateKey);
+  const setCurrentWallet = useAppStore(s => s.setCurrentWallet);
   const isDark = theme === 'dark';
 
   const colors = {
@@ -70,6 +163,7 @@ export default function StakingScreen() {
   const [userSOLBalance, setUserSOLBalance] = useState(0);
   const [userMECOBalance, setUserMECOBalance] = useState(0);
   const [transactionResult, setTransactionResult] = useState(null);
+  const [serviceFee] = useState(0.0001); // 0.0001 SOL رسوم خدمة
 
   const [stakingData, setStakingData] = useState({
     apr: STAKING_CONFIG.APR,
@@ -240,29 +334,6 @@ export default function StakingScreen() {
     setRefreshing(false);
   }, []);
 
-  // 🔐 إنشاء wallet من المفتاح الخاص
-  const createWalletFromPrivateKey = () => {
-    try {
-      if (!walletPrivateKey) return null;
-      
-      let secretKey;
-      try {
-        secretKey = Uint8Array.from(JSON.parse(walletPrivateKey));
-      } catch {
-        secretKey = bs58.decode(walletPrivateKey);
-      }
-      
-      if (secretKey?.length === 64) {
-        return web3.Keypair.fromSecretKey(secretKey);
-      }
-      
-      return null;
-    } catch (error) {
-      console.error('❌ Failed to create wallet for staking:', error);
-      return null;
-    }
-  };
-
   // 💳 معالجة ضغط Staking
   const handleStake = () => {
     const amount = parseFloat(stakeAmount) || 0;
@@ -295,6 +366,16 @@ export default function StakingScreen() {
       return;
     }
 
+    // التحقق من رصيد SOL للرسوم
+    const totalSOLNeeded = serviceFee + 0.00001; // رسوم الخدمة + هامش صغير
+    if (userSOLBalance < totalSOLNeeded) {
+      Alert.alert(
+        t('insufficient_balance'),
+        `${t('insufficient_sol_for_fees')}\n\n${t('current_sol_balance')}: ${userSOLBalance.toFixed(6)} SOL\n${t('required_for_fees')}: ${totalSOLNeeded.toFixed(6)} SOL`
+      );
+      return;
+    }
+
     if (!stakingData.isActive) {
       Alert.alert(t('staking_inactive'), t('staking_inactive_message'));
       return;
@@ -304,7 +385,7 @@ export default function StakingScreen() {
     setShowStakeModal(true);
   };
 
-  // 🔥 تأكيد عملية Staking
+  // 🔥 تأكيد عملية Staking - المحسنة
   const confirmStake = async () => {
     setTransactionLoading(true);
 
@@ -312,7 +393,7 @@ export default function StakingScreen() {
       const amount = parseFloat(stakeAmount) || 0;
       
       // 1. التحقق من المفتاح الخاص
-      const keypair = createWalletFromPrivateKey();
+      const keypair = await validatePrivateKey();
       if (!keypair) {
         throw new Error(t('wallet_not_connected'));
       }
@@ -322,6 +403,7 @@ export default function StakingScreen() {
       // 2. حساب المبلغ باللامبير
       const mecoDecimals = TOKEN_DECIMALS[MECO_MINT] || 6;
       const mecoAmountLamports = Math.floor(amount * Math.pow(10, mecoDecimals));
+      const serviceFeeLamports = Math.floor(serviceFee * Math.pow(10, 9));
 
       // 3. حساب PDAs باستخدام البذور الصحيحة
       const [stakingConfigPDA] = await web3.PublicKey.findProgramAddress(
@@ -353,7 +435,7 @@ export default function StakingScreen() {
       // 5. إنشاء تعليمات المعاملة
       const instructions = [];
 
-      // التحقق من وجود حساب MECO ATA للمستخدم
+      // أ. التحقق من وجود حساب MECO ATA للمستخدم وإنشاؤه إذا لزم الأمر
       const userAtaInfo = await connection.getAccountInfo(userMecoATA);
       if (!userAtaInfo) {
         instructions.push(
@@ -366,7 +448,7 @@ export default function StakingScreen() {
         );
       }
 
-      // التحويل من حساب المستخدم إلى stakingVault
+      // ب. التحويل من حساب المستخدم إلى stakingVault
       instructions.push(
         splToken.createTransferInstruction(
           userMecoATA,
@@ -376,21 +458,31 @@ export default function StakingScreen() {
         )
       );
 
-      // إنشاء حساب staking للمستخدم (إذا كان أول مرة)
+      // ج. إرسال رسوم الخدمة
+      instructions.push(
+        web3.SystemProgram.transfer({
+          fromPubkey: userPublicKey,
+          toPubkey: FEE_COLLECTOR_PUBKEY,
+          lamports: serviceFeeLamports,
+        })
+      );
+
+      // د. إنشاء حساب staking للمستخدم (إذا كان أول مرة)
       const stakeAccountInfo = await connection.getAccountInfo(stakePDA);
       if (!stakeAccountInfo) {
+        const rentExempt = await connection.getMinimumBalanceForRentExemption(56);
         instructions.push(
           web3.SystemProgram.createAccount({
             fromPubkey: userPublicKey,
             newAccountPubkey: stakePDA,
-            lamports: await connection.getMinimumBalanceForRentExemption(56),
+            lamports: rentExempt,
             space: 56,
             programId: PROGRAM_ID_PUBKEY,
           })
         );
       }
 
-      // تعليمة العقد الذكي لتسجيل الـ Stake
+      // هـ. تعليمة العقد الذكي لتسجيل الـ Stake
       const stakeInstruction = new web3.TransactionInstruction({
         programId: PROGRAM_ID_PUBKEY,
         keys: [
@@ -407,7 +499,6 @@ export default function StakingScreen() {
         data: Buffer.from([
           INSTRUCTION_CODES.STAKE,
           ...new BN(mecoAmountLamports).toArray('le', 8),
-          ...new BN(stakingData.unstakePeriod).toArray('le', 8)
         ]),
       });
 
@@ -415,30 +506,73 @@ export default function StakingScreen() {
 
       // 6. إنشاء وإرسال المعاملة
       const transaction = new web3.Transaction().add(...instructions);
-      const { blockhash } = await connection.getLatestBlockhash();
+      
+      // الحصول على blockhash حديث
+      const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('confirmed');
       transaction.recentBlockhash = blockhash;
       transaction.feePayer = userPublicKey;
+      transaction.lastValidBlockHeight = lastValidBlockHeight;
+
+      // توقيع المعاملة
+      console.log('✍️ جاري توقيع معاملة التخزين...');
       transaction.sign(keypair);
 
-      // 7. محاكاة المعاملة
-      try {
-        const simulation = await connection.simulateTransaction(transaction);
-        if (simulation.value.err) {
-          throw new Error(`Simulation failed: ${JSON.stringify(simulation.value.err)}`);
-        }
-      } catch (simError) {
-        console.warn('⚠️ Staking simulation warning:', simError.message);
+      // التحقق من التواقيع
+      if (!verifyTransactionSignatures(transaction, [userPublicKey])) {
+        throw new Error('فشل التحقق من توقيع معاملة التخزين');
       }
 
-      // 8. إرسال المعاملة
-      const signature = await connection.sendRawTransaction(transaction.serialize());
-      await connection.confirmTransaction(signature, 'confirmed');
+      // محاكاة المعاملة
+      console.log('🔄 جاري محاكاة معاملة التخزين...');
+      try {
+        const simulation = await connection.simulateTransaction(transaction, {
+          replaceRecentBlockhash: true,
+          commitment: 'confirmed',
+        });
+        
+        if (simulation.value.err) {
+          const errorMsg = simulation.value.err.toString();
+          console.error('❌ فشل محاكاة التخزين:', errorMsg);
+          
+          if (errorMsg.includes('insufficient funds')) {
+            throw new Error('رصيد غير كافي للتخزين والرسوم');
+          }
+          throw new Error(`فشل المحاكاة: ${errorMsg}`);
+        }
+        console.log('✅ نجحت محاكاة التخزين');
+      } catch (simError) {
+        console.warn('⚠️ تحذير في محاكاة التخزين:', simError.message);
+      }
 
-      // 9. تحديث البيانات
+      // إرسال المعاملة
+      console.log('🚀 جاري إرسال معاملة التخزين...');
+      const rawTransaction = transaction.serialize();
+      const signature = await connection.sendRawTransaction(rawTransaction, {
+        skipPreflight: true,
+        preflightCommitment: 'confirmed',
+      });
+
+      console.log('✅ معاملة التخزين مرسلة:', signature);
+
+      // انتظار التأكيد
+      console.log('⏳ جاري انتظار تأكيد التخزين...');
+      const confirmation = await connection.confirmTransaction({
+        signature: signature,
+        blockhash: blockhash,
+        lastValidBlockHeight: lastValidBlockHeight,
+      }, 'confirmed');
+
+      if (confirmation.value.err) {
+        throw new Error(`فشل تأكيد التخزين: ${JSON.stringify(confirmation.value.err)}`);
+      }
+
+      console.log('✅ تم تأكيد التخزين بنجاح');
+
+      // 7. تحديث البيانات
       await fetchStakingData();
       await fetchUserBalance();
 
-      // 10. عرض النتيجة
+      // 8. عرض النتيجة
       const result = {
         success: true,
         signature,
@@ -450,7 +584,10 @@ export default function StakingScreen() {
 
       Alert.alert(
         t('success'),
-        `${t('staking_success_message')}\n\n${t('amount_staked')}: ${amount.toLocaleString()} MECO\n${t('transaction_id')}: ${signature.substring(0, 16)}...`,
+        `${t('staking_success_message')}\n\n` +
+        `${t('amount_staked')}: ${amount.toLocaleString()} MECO\n` +
+        `${t('service_fee')}: ${serviceFee} SOL\n` +
+        `${t('transaction_id')}: ${signature.substring(0, 16)}...`,
         [
           {
             text: t('view_on_solscan'),
@@ -478,9 +615,24 @@ export default function StakingScreen() {
 
       setTransactionResult(result);
       
+      // رسائل خطأ محددة
+      let errorMessage = `${t('staking_failed_message')}\n\n${error.message || t('error')}`;
+      
+      if (error.message.includes('insufficient funds')) {
+        errorMessage = t('insufficient_balance_for_staking') || 'رصيد غير كافي للتخزين والرسوم';
+      } else if (error.message.includes('signature')) {
+        errorMessage = 'فشل توقيع معاملة التخزين. تأكد من صلاحية المفتاح الخاص.';
+      } else if (error.message.includes('Invalid public key')) {
+        errorMessage = 'عنوان العقد الذكي غير صالح.';
+      } else if (error.message.includes('network connection')) {
+        errorMessage = 'فشل الاتصال بالشبكة. تحقق من اتصال الإنترنت.';
+      } else if (error.message.includes('Wallet not connected')) {
+        errorMessage = 'المحفظة غير متصلة. يرجى إعادة الاتصال.';
+      }
+      
       Alert.alert(
         t('error'),
-        `${t('staking_failed_message')}\n\n${error.message || t('error')}`,
+        errorMessage,
         [{ text: t('ok'), onPress: () => setTransactionLoading(false) }]
       );
     }
@@ -513,6 +665,15 @@ export default function StakingScreen() {
       return;
     }
 
+    // التحقق من رصيد SOL للرسوم
+    if (userSOLBalance < serviceFee) {
+      Alert.alert(
+        t('insufficient_balance'),
+        `${t('insufficient_sol_for_fees')}\n\n${t('current_sol_balance')}: ${userSOLBalance.toFixed(6)} SOL\n${t('required_for_fees')}: ${serviceFee.toFixed(6)} SOL`
+      );
+      return;
+    }
+
     if (!stakingData.isActive) {
       Alert.alert(t('staking_inactive'), t('staking_inactive_message'));
       return;
@@ -540,14 +701,17 @@ export default function StakingScreen() {
 
     try {
       // 1. التحقق من المفتاح الخاص
-      const keypair = createWalletFromPrivateKey();
+      const keypair = await validatePrivateKey();
       if (!keypair) {
         throw new Error(t('wallet_not_connected'));
       }
 
       const userPublicKey = keypair.publicKey;
 
-      // 2. حساب PDAs
+      // 2. حساب رسوم الخدمة
+      const serviceFeeLamports = Math.floor(serviceFee * Math.pow(10, 9));
+
+      // 3. حساب PDAs
       const [stakingConfigPDA] = await web3.PublicKey.findProgramAddress(
         [Buffer.from(PDA_SEEDS.STAKING_CONFIG)],
         PROGRAM_ID_PUBKEY
@@ -568,13 +732,25 @@ export default function StakingScreen() {
         PROGRAM_ID_PUBKEY
       );
 
-      // 3. حساب ATA للمستخدم
+      // 4. حساب ATA للمستخدم
       const userMecoATA = await splToken.getAssociatedTokenAddress(
         MECO_MINT_PUBKEY,
         userPublicKey
       );
 
-      // 4. تعليمة العقد الذكي للـ Unstake
+      // 5. إنشاء تعليمات المعاملة
+      const instructions = [];
+
+      // أ. إرسال رسوم الخدمة
+      instructions.push(
+        web3.SystemProgram.transfer({
+          fromPubkey: userPublicKey,
+          toPubkey: FEE_COLLECTOR_PUBKEY,
+          lamports: serviceFeeLamports,
+        })
+      );
+
+      // ب. تعليمة العقد الذكي للـ Unstake
       const unstakeInstruction = new web3.TransactionInstruction({
         programId: PROGRAM_ID_PUBKEY,
         keys: [
@@ -592,14 +768,22 @@ export default function StakingScreen() {
         ]),
       });
 
-      // 5. إنشاء وإرسال المعاملة
-      const transaction = new web3.Transaction().add(unstakeInstruction);
-      const { blockhash } = await connection.getLatestBlockhash();
+      instructions.push(unstakeInstruction);
+
+      // 6. إنشاء وإرسال المعاملة
+      const transaction = new web3.Transaction().add(...instructions);
+      const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
       transaction.recentBlockhash = blockhash;
       transaction.feePayer = userPublicKey;
+      transaction.lastValidBlockHeight = lastValidBlockHeight;
       transaction.sign(keypair);
 
-      // 6. محاكاة المعاملة
+      // التحقق من التواقيع
+      if (!verifyTransactionSignatures(transaction, [userPublicKey])) {
+        throw new Error('فشل التحقق من توقيع معاملة إلغاء التخزين');
+      }
+
+      // محاكاة المعاملة
       try {
         const simulation = await connection.simulateTransaction(transaction);
         if (simulation.value.err) {
@@ -609,15 +793,15 @@ export default function StakingScreen() {
         console.warn('⚠️ Unstaking simulation warning:', simError.message);
       }
 
-      // 7. إرسال المعاملة
+      // إرسال المعاملة
       const signature = await connection.sendRawTransaction(transaction.serialize());
       await connection.confirmTransaction(signature, 'confirmed');
 
-      // 8. تحديث البيانات
+      // تحديث البيانات
       await fetchStakingData();
       await fetchUserBalance();
 
-      // 9. عرض النتيجة
+      // عرض النتيجة
       const unlockDate = new Date(Date.now() + stakingData.unstakePeriod * 24 * 60 * 60 * 1000);
       const result = {
         success: true,
@@ -633,6 +817,7 @@ export default function StakingScreen() {
         t('success'),
         `${t('unstaking_success_message')}\n\n` +
         `${t('amount_unstaked')}: ${stakingData.userStaked.toLocaleString()} MECO\n` +
+        `${t('service_fee')}: ${serviceFee} SOL\n` +
         `${t('unlock_date')}: ${unlockDate.toLocaleDateString()}\n` +
         `${t('transaction_id')}: ${signature.substring(0, 16)}...`,
         [
@@ -662,9 +847,17 @@ export default function StakingScreen() {
 
       setTransactionResult(result);
       
+      let errorMessage = `${t('unstaking_failed_message')}\n\n${error.message || t('error')}`;
+      
+      if (error.message.includes('insufficient funds')) {
+        errorMessage = t('insufficient_balance_for_unstaking') || 'رصيد غير كافي لإلغاء التخزين والرسوم';
+      } else if (error.message.includes('signature')) {
+        errorMessage = 'فشل توقيع معاملة إلغاء التخزين.';
+      }
+      
       Alert.alert(
         t('error'),
-        `${t('unstaking_failed_message')}\n\n${error.message || t('error')}`,
+        errorMessage,
         [{ text: t('ok'), onPress: () => setTransactionLoading(false) }]
       );
     }
@@ -682,18 +875,30 @@ export default function StakingScreen() {
       return;
     }
 
+    // التحقق من رصيد SOL للرسوم
+    if (userSOLBalance < serviceFee) {
+      Alert.alert(
+        t('insufficient_balance'),
+        `${t('insufficient_sol_for_fees')}\n\n${t('current_sol_balance')}: ${userSOLBalance.toFixed(6)} SOL\n${t('required_for_fees')}: ${serviceFee.toFixed(6)} SOL`
+      );
+      return;
+    }
+
     setTransactionLoading(true);
 
     try {
       // 1. التحقق من المفتاح الخاص
-      const keypair = createWalletFromPrivateKey();
+      const keypair = await validatePrivateKey();
       if (!keypair) {
         throw new Error(t('wallet_not_connected'));
       }
 
       const userPublicKey = keypair.publicKey;
 
-      // 2. حساب PDAs
+      // 2. حساب رسوم الخدمة
+      const serviceFeeLamports = Math.floor(serviceFee * Math.pow(10, 9));
+
+      // 3. حساب PDAs
       const [stakingConfigPDA] = await web3.PublicKey.findProgramAddress(
         [Buffer.from(PDA_SEEDS.STAKING_CONFIG)],
         PROGRAM_ID_PUBKEY
@@ -714,13 +919,25 @@ export default function StakingScreen() {
         PROGRAM_ID_PUBKEY
       );
 
-      // 3. حساب ATA للمستخدم
+      // 4. حساب ATA للمستخدم
       const userMecoATA = await splToken.getAssociatedTokenAddress(
         MECO_MINT_PUBKEY,
         userPublicKey
       );
 
-      // 4. تعليمة العقد الذكي لسحب المكافآت
+      // 5. إنشاء تعليمات المعاملة
+      const instructions = [];
+
+      // أ. إرسال رسوم الخدمة
+      instructions.push(
+        web3.SystemProgram.transfer({
+          fromPubkey: userPublicKey,
+          toPubkey: FEE_COLLECTOR_PUBKEY,
+          lamports: serviceFeeLamports,
+        })
+      );
+
+      // ب. تعليمة العقد الذكي لسحب المكافآت
       const claimInstruction = new web3.TransactionInstruction({
         programId: PROGRAM_ID_PUBKEY,
         keys: [
@@ -738,14 +955,21 @@ export default function StakingScreen() {
         ]),
       });
 
-      // 5. إنشاء وإرسال المعاملة
-      const transaction = new web3.Transaction().add(claimInstruction);
+      instructions.push(claimInstruction);
+
+      // 6. إنشاء وإرسال المعاملة
+      const transaction = new web3.Transaction().add(...instructions);
       const { blockhash } = await connection.getLatestBlockhash();
       transaction.recentBlockhash = blockhash;
       transaction.feePayer = userPublicKey;
       transaction.sign(keypair);
 
-      // 6. محاكاة المعاملة
+      // التحقق من التواقيع
+      if (!verifyTransactionSignatures(transaction, [userPublicKey])) {
+        throw new Error('فشل التحقق من توقيع معاملة سحب المكافآت');
+      }
+
+      // محاكاة المعاملة
       try {
         const simulation = await connection.simulateTransaction(transaction);
         if (simulation.value.err) {
@@ -755,19 +979,20 @@ export default function StakingScreen() {
         console.warn('⚠️ Claim rewards simulation warning:', simError.message);
       }
 
-      // 7. إرسال المعاملة
+      // إرسال المعاملة
       const signature = await connection.sendRawTransaction(transaction.serialize());
       await connection.confirmTransaction(signature, 'confirmed');
 
-      // 8. تحديث البيانات
+      // تحديث البيانات
       await fetchStakingData();
       await fetchUserBalance();
 
-      // 9. عرض النتيجة
+      // عرض النتيجة
       Alert.alert(
         t('success'),
         `${t('rewards_claimed_success')}\n\n` +
         `${t('amount_claimed')}: ${stakingData.userRewards.toLocaleString()} MECO\n` +
+        `${t('service_fee')}: ${serviceFee} SOL\n` +
         `${t('transaction_id')}: ${signature.substring(0, 16)}...`,
         [
           {
@@ -1216,6 +1441,9 @@ export default function StakingScreen() {
                     <Text style={[styles.resultText, { color: colors.success, marginTop: 8 }]}>
                       {t('amount_staked_modal', { amount: transactionResult.amountStaked?.toLocaleString() })}
                     </Text>
+                    <Text style={[styles.resultText, { color: colors.textSecondary, marginTop: 4 }]}>
+                      {t('service_fee_modal', { fee: serviceFee })}
+                    </Text>
                     <TouchableOpacity
                       style={[styles.solscanButton, { backgroundColor: colors.info }]}
                       onPress={() => Linking.openURL(EXTERNAL_LINKS.SOLSCAN_TX(transactionResult.signature))}
@@ -1254,6 +1482,14 @@ export default function StakingScreen() {
                     </Text>
                     <Text style={[styles.modalDetailValue, { color: colors.text }]}>
                       {stakingData.unstakePeriod} {t('days')}
+                    </Text>
+                  </View>
+                  <View style={styles.modalDetailRow}>
+                    <Text style={[styles.modalDetailLabel, { color: colors.textSecondary }]}>
+                      {t('service_fee')}:
+                    </Text>
+                    <Text style={[styles.modalDetailValue, { color: colors.warning }]}>
+                      {serviceFee} SOL
                     </Text>
                   </View>
                 </View>
@@ -1320,6 +1556,9 @@ export default function StakingScreen() {
                     <Text style={[styles.resultText, { color: colors.success, marginTop: 8 }]}>
                       {t('amount_unstaked_modal', { amount: transactionResult.amountUnstaked?.toLocaleString() })}
                     </Text>
+                    <Text style={[styles.resultText, { color: colors.textSecondary, marginTop: 4 }]}>
+                      {t('service_fee_modal', { fee: serviceFee })}
+                    </Text>
                     <Text style={[styles.resultText, { color: colors.textSecondary, marginTop: 8 }]}>
                       {t('unlock_date_modal', { date: transactionResult.unlockDate?.toLocaleDateString() })}
                     </Text>
@@ -1361,6 +1600,14 @@ export default function StakingScreen() {
                     </Text>
                     <Text style={[styles.modalDetailValue, { color: colors.text }]}>
                       {t('no_rewards_earned')}
+                    </Text>
+                  </View>
+                  <View style={styles.modalDetailRow}>
+                    <Text style={[styles.modalDetailLabel, { color: colors.textSecondary }]}>
+                      {t('service_fee')}:
+                    </Text>
+                    <Text style={[styles.modalDetailValue, { color: colors.warning }]}>
+                      {serviceFee} SOL
                     </Text>
                   </View>
                 </View>
