@@ -9,8 +9,7 @@ import { useAppStore } from '../store';
 import { useTranslation } from 'react-i18next';
 import * as SecureStore from 'expo-secure-store';
 import { useRoute } from '@react-navigation/native';
-import { getSolBalance, getTokenAccounts, getMecoBalance } from '../services/heliusService';
-import { getTokens, fetchPrices } from '../services/jupiterService';
+import { getSolBalance, getTokenAccounts, getTokenBalance } from '../services/heliusService';
 import { logTransaction } from '../services/transactionLogger';
 import { Ionicons } from '@expo/vector-icons';
 import * as web3 from '@solana/web3.js';
@@ -63,6 +62,46 @@ const BASE_TOKENS = [
     decimals: 6
   },
 ];
+
+// =============================================
+// ✅ CoinGecko API Functions (Replacement for Jupiter)
+// =============================================
+const fetchPrices = async () => {
+  try {
+    const coinIds = ['solana', 'tether', 'usd-coin'];
+    const response = await fetch(
+      `https://api.coingecko.com/api/v3/simple/price?ids=${coinIds.join(',')}&vs_currencies=usd`
+    );
+    const data = await response.json();
+    
+    return {
+      SOL: { price: data.solana?.usd || 90, source: 'CoinGecko' },
+      USDT: { price: data.tether?.usd || 1, source: 'CoinGecko' },
+      USDC: { price: data['usd-coin']?.usd || 1, source: 'CoinGecko' },
+      MECO: { price: 0.00617, source: 'Fixed' },
+    };
+  } catch (error) {
+    console.error('❌ Error fetching prices from CoinGecko:', error);
+    return {
+      SOL: { price: 90, source: 'Default' },
+      USDT: { price: 1, source: 'Default' },
+      USDC: { price: 1, source: 'Default' },
+      MECO: { price: 0.00617, source: 'Fixed' },
+    };
+  }
+};
+
+const getTokens = async () => {
+  // Return our base tokens, you can extend this with more tokens if needed
+  return BASE_TOKENS.map(token => ({
+    address: token.mint,
+    symbol: token.symbol,
+    name: token.name,
+    decimals: token.decimals,
+    logoURI: token.logoURI,
+    mint: token.mint,
+  }));
+};
 
 async function isValidSolanaAddress(address) {
   try {
@@ -261,7 +300,16 @@ export default function SendScreen() {
             'MECO': 0.00617,
             ...priceData
           };
-          setPrices(mergedPrices);
+          // استخراج فقط القيم السعرية
+          const extractedPrices = {};
+          Object.keys(mergedPrices).forEach(key => {
+            if (mergedPrices[key] && typeof mergedPrices[key] === 'object' && 'price' in mergedPrices[key]) {
+              extractedPrices[key] = mergedPrices[key].price;
+            } else {
+              extractedPrices[key] = mergedPrices[key];
+            }
+          });
+          setPrices(extractedPrices);
         } else {
           console.warn('⚠️ Invalid price data received');
         }
@@ -360,7 +408,7 @@ export default function SendScreen() {
     try {
       setLoadingTokens(true);
       
-      // 1. Fetch tokens from Jupiter
+      // 1. Fetch tokens from CoinGecko/static
       let tokenList = [];
       try {
         tokenList = await getTokens();
@@ -404,7 +452,8 @@ export default function SendScreen() {
           });
           
           // Add MECO balance specifically
-          const mecoBalance = await getMecoBalance();
+          const mecoMint = '7hBNyFfwYTv65z3ZudMAyKBw3BLMKxyKXsr5xM51Za4i';
+          const mecoBalance = await getTokenBalance(mecoMint);
           userBalances.MECO = mecoBalance || 0;
         } catch (err) {
           console.warn('Failed to load user balances:', err);
@@ -454,15 +503,11 @@ export default function SendScreen() {
       if (currency === 'SOL') {
         const sol = await getSolBalance();
         setBalance(sol || 0);
-      } else if (currency === 'MECO') {
-        const meco = await getMecoBalance();
-        setBalance(meco || 0);
       } else {
-        const tokens = await getTokenAccounts();
         const currentToken = availableTokens.find(t => t.symbol === currency);
         if (currentToken?.mint) {
-          const token = tokens.find(t => t.mint === currentToken.mint);
-          setBalance(token?.amount || 0);
+          const tokenBalance = await getTokenBalance(currentToken.mint);
+          setBalance(tokenBalance || 0);
         } else {
           setBalance(0);
         }
