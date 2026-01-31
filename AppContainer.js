@@ -20,6 +20,7 @@ import WalletScreen from './screens/WalletScreen';
 import SettingsScreen from './screens/SettingsScreen';
 import ReceiveScreen from './screens/ReceiveScreen';
 import SendScreen from './screens/SendScreen';
+import SwapScreen from './screens/SwapScreen';
 import BackupScreen from './screens/BackupScreen';
 import TransactionHistoryScreen from './screens/TransactionHistoryScreen';
 import MarketScreen from './screens/MarketScreen';
@@ -130,6 +131,7 @@ export default function AppContainer() {
         <Stack.Screen name="BottomTabs" component={BottomTabs} options={{ headerShown: false }} />
         <Stack.Screen name="Send" component={SendScreen} options={{ title: 'إرسال' }} />
         <Stack.Screen name="Receive" component={ReceiveScreen} options={{ title: 'استقبال' }} />
+        <Stack.Screen name="Swap" component={SwapScreen} options={{ title: 'تبادل' }} />
         <Stack.Screen name="Backup" component={BackupScreen} options={{ title: 'نسخ احتياطي' }} />
         <Stack.Screen name="TransactionHistory" component={TransactionHistoryScreen} options={{ title: 'السجل' }} />
       </Stack.Navigator>

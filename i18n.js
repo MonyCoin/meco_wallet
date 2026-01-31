@@ -215,6 +215,23 @@ const resources = {
       loading_market_data: "جاري تحميل بيانات السوق...",
       important_note: "ملاحظة هامة",
       prices_auto_updated: "الأسعار يتم تحديثها تلقائياً من مصادر موثوقة",
+      
+      // مفاتيح Market إضافية
+      market_all_coins: "جميع العملات",
+      market_solana_tokens: "رموز سولانا",
+      market_stablecoins: "العملات المستقرة",
+      market_top_gainers: "الأعلى ارتفاعاً",
+      market_track_prices: "تتبع الأسعار وتداول العملات",
+      market_last_update: "آخر تحديث",
+      market_press_to_swap: "اضغط على أي عملة للتبادل",
+      market_swap_available: "يمكنك تبادل أي عملة متاحة على Solana",
+      market_prices_note: "الرموز المميزة باللون البرتقالي غير متاحة للتبادل المباشر على Solana. البيانات مقدمة من CoinGecko API.",
+      market_unavailable: "غير متاح",
+      market_balance: "رصيد",
+      market_market_cap: "القيمة السوقية",
+      market_24h_volume: "حجم التداول (٢٤ ساعة)",
+      market_available_for_swap: "العملات المتاحة للتبادل",
+      market_prices: "أسعار السوق",
 
       // ========== مفاتيح SendScreen الجديدة ==========
       fee_details: "تفاصيل الرسوم",
@@ -259,6 +276,57 @@ const resources = {
       pending: "قيد الانتظار",
       failed: "فشل",
       unknown: "غير معروف",
+
+      // ========== مفاتيح Swap الجديدة ==========
+      swap_title: "التبادل",
+      swap_subtitle: "تبادل العملات بسرعة وسهولة",
+      swap_to: "التبادل إلى",
+      swap_pay: "تدفع",
+      swap_receive: "تستلم",
+      swap_max: "أقصى",
+      swap_balance: "الرصيد",
+      swap_network_fee: "رسوم الشبكة",
+      swap_price: "السعر",
+      swap_market_price: "سعر السوق",
+      swap_price_impact: "تأثير السعر",
+      swap_note: "ملاحظة",
+      swap_using_market_price: "باستخدام سعر السوق الحقيقي",
+      swap_now: "تبادل الآن",
+      swap_getting_price: "جاري الحصول على السعر...",
+      swap_info_note: "التبادل يتم عبر شبكة Solana باستخدام Jupiter Aggregator",
+      swap_current_price: "السعر الحالي",
+      swap_your_balance: "الرصيد الخاص",
+      swap_security_title: "أمان التبادل",
+      swap_security_point1: "التبادل يتم مباشرة عبر محفظتك",
+      swap_security_point2: "لا يتم تخزين المفاتيح الخاصة على الخوادم",
+      swap_security_point3: "يمكنك تتبع المعاملة على مستكشف Solana",
+      swap_select_token_pay: "اختر رمز للدفع",
+      swap_select_token_receive: "اختر رمز للاستلام",
+      swap_token_not_available: "رمز غير متاح",
+      swap_token_not_available_message: "غير متاح للتبادل المباشر على Solana. يمكنك تبادل SOL أو الرموز المتاحة الأخرى.",
+      swap_invalid_token_selection: "اختيار رمز غير صحيح",
+      swap_token_unavailable_solana: "غير متاح للتبادل على Solana حالياً",
+      swap_network_error: "خطأ في الشبكة",
+      swap_invalid_token_pair: "زوج الرموز غير صالح للتبادل",
+      swap_rate_limit: "تم تجاوز حد الطلبات، الرجاء المحاولة لاحقاً",
+      swap_failed_to_get_price: "فشل في الحصول على السعر",
+      swap_invalid_quote_response: "استجابة سعر غير صالحة",
+      swap_insufficient_balance: "رصيد غير كافي",
+      swap_enter_amount: "الرجاء إدخال المبلغ",
+      swap_amount_must_be_positive: "يجب أن يكون المبلغ أكبر من صفر",
+      swap_insufficient_balance_for: "رصيد غير كافي لـ",
+      swap_available: "المتوفر",
+      swap_wait_for_price: "الرجاء الانتظار للحصول على سعر",
+      swap_wallet_not_found: "لم يتم العثور على المحفظة",
+      swap_successful: "تم التبادل بنجاح",
+      swap_success_message: "تم تبديل {{amount}} {{fromToken}} بـ {{outputAmount}} {{toToken}}",
+      swap_view_transaction: "عرض المعاملة",
+      swap_failed: "فشل التبادل",
+      swap_failed_try_again: "فشل التبادل. الرجاء المحاولة مرة أخرى.",
+      swap_could_not_complete: "تعذر إكمال عملية التبادل. الرجاء المحاولة مرة أخرى.",
+      swap_unavailable: "غير متاح",
+      swap_not_available: "غير متاح",
+      swap_real_price: "السعر الحقيقي",
     }
   },
   en: {
@@ -473,6 +541,23 @@ const resources = {
       loading_market_data: "Loading market data...",
       important_note: "Important Note",
       prices_auto_updated: "Prices are auto-updated from reliable sources",
+      
+      // Additional Market keys
+      market_all_coins: "All Coins",
+      market_solana_tokens: "Solana Tokens",
+      market_stablecoins: "Stablecoins",
+      market_top_gainers: "Top Gainers",
+      market_track_prices: "Track prices and trade tokens",
+      market_last_update: "Last update",
+      market_press_to_swap: "Press any coin to swap",
+      market_swap_available: "You can swap any available token on Solana",
+      market_prices_note: "Tokens marked in orange are not available for direct swapping on Solana. Data provided by CoinGecko API.",
+      market_unavailable: "Unavailable",
+      market_balance: "Balance",
+      market_market_cap: "Market Cap",
+      market_24h_volume: "24h Volume",
+      market_available_for_swap: "Available for Swap",
+      market_prices: "Market Prices",
 
       // ========== New SendScreen Keys ==========
       fee_details: "Fee Details",
@@ -517,18 +602,69 @@ const resources = {
       pending: "Pending",
       failed: "Failed",
       unknown: "Unknown",
+
+      // ========== New Swap Keys ==========
+      swap_title: "Swap",
+      swap_subtitle: "Swap tokens quickly and easily",
+      swap_to: "Swap to",
+      swap_pay: "Pay",
+      swap_receive: "Receive",
+      swap_max: "MAX",
+      swap_balance: "Balance",
+      swap_network_fee: "Network Fee",
+      swap_price: "Price",
+      swap_market_price: "Market Price",
+      swap_price_impact: "Price Impact",
+      swap_note: "Note",
+      swap_using_market_price: "Using real market price",
+      swap_now: "Swap Now",
+      swap_getting_price: "Getting price...",
+      swap_info_note: "Swap via Solana network using Jupiter Aggregator",
+      swap_current_price: "Current Price",
+      swap_your_balance: "Your Balance",
+      swap_security_title: "Swap Security",
+      swap_security_point1: "Swap happens directly through your wallet",
+      swap_security_point2: "Private keys are not stored on servers",
+      swap_security_point3: "You can track the transaction on Solana Explorer",
+      swap_select_token_pay: "Select token to pay",
+      swap_select_token_receive: "Select token to receive",
+      swap_token_not_available: "Token not available",
+      swap_token_not_available_message: "Not available for direct swapping on Solana. You can swap SOL or other available tokens.",
+      swap_invalid_token_selection: "Invalid token selection",
+      swap_token_unavailable_solana: "Not available for swapping on Solana",
+      swap_network_error: "Network error",
+      swap_invalid_token_pair: "Invalid token pair for swapping",
+      swap_rate_limit: "Rate limit exceeded, please try later",
+      swap_failed_to_get_price: "Failed to get price",
+      swap_invalid_quote_response: "Invalid quote response",
+      swap_insufficient_balance: "Insufficient balance",
+      swap_enter_amount: "Please enter amount",
+      swap_amount_must_be_positive: "Amount must be greater than zero",
+      swap_insufficient_balance_for: "Insufficient balance for",
+      swap_available: "Available",
+      swap_wait_for_price: "Please wait for price",
+      swap_wallet_not_found: "Wallet not found",
+      swap_successful: "Swap successful",
+      swap_success_message: "Swapped {{amount}} {{fromToken}} for {{outputAmount}} {{toToken}}",
+      swap_view_transaction: "View Transaction",
+      swap_failed: "Swap failed",
+      swap_failed_try_again: "Swap failed. Please try again.",
+      swap_could_not_complete: "Could not complete swap. Please try again.",
+      swap_unavailable: "Unavailable",
+      swap_not_available: "Not available",
+      swap_real_price: "Real price",
     }
   }
 };
 
-// دالة بسيطة للتهيئة (بدون async/await معقد)
+// دالة بسيطة للتهيئة
 const initI18n = () => {
   return i18n
     .use(initReactI18next)
     .init({
       compatibilityJSON: 'v3',
       resources,
-      lng: 'ar', // تم تعيين اللغة العربية كافتراضية
+      lng: 'ar', // اللغة العربية الافتراضية
       fallbackLng: 'en',
       interpolation: {
         escapeValue: false,
@@ -540,7 +676,7 @@ const initI18n = () => {
     });
 };
 
-// تهيئة مباشرة (بدون انتظار)
+// تهيئة مباشرة
 initI18n();
 
 // تصدير الدوال المساعدة
