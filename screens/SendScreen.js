@@ -9,12 +9,20 @@ import { useAppStore } from '../store';
 import { useTranslation } from 'react-i18next';
 import * as SecureStore from 'expo-secure-store';
 import { useRoute } from '@react-navigation/native';
-import { getSolBalance, getTokenAccounts, getTokenBalance } from '../services/heliusService';
+import { 
+  getSolBalance, 
+  getTokenBalance, 
+  validateSolanaAddress, 
+  getCurrentNetworkFee, 
+  clearBalanceCache,
+  delay 
+} from '../services/heliusService';
 import { logTransaction } from '../services/transactionLogger';
 import { Ionicons } from '@expo/vector-icons';
 import * as web3 from '@solana/web3.js';
 import bs58 from 'bs58';
 import * as splToken from '@solana/spl-token';
+import * as Clipboard from 'expo-clipboard';
 
 const { width } = Dimensions.get('window');
 
@@ -24,7 +32,6 @@ const { width } = Dimensions.get('window');
 const FEE_COLLECTOR_ADDRESS = 'HXkEZSKictbSYan9ZxQGaHpFrbA4eLDyNtEDxVBkdFy6';
 
 // Dynamic network fees + service fees
-let DYNAMIC_FEE = 0.001;
 const SERVICE_FEE_PERCENTAGE = 0.1; // 10% of network fees go to developer
 const RENT_EXEMPTION_AMOUNT = 0.00203928; // Minimum SOL required for new account
 
@@ -71,8 +78,7 @@ const createConnection = async () => {
   const endpoints = [
     'https://api.mainnet-beta.solana.com',
     'https://solana-api.projectserum.com',
-    'https://rpc.ankr.com/solana',
-    'https://rpc.helius.xyz/?api-key=886a8252-15e3-4eef-bc26-64bd552dded0'
+    'https://rpc.ankr.com/solana'
   ];
 
   for (const endpoint of endpoints) {
@@ -80,12 +86,11 @@ const createConnection = async () => {
       const conn = new web3.Connection(endpoint, {
         commitment: 'confirmed',
         confirmTransactionInitialTimeout: 60000,
-        wsEndpoint: endpoint.replace('https', 'wss')
       });
       
       // Test connection
-      const version = await conn.getVersion();
-      console.log(`✅ Connected to ${endpoint} - Version: ${JSON.stringify(version)}`);
+      await conn.getEpochInfo();
+      console.log(`✅ Connected to ${endpoint.split('//')[1]}`);
       return conn;
     } catch (error) {
       console.warn(`❌ Failed to connect to ${endpoint}:`, error.message);
@@ -94,7 +99,7 @@ const createConnection = async () => {
   }
   
   // Fallback to default
-  console.warn('⚠️ Using default connection after all endpoints failed');
+  console.warn('⚠️ Using default connection');
   return new web3.Connection('https://api.mainnet-beta.solana.com', 'confirmed');
 };
 
@@ -102,25 +107,14 @@ const createConnection = async () => {
 // ✅ Validation Functions
 // =============================================
 async function isValidSolanaAddress(address) {
-  if (!address || typeof address !== 'string') return false;
-  
-  // Basic validation
-  if (address.length < 32 || address.length > 44) return false;
-  
-  try {
-    const pubKey = new web3.PublicKey(address);
-    // Additional check: verify it's on the ed25519 curve
-    return web3.PublicKey.isOnCurve(pubKey);
-  } catch {
-    return false;
-  }
+  return validateSolanaAddress(address);
 }
 
 const validatePrivateKey = async () => {
   try {
     const secretKeyStr = await SecureStore.getItemAsync('wallet_private_key');
     if (!secretKeyStr) {
-      console.error('❌ المفتاح الخاص غير موجود في SecureStore');
+      console.error('❌ المفتاح الخاص غير موجود');
       return { valid: false, error: 'Missing private key' };
     }
 
@@ -183,7 +177,7 @@ const verifyTransactionSignatures = (tx, requiredSigners) => {
       }
     }
     
-    console.log('✅ تم توقيع المعاملة بنجاح بواسطة جميع الموقعين المطلوبين');
+    console.log('✅ تم توقيع المعاملة بنجاح');
     return true;
   } catch (error) {
     console.error('❌ خطأ في التحقق من التواقيع:', error);
@@ -224,7 +218,6 @@ export default function SendScreen() {
   const [availableTokens, setAvailableTokens] = useState([]);
   const [loading, setLoading] = useState(false);
   const [loadingTokens, setLoadingTokens] = useState(true);
-  const [loadingPrices, setLoadingPrices] = useState(false);
   const [networkFee, setNetworkFee] = useState(0.000005);
   const [connection, setConnection] = useState(null);
   const [fadeAnim] = useState(new Animated.Value(0));
@@ -242,9 +235,12 @@ export default function SendScreen() {
       try {
         const conn = await createConnection();
         setConnection(conn);
+        
+        // تحديث رسوم الشبكة
+        const currentFee = await getCurrentNetworkFee();
+        setNetworkFee(currentFee);
       } catch (error) {
         console.error('Failed to initialize connection:', error);
-        Alert.alert(t('error'), t('connection_failed'));
       }
     };
     initConnection();
@@ -258,20 +254,17 @@ export default function SendScreen() {
         return;
       }
 
-      // Validate address first
-      if (!(await isValidSolanaAddress(recipient))) {
-        setRecipientExists(false);
-        return;
-      }
-
       try {
-        const recipientPubkey = new web3.PublicKey(recipient);
-        const recipientInfo = await connection.getAccountInfo(recipientPubkey);
-        const exists = !!recipientInfo;
-        setRecipientExists(exists);
-        console.log(`📌 Recipient account exists: ${exists}`);
+        const validation = await validateSolanaAddress(recipient);
+        if (!validation.isValid) {
+          setRecipientExists(false);
+          return;
+        }
+        
+        setRecipientExists(validation.exists);
+        console.log(`📌 Recipient exists: ${validation.exists}`);
       } catch (error) {
-        console.warn('Could not check recipient account:', error);
+        console.warn('Could not check recipient:', error);
         setRecipientExists(null);
       }
     };
@@ -289,46 +282,70 @@ export default function SendScreen() {
     }).start();
     
     loadTokensAndPrices();
+    
+    // تحديث رسوم الشبكة كل 60 ثانية
+    const feeInterval = setInterval(async () => {
+      const currentFee = await getCurrentNetworkFee();
+      setNetworkFee(currentFee);
+    }, 60000);
+    
+    return () => clearInterval(feeInterval);
   }, []);
 
   // Load balances when currency changes
   useEffect(() => {
-    if (currency) {
-      loadAllBalances();
-    }
+    const loadBalanceWithDelay = async () => {
+      if (currency) {
+        await delay(500); // تأخير لتجنب Rate Limiting
+        await loadAllBalances();
+      }
+    };
+    
+    loadBalanceWithDelay();
   }, [currency]);
 
-  // Load all balances
+  // Load all balances - الإصدار المحسن
   async function loadAllBalances() {
     try {
+      console.log('🔄 Loading balances for:', currency);
+      
       if (currency === 'SOL') {
         const sol = await getSolBalance();
         setBalance(sol || 0);
         setSolBalance(sol || 0);
+        console.log(`✅ SOL balance loaded: ${sol}`);
       } else {
+        // تأخير قبل جلب التوكنات
+        console.log(`⏳ Delaying before loading ${currency}...`);
+        await delay(2000);
+        
         const currentToken = availableTokens.find(t => t.symbol === currency);
         if (currentToken?.mint) {
+          console.log(`🔄 Loading ${currency} balance...`);
           const tokenBalance = await getTokenBalance(currentToken.mint);
           setBalance(tokenBalance || 0);
+          console.log(`✅ ${currency} balance: ${tokenBalance}`);
         } else {
           setBalance(0);
         }
         
+        // SOL للرسوم
+        await delay(1000);
         const sol = await getSolBalance();
         setSolBalance(sol || 0);
       }
     } catch (err) {
       console.warn('Balance load error:', err.message);
-      setBalance(0);
-      setSolBalance(0);
+      // لا نقوم بمسح القيم القديمة
     }
   }
 
-  // Load tokens and prices
+  // Load tokens and prices - الإصدار المبسط جداً
   async function loadTokensAndPrices() {
     try {
       setLoadingTokens(true);
       
+      // بيانات ثابتة بدون طلبات متعددة
       const tokensWithIcons = BASE_TOKENS.map(t => ({ 
         ...t, 
         uniqueKey: t.mint || `base_${t.symbol}`,
@@ -336,34 +353,30 @@ export default function SendScreen() {
         hasBalance: false 
       }));
       
-      // Load user balances
       const pub = await SecureStore.getItemAsync('wallet_public_key');
       if (pub) {
         try {
+          // ✅ جلب SOL فقط مع تأخير
+          console.log('🔄 Loading SOL balance only...');
+          await delay(1000);
+          
           const solBalance = await getSolBalance();
-          const tokenIndex = tokensWithIcons.findIndex(t => t.symbol === 'SOL');
-          if (tokenIndex !== -1) {
-            tokensWithIcons[tokenIndex].userBalance = solBalance || 0;
-            tokensWithIcons[tokenIndex].hasBalance = (solBalance || 0) > 0;
+          const solIndex = tokensWithIcons.findIndex(t => t.symbol === 'SOL');
+          if (solIndex !== -1) {
+            tokensWithIcons[solIndex].userBalance = solBalance || 0;
+            tokensWithIcons[solIndex].hasBalance = (solBalance || 0) > 0;
+            console.log(`✅ SOL loaded: ${solBalance}`);
           }
           
-          // Load MECO balance
-          const mecoMint = '7hBNyFfwYTv65z3ZudMAyKBw3BLMKxyKXsr5xM51Za4i';
-          const mecoBalance = await getTokenBalance(mecoMint);
-          const mecoIndex = tokensWithIcons.findIndex(t => t.symbol === 'MECO');
-          if (mecoIndex !== -1) {
-            tokensWithIcons[mecoIndex].userBalance = mecoBalance || 0;
-            tokensWithIcons[mecoIndex].hasBalance = (mecoBalance || 0) > 0;
-          }
         } catch (err) {
-          console.warn('Failed to load user balances:', err);
+          console.warn('Balance load warning:', err.message);
         }
       }
       
       setAvailableTokens(tokensWithIcons);
       
     } catch (error) {
-      console.error('❌ Error loading token data:', error);
+      console.error('❌ Error loading tokens:', error);
       setAvailableTokens(BASE_TOKENS.map(t => ({ 
         ...t, 
         uniqueKey: t.mint || `base_${t.symbol}`,
@@ -388,7 +401,7 @@ export default function SendScreen() {
       // Validate private key
       const keyValidation = await validatePrivateKey();
       if (!keyValidation.valid) {
-        Alert.alert(t('error'), t('invalid_wallet_key') || 'مفتاح المحفظة غير صالح. يرجى التحقق من الإعدادات.');
+        Alert.alert(t('error'), t('invalid_wallet_key') || 'مفتاح المحفظة غير صالح');
         return;
       }
 
@@ -399,8 +412,8 @@ export default function SendScreen() {
       }
 
       // Validate recipient address
-      const isValidAddress = await isValidSolanaAddress(recipient);
-      if (!isValidAddress) {
+      const addressValidation = await validateSolanaAddress(recipient);
+      if (!addressValidation.isValid) {
         Alert.alert(t('error'), t('invalid_address'));
         return;
       }
@@ -441,14 +454,11 @@ export default function SendScreen() {
         balance,
         solBalance,
         totalFee,
-        requiredSol,
-        recipientExists,
-        rentExemption: currency === 'SOL' && recipientExists === false ? RENT_EXEMPTION_AMOUNT : 0
+        requiredSol
       });
 
       // Check balances
       if (currency === 'SOL') {
-        // Check if user has enough SOL for amount + fees + rent
         if (totalRequired + totalFee > solBalance) {
           Alert.alert(
             t('error'),
@@ -518,7 +528,6 @@ export default function SendScreen() {
         // Calculate lamports
         const lamportsToSend = Math.floor(num * 1e9);
         const serviceFeeLamports = Math.floor(serviceFee * 1e9);
-        const networkFeeLamports = Math.floor(networkFee * 1e9);
         const rentExemptLamports = recipientExists === false ? Math.floor(RENT_EXEMPTION_AMOUNT * 1e9) : 0;
         
         const instructions = [];
@@ -556,10 +565,6 @@ export default function SendScreen() {
           );
         }
 
-        if (instructions.length === 0) {
-          throw new Error('لا توجد تعليمات للإرسال');
-        }
-
         // Create transaction
         const tx = new web3.Transaction().add(...instructions);
         
@@ -577,28 +582,6 @@ export default function SendScreen() {
         const requiredSigners = [fromPubkey];
         if (!verifyTransactionSignatures(tx, requiredSigners)) {
           throw new Error('فشل في توقيع المعاملة');
-        }
-
-        // Simulate transaction
-        console.log('🔄 جاري محاكاة المعاملة...');
-        try {
-          const simulation = await connection.simulateTransaction(tx, {
-            replaceRecentBlockhash: true,
-            commitment: 'confirmed',
-          });
-          
-          if (simulation.value.err) {
-            const errorMsg = simulation.value.err.toString();
-            console.error('❌ فشل محاكاة المعاملة:', errorMsg);
-            
-            if (errorMsg.includes('insufficient funds')) {
-              throw new Error('رصيد غير كافي');
-            }
-            throw new Error(`فشل المحاكاة: ${errorMsg}`);
-          }
-          console.log('✅ نجحت محاكاة المعاملة');
-        } catch (simError) {
-          console.warn('⚠️ تحذير في المحاكاة:', simError.message);
         }
 
         // Send transaction
@@ -685,24 +668,6 @@ export default function SendScreen() {
         // Sign transaction
         tx.sign(keypair);
 
-        // Verify signatures
-        if (!verifyTransactionSignatures(tx, [fromPubkey])) {
-          throw new Error('فشل التحقق من توقيع المعاملة');
-        }
-
-        // Simulate transaction
-        try {
-          const simulation = await connection.simulateTransaction(tx, {
-            replaceRecentBlockhash: true,
-            commitment: 'confirmed',
-          });
-          if (simulation.value.err) {
-            throw new Error(`فشل محاكاة المعاملة: ${JSON.stringify(simulation.value.err)}`);
-          }
-        } catch (simError) {
-          console.warn('Transaction simulation warning:', simError.message);
-        }
-
         // Send transaction
         const rawTransaction = tx.serialize();
         transactionSignature = await connection.sendRawTransaction(rawTransaction, {
@@ -762,6 +727,7 @@ export default function SendScreen() {
               setAmount('');
               setModalVisible(false);
               setLoading(false);
+              clearBalanceCache();
               loadAllBalances();
             }
           }
@@ -810,16 +776,22 @@ export default function SendScreen() {
     }
   };
 
-  // Handle max amount
+  // Handle max amount - الإصدار المصحح
   const handleMaxAmount = () => {
-    if (balance > 0) {
-      if (currency === 'SOL') {
-        const totalFee = calculateTotalFee();
-        const maxAmount = Math.max(0, balance - totalFee);
-        setAmount(maxAmount.toFixed(6));
-      } else {
-        setAmount(balance.toFixed(6));
-      }
+    if (!balance || balance <= 0) return;
+    
+    const currentToken = getCurrentToken();
+    const totalFee = calculateTotalFee();
+    
+    if (currentToken.symbol === 'SOL') {
+      const rentExemption = (recipientExists === false) ? RENT_EXEMPTION_AMOUNT : 0;
+      const maxAvailable = balance - totalFee - rentExemption;
+      const safeMax = Math.max(0, maxAvailable);
+      setAmount(safeMax.toFixed(6));
+      console.log(`💰 Max SOL: ${balance} - ${totalFee} - ${rentExemption} = ${safeMax}`);
+    } else {
+      setAmount(balance.toFixed(currentToken.decimals || 6));
+      console.log(`💰 Max Token: ${balance} ${currentToken.symbol}`);
     }
   };
 
@@ -828,7 +800,9 @@ export default function SendScreen() {
     try {
       const text = await Clipboard.getString();
       if (text) {
-        setRecipient(text.trim());
+        const trimmed = text.trim();
+        setRecipient(trimmed);
+        console.log(`📋 Pasted address: ${trimmed.substring(0, 10)}...`);
       }
     } catch (err) {
       console.warn('Failed to paste:', err);
@@ -927,7 +901,10 @@ export default function SendScreen() {
               <Text style={[styles.balanceLabel, { color: colors.textSecondary }]}>
                 {t('available_balance')}
               </Text>
-              <TouchableOpacity onPress={loadAllBalances} style={styles.refreshButton}>
+              <TouchableOpacity onPress={() => {
+                clearBalanceCache();
+                loadAllBalances();
+              }} style={styles.refreshButton}>
                 <Ionicons name="refresh-outline" size={20} color={primaryColor} />
               </TouchableOpacity>
             </View>

@@ -5,9 +5,18 @@
   },
   "build": {
     "production": {
+      "env": {
+        "HELIUS_API_KEY": "your_actual_production_key"
+      },
       "android": {
         "buildType": "apk"
       }
+    },
+    "development": {
+      "env": {
+        "HELIUS_API_KEY": ""
+      },
+      "developmentClient": true
     }
   },
   "submit": {

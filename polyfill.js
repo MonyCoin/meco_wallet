@@ -1,39 +1,50 @@
-// polyfill.js - متوافق مع expo-random
+// polyfill.js - متوافق مع React Native + Solana Web3.js + Termux
 import { Buffer } from 'buffer';
+import * as Random from 'expo-random';
 
 // ========== BUFFER ==========
 global.Buffer = Buffer;
 
 // ========== PROCESS ==========
 global.process = global.process || {};
-global.process.env = global.process.env || {};
-global.process.env.NODE_ENV = process.env.NODE_ENV || 'production';
+global.process.env = global.process.env || { 
+  NODE_ENV: 'production',
+  SOLANA_NETWORK: 'mainnet-beta'
+};
 global.process.version = 'v16.0.0';
+global.process.browser = false;
+global.process.nextTick = setImmediate;
 
-// ========== CRYPTO with expo-random ==========
+// ========== CRYPTO ==========
 if (!global.crypto) {
   try {
-    // استخدام expo-random الجديد
-    const { getRandomBytes } = require('expo-random');
     global.crypto = {
       getRandomValues: (array) => {
-        const bytes = getRandomBytes(array.length);
+        const bytes = Random.getRandomBytes(array.length);
         for (let i = 0; i < array.length; i++) {
           array[i] = bytes[i];
         }
         return array;
+      },
+      subtle: {
+        digest: () => Promise.reject(new Error('SubtleCrypto not available in React Native')),
+        importKey: () => Promise.reject(new Error('SubtleCrypto not available')),
+        exportKey: () => Promise.reject(new Error('SubtleCrypto not available')),
+        encrypt: () => Promise.reject(new Error('SubtleCrypto not available')),
+        decrypt: () => Promise.reject(new Error('SubtleCrypto not available')),
       }
     };
-    console.log('✅ Crypto: Using expo-random');
   } catch (error) {
-    // Fallback بسيط
-    console.warn('⚠️ Crypto: Using fallback (expo-random not available)');
+    console.warn('⚠️ Crypto: Using fallback', error.message);
     global.crypto = {
       getRandomValues: (array) => {
         for (let i = 0; i < array.length; i++) {
           array[i] = Math.floor(Math.random() * 256);
         }
         return array;
+      },
+      subtle: {
+        digest: () => Promise.reject(new Error('SubtleCrypto not available'))
       }
     };
   }
@@ -42,13 +53,45 @@ if (!global.crypto) {
 // ========== TEXT ENCODING ==========
 if (!global.TextEncoder || !global.TextDecoder) {
   try {
+    // الطريقة الأكثر موثوقية لـ React Native
     const { TextEncoder, TextDecoder } = require('text-encoding');
     global.TextEncoder = TextEncoder;
     global.TextDecoder = TextDecoder;
-    console.log('✅ TextEncoder/TextDecoder loaded');
   } catch (error) {
-    console.warn('⚠️ Text encoding not available');
+    // Fallback ضروري إذا لم تكن المكتبة مثبتة
+    console.warn('⚠️ Text encoding not available, adding minimal polyfill');
+    
+    global.TextEncoder = class TextEncoder {
+      encode(str) {
+        return Buffer.from(str, 'utf8');
+      }
+    };
+    
+    global.TextDecoder = class TextDecoder {
+      decode(bytes) {
+        return Buffer.from(bytes).toString('utf8');
+      }
+    };
   }
+}
+
+// ========== PERFORMANCE ==========
+if (!global.performance) {
+  const startTime = Date.now();
+  global.performance = {
+    now: () => Date.now() - startTime,
+    timing: { 
+      navigationStart: startTime,
+      fetchStart: 0,
+      domainLookupStart: 0,
+      domainLookupEnd: 0,
+      connectStart: 0,
+      connectEnd: 0,
+      requestStart: 0,
+      responseStart: 0,
+      responseEnd: 0
+    }
+  };
 }
 
 // ========== GLOBALS ==========
@@ -76,4 +119,30 @@ if (typeof __filename === 'undefined') {
   global.__filename = '';
 }
 
-console.log('✅ Polyfills loaded successfully with expo-random');
+// ========== SOLANA-SPECIFIC ==========
+// بعض مكتبات Solana تتطلب هذه
+if (!global.location) {
+  global.location = {
+    protocol: 'https:',
+    hostname: 'localhost',
+    port: '',
+    href: 'https://localhost'
+  };
+}
+
+if (!global.navigator) {
+  global.navigator = {
+    userAgent: 'ReactNative',
+    platform: 'ReactNative'
+  };
+}
+
+// ========== URL ==========
+if (!global.URL) {
+  global.URL = {
+    createObjectURL: () => '',
+    revokeObjectURL: () => {}
+  };
+}
+
+console.log('✅ Polyfills loaded successfully for Solana Web3');

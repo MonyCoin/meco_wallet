@@ -24,7 +24,6 @@ import SwapScreen from './screens/SwapScreen';
 import BackupScreen from './screens/BackupScreen';
 import TransactionHistoryScreen from './screens/TransactionHistoryScreen';
 import MarketScreen from './screens/MarketScreen';
-import PresaleScreen from './screens/PresaleScreen';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -41,7 +40,6 @@ function BottomTabs() {
           Settings: 'settings-outline',
           Wallet: 'wallet-outline',
           Market: 'stats-chart-outline',
-          Presale: 'rocket-outline',
         };
 
         return {
@@ -56,7 +54,6 @@ function BottomTabs() {
     >
       <Tab.Screen name="Wallet" component={WalletScreen} options={{ tabBarLabel: t('wallet') }} />
       <Tab.Screen name="Market" component={MarketScreen} options={{ tabBarLabel: t('market') }} />
-      <Tab.Screen name="Presale" component={PresaleScreen} options={{ tabBarLabel: t('presale') }} />
       <Tab.Screen name="Settings" component={SettingsScreen} options={{ tabBarLabel: t('user_settings') }} />
     </Tab.Navigator>
   );
