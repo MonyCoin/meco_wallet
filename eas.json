@@ -6,22 +6,31 @@
   "build": {
     "production": {
       "env": {
-        "HELIUS_API_KEY": "your_actual_production_key"
+        "HELIUS_API_KEY": "your_production_key_here"
       },
       "android": {
-        "buildType": "apk"
+        "buildType": "apk",
+        "gradleCommand": ":app:assembleRelease"
+      }
+    },
+    "preview": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk",
+        "gradleCommand": ":app:assembleRelease"
       }
     },
     "development": {
-      "env": {
-        "HELIUS_API_KEY": ""
-      },
-      "developmentClient": true
+      "developmentClient": true,
+      "distribution": "internal"
     }
   },
   "submit": {
     "production": {
-      "android": {}
+      "android": {
+        "serviceAccountKeyPath": "./google-play-key.json",
+        "track": "production"
+      }
     }
   }
 }
