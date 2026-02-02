@@ -1,49 +1,51 @@
 {
   "expo": {
-    "name": "MECO Wallet",
-    "slug": "meco-wallet",
-    "version": "3.0.0",
+    "name": "meco wallet",
+    "slug": "meco_wallet",
+    "version": "1.0.1",
+    "scheme": "meco-wallet",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "light",
     "splash": {
       "image": "./assets/logo.png",
       "resizeMode": "contain",
-      "backgroundColor": "#0A0A0F"
+      "backgroundColor": "#ffffff"
     },
-    "assetBundlePatterns": [
-      "**/*"
-    ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.monycoin.mecowallet",
-      "buildNumber": "3"
+      "bundleIdentifier": "com.meco.wallet",
+      "buildNumber": "2"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#0A0A0F"
+        "backgroundColor": "#ffffff"
       },
-      "package": "com.monycoin.mecowallet",
-      "versionCode": 3,
-      "permissions": []
+      "package": "com.meco.wallet",
+      "versionCode": 2,
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "INTERNET",
+        "USE_BIOMETRIC"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
-    "extra": {
-      "heliusApiKey": "",
-      "appVersion": "3.0.0"
-    },
-    "updates": {
-      "fallbackToCacheTimeout": 0,
-      "url": "https://u.expo.dev/your-project-id"
-    },
-    "runtimeVersion": {
-      "policy": "appVersion"
-    },
     "plugins": [
-      "expo-secure-store"
-    ]
+      "expo-web-browser",
+      "expo-secure-store",
+      "expo-local-authentication",
+      "expo-font"
+    ],
+    "owner": "monycoin",
+    "extra": {
+      "eas": {
+        "projectId": "eb1f71ac-516e-4edd-b2a2-2914dad79f93"
+      }
+    }
   }
 }
