@@ -27,11 +27,12 @@ import * as Clipboard from 'expo-clipboard';
 const { width } = Dimensions.get('window');
 
 // =============================================
-// ✅ الإعدادات
+// ✅ الإعدادات - معدلة ومضمونة
 // =============================================
 const FEE_COLLECTOR_ADDRESS = 'HXkEZSKictbSYan9ZxQGaHpFrbA4eLDyNtEDxVBkdFy6';
 const SERVICE_FEE_PERCENTAGE = 0.1; // 10%
 const RENT_EXEMPTION_AMOUNT = 0.00203928;
+const MAX_NETWORK_FEE = 0.00001; // ✅ سقف أقصى للرسوم
 
 // التوكنات الأساسية
 const BASE_TOKENS = [
@@ -71,7 +72,7 @@ const BASE_TOKENS = [
 async function getKeypair() {
   try {
     const secretKeyStr = await SecureStore.getItemAsync('wallet_private_key');
-    if (!secretKeyStr) throw new Error(t('no_public_key'));
+    if (!secretKeyStr) throw new Error('لم يتم العثور على المفتاح الخاص');
 
     let secretKey;
     if (secretKeyStr.startsWith('[')) {
@@ -127,7 +128,7 @@ export default function SendScreen() {
   const [recipientExists, setRecipientExists] = useState(null);
   const [fadeAnim] = useState(new Animated.Value(0));
 
-  // حساب الرسوم الكلية
+  // ✅ حساب الرسوم الكلية - مضمون
   const calculateTotalFee = () => {
     return networkFee + (networkFee * SERVICE_FEE_PERCENTAGE);
   };
@@ -142,13 +143,29 @@ export default function SendScreen() {
 
     loadInitialData();
     
-    // تحديث الرسوم كل 60 ثانية
-    const interval = setInterval(() => {
-      updateNetworkFee();
-    }, 60000);
-    
-    return () => clearInterval(interval);
+    return () => {
+      // تنظيف
+    };
   }, []);
+
+  // ✅ تحديث رسوم الشبكة مع سقف أقصى - إصلاح المشكلة الأساسية
+  const updateNetworkFee = async () => {
+    try {
+      let fee = await getCurrentNetworkFee();
+      
+      // ✅ سقف أقصى للرسوم - هذا هو الإصلاح الأساسي
+      if (fee > MAX_NETWORK_FEE) {
+        console.warn(`⚠️ رسوم الشبكة مرتفعة ${fee.toFixed(6)}، تم تحديدها إلى ${MAX_NETWORK_FEE.toFixed(6)} SOL`);
+        fee = MAX_NETWORK_FEE;
+      }
+      
+      setNetworkFee(fee);
+      console.log(`💰 الرسوم المستخدمة: ${fee.toFixed(6)} SOL`);
+    } catch (error) {
+      console.warn('⚠️ Failed to update network fee, using safe value:', error.message);
+      setNetworkFee(0.000005); // قيمة آمنة مضمونة
+    }
+  };
 
   // تحميل البيانات الأولية
   const loadInitialData = async () => {
@@ -156,29 +173,24 @@ export default function SendScreen() {
     await loadTokens();
   };
 
-  // تحديث رسوم الشبكة
-  const updateNetworkFee = async () => {
-    try {
-      const fee = await getCurrentNetworkFee();
-      setNetworkFee(fee);
-    } catch (error) {
-      console.warn('Failed to update network fee:', error);
-    }
-  };
-
   // تحميل التوكنات والأرصدة
   const loadTokens = async () => {
     try {
       setLoadingTokens(true);
+      
+      // ✅ جلب أرصدة SOL أولاً (الأهم)
+      const solBalanceValue = await getSolBalance(true); // force refresh
+      console.log(`✅ رصيد SOL الفعلي: ${solBalanceValue.toFixed(6)}`);
       
       const tokensWithBalances = await Promise.all(
         BASE_TOKENS.map(async (token) => {
           let userBalance = 0;
           
           if (token.symbol === 'SOL') {
-            userBalance = await getSolBalance();
+            userBalance = solBalanceValue;
           } else if (token.mint) {
-            userBalance = await getTokenBalance(token.mint);
+            userBalance = await getTokenBalance(token.mint, true);
+            console.log(`✅ رصيد ${token.symbol}: ${userBalance.toFixed(6)}`);
           }
           
           return {
@@ -199,8 +211,7 @@ export default function SendScreen() {
         
         // جلب رصيد SOL منفصل للرسوم
         if (currency !== 'SOL') {
-          const sol = await getSolBalance();
-          setSolBalance(sol || 0);
+          setSolBalance(solBalanceValue || 0);
         } else {
           setSolBalance(currentToken.userBalance || 0);
         }
@@ -209,6 +220,8 @@ export default function SendScreen() {
     } catch (error) {
       console.error('❌ Failed to load tokens:', error);
       setAvailableTokens(BASE_TOKENS.map(t => ({ ...t, userBalance: 0, hasBalance: false })));
+      setSolBalance(0);
+      setBalance(0);
     } finally {
       setLoadingTokens(false);
     }
@@ -224,13 +237,20 @@ export default function SendScreen() {
         if (currency === 'SOL') {
           setSolBalance(token.userBalance || 0);
         } else {
-          const sol = await getSolBalance();
-          setSolBalance(sol || 0);
+          // جلب رصيد SOL منفصل
+          try {
+            const sol = await getSolBalance();
+            setSolBalance(sol || 0);
+          } catch (err) {
+            console.warn('⚠️ Error fetching SOL balance:', err.message);
+          }
         }
       }
     };
     
-    updateBalanceForCurrency();
+    if (currency) {
+      updateBalanceForCurrency();
+    }
   }, [currency, availableTokens]);
 
   // التحقق من العنوان المستقبل
@@ -244,12 +264,14 @@ export default function SendScreen() {
       try {
         const validation = await validateSolanaAddress(recipient);
         setRecipientExists(validation.exists);
+        console.log(`📍 العنوان المستقبل: ${validation.exists ? 'موجود' : 'جديد'}`);
       } catch (error) {
+        console.warn('⚠️ Error checking recipient:', error.message);
         setRecipientExists(null);
       }
     };
     
-    const timeout = setTimeout(checkRecipient, 1000);
+    const timeout = setTimeout(checkRecipient, 1500);
     return () => clearTimeout(timeout);
   }, [recipient]);
 
@@ -258,7 +280,7 @@ export default function SendScreen() {
     return availableTokens.find(token => token.symbol === currency) || BASE_TOKENS[0];
   };
 
-  // معالجة زر الإرسال - الإصدار المصحح
+  // ✅ معالجة زر الإرسال - الإصدار المضمون
   const handleSend = async () => {
     try {
       console.log('🔄 بدء عملية الإرسال...');
@@ -296,30 +318,31 @@ export default function SendScreen() {
       const serviceFee = networkFee * SERVICE_FEE_PERCENTAGE;
       const currentToken = getCurrentToken();
       
-      console.log('💰 التحقق من الأرصدة:', {
-        currency,
-        amount: numAmount,
-        balance,
-        solBalance,
-        totalFee,
-        rentExemption: recipientExists === false && currency === 'SOL' ? RENT_EXEMPTION_AMOUNT : 0
-      });
-      
-      // ✅ التحقق من الأرصدة - الإصدار المصحح
+      // ✅ التحقق الدقيق من الأرصدة - مضمون
       if (currency === 'SOL') {
-        const requiredTotal = numAmount + totalFee + 
-          (recipientExists === false ? RENT_EXEMPTION_AMOUNT : 0);
+        const rentExemption = (recipientExists === false) ? RENT_EXEMPTION_AMOUNT : 0;
+        const requiredTotal = numAmount + totalFee + rentExemption;
+        
+        console.log('🔍 تحقق تفصيلي لرصيد SOL:', {
+          solBalance: solBalance.toFixed(6),
+          numAmount: numAmount.toFixed(6),
+          networkFee: networkFee.toFixed(6),
+          serviceFee: serviceFee.toFixed(6),
+          totalFee: totalFee.toFixed(6),
+          rentExemption: rentExemption.toFixed(6),
+          requiredTotal: requiredTotal.toFixed(6)
+        });
         
         if (requiredTotal > solBalance) {
           Alert.alert(
             t('error'),
-            `${t('insufficient_balance')}\n\n` +
-            `${t('your_sol_balance')}: ${solBalance.toFixed(6)} SOL\n` +
-            `${t('amount_to_send')}: ${numAmount.toFixed(6)} SOL\n` +
-            `${t('network_fee')}: ${networkFee.toFixed(6)} SOL\n` +
-            `${t('service_fee')}: ${serviceFee.toFixed(6)} SOL\n` +
-            (recipientExists === false ? `${t('rent_exempt_fee')}: ${RENT_EXEMPTION_AMOUNT.toFixed(6)} SOL\n` : '') +
-            `\n${t('total_required')}: ${requiredTotal.toFixed(6)} SOL`
+            `🚫 ${t('insufficient_balance')}\n\n` +
+            `رصيد SOL الخاص بك: ${solBalance.toFixed(6)} SOL\n` +
+            `المبلغ المرسل: ${numAmount.toFixed(6)} SOL\n` +
+            `رسوم الشبكة: ${networkFee.toFixed(6)} SOL\n` +
+            `رسوم الخدمة: ${serviceFee.toFixed(6)} SOL\n` +
+            (rentExemption > 0 ? `رسوم إنشاء حساب: ${rentExemption.toFixed(6)} SOL\n` : '') +
+            `\nالإجمالي المطلوب: ${requiredTotal.toFixed(6)} SOL`
           );
           return;
         }
@@ -328,26 +351,26 @@ export default function SendScreen() {
         if (numAmount > balance) {
           Alert.alert(
             t('error'),
-            `${t('insufficient_token_balance')}\n\n` +
-            `${t('balance')} ${currency}: ${balance.toFixed(6)}\n` +
-            `${t('amount_to_send')}: ${numAmount.toFixed(6)}`
+            `🚫 ${t('insufficient_token_balance')}\n\n` +
+            `رصيد ${currency} الخاص بك: ${balance.toFixed(6)}\n` +
+            `المبلغ المرسل: ${numAmount.toFixed(6)} ${currency}`
           );
           return;
         }
         
-        // التحقق من رصيد SOL للرسوم
+        // التحقق من رصيد SOL للرسوم فقط
         if (totalFee > solBalance) {
           Alert.alert(
             t('error'),
-            `${t('insufficient_sol_for_fees')}\n\n` +
-            `${t('required_fees')}: ${totalFee.toFixed(6)} SOL\n` +
-            `${t('your_sol_balance')}: ${solBalance.toFixed(6)} SOL`
+            `🚫 ${t('insufficient_sol_for_fees')}\n\n` +
+            `الرسوم المطلوبة: ${totalFee.toFixed(6)} SOL\n` +
+            `رصيد SOL الخاص بك: ${solBalance.toFixed(6)} SOL`
           );
           return;
         }
       }
       
-      // المتابعة للإرسال
+      // ✅ كل التحققات صحيحة - المتابعة للإرسال
       setLoading(true);
       await proceedWithSend(numAmount, totalFee, currentToken);
       
@@ -361,7 +384,7 @@ export default function SendScreen() {
     }
   };
 
-  // متابعة الإرسال
+  // ✅ متابعة الإرسال - مضمون
   const proceedWithSend = async (amount, totalFee, token) => {
     try {
       const keypair = await getKeypair();
@@ -369,7 +392,10 @@ export default function SendScreen() {
       const toPubkey = new web3.PublicKey(recipient);
       const feeCollectorPubkey = new web3.PublicKey(FEE_COLLECTOR_ADDRESS);
       
-      // إنشاء اتصال
+      console.log(`📍 الإرسال من: ${fromPubkey.toBase58()}`);
+      console.log(`📍 الإرسال إلى: ${toPubkey.toBase58()}`);
+      
+      // إنشاء اتصال موثوق
       const connection = new web3.Connection('https://api.mainnet-beta.solana.com', 'confirmed');
       const { blockhash, lastValidBlockHeight } = await getLatestBlockhash();
       
@@ -377,7 +403,7 @@ export default function SendScreen() {
       const serviceFee = networkFee * SERVICE_FEE_PERCENTAGE;
       
       if (token.symbol === 'SOL') {
-        console.log('🔄 إرسال SOL...');
+        console.log(`🔄 إرسال ${amount} SOL...`);
         
         const instructions = [];
         const lamportsToSend = Math.floor(amount * web3.LAMPORTS_PER_SOL);
@@ -394,6 +420,7 @@ export default function SendScreen() {
         // إضافة رسوم الإيجار للحساب الجديد
         if (recipientExists === false) {
           const rentLamports = Math.floor(RENT_EXEMPTION_AMOUNT * web3.LAMPORTS_PER_SOL);
+          console.log(`➕ إضافة رسوم إنشاء حساب: ${RENT_EXEMPTION_AMOUNT} SOL`);
           instructions.push(
             web3.SystemProgram.transfer({
               fromPubkey,
@@ -406,6 +433,7 @@ export default function SendScreen() {
         // رسوم الخدمة
         const serviceLamports = Math.floor(serviceFee * web3.LAMPORTS_PER_SOL);
         if (serviceLamports > 0) {
+          console.log(`➕ إضافة رسوم الخدمة: ${serviceFee} SOL`);
           instructions.push(
             web3.SystemProgram.transfer({
               fromPubkey,
@@ -421,6 +449,8 @@ export default function SendScreen() {
         transaction.recentBlockhash = blockhash;
         transaction.feePayer = fromPubkey;
         
+        console.log('🔐 جاري توقيع المعاملة...');
+        
         // التوقيع والإرسال
         transactionSignature = await web3.sendAndConfirmTransaction(
           connection,
@@ -429,12 +459,15 @@ export default function SendScreen() {
           {
             skipPreflight: false,
             commitment: 'confirmed',
-            preflightCommitment: 'confirmed'
+            preflightCommitment: 'confirmed',
+            maxRetries: 3
           }
         );
         
+        console.log('✅ معاملة SOL ناجحة:', transactionSignature);
+        
       } else if (token.mint) {
-        console.log(`🔄 إرسال ${token.symbol}...`);
+        console.log(`🔄 إرسال ${amount} ${token.symbol}...`);
         
         const mint = new web3.PublicKey(token.mint);
         const fromATA = await splToken.getAssociatedTokenAddress(mint, fromPubkey);
@@ -448,6 +481,7 @@ export default function SendScreen() {
         // إنشاء حساب التوكن للمستقبل إذا لزم
         const toAccountInfo = await connection.getAccountInfo(toATA);
         if (!toAccountInfo) {
+          console.log(`➕ إنشاء حساب توكن للمستقبل...`);
           instructions.push(
             splToken.createAssociatedTokenAccountInstruction(
               fromPubkey,
@@ -471,6 +505,7 @@ export default function SendScreen() {
         // رسوم الخدمة في SOL
         const serviceLamports = Math.floor(serviceFee * web3.LAMPORTS_PER_SOL);
         if (serviceLamports > 0) {
+          console.log(`➕ إضافة رسوم الخدمة: ${serviceFee} SOL`);
           instructions.push(
             web3.SystemProgram.transfer({
               fromPubkey,
@@ -486,6 +521,8 @@ export default function SendScreen() {
         transaction.recentBlockhash = blockhash;
         transaction.feePayer = fromPubkey;
         
+        console.log('🔐 جاري توقيع معاملة التوكن...');
+        
         // التوقيع والإرسال
         transactionSignature = await web3.sendAndConfirmTransaction(
           connection,
@@ -493,14 +530,15 @@ export default function SendScreen() {
           [keypair],
           {
             skipPreflight: false,
-            commitment: 'confirmed'
+            commitment: 'confirmed',
+            maxRetries: 3
           }
         );
+        
+        console.log(`✅ معاملة ${token.symbol} ناجحة:`, transactionSignature);
       }
       
-      console.log('✅ Transaction successful:', transactionSignature);
-      
-      // تسجيل المعاملة
+      // ✅ تسجيل المعاملة
       await logTransaction({
         type: 'send',
         to: recipient,
@@ -514,19 +552,20 @@ export default function SendScreen() {
         status: 'completed'
       });
       
-      // رسالة النجاح
+      // ✅ رسالة النجاح
       Alert.alert(
         t('success'),
-        `✅ ${t('sent_successfully')}: ${amount} ${token.symbol}\n\n` +
-        `${t('transaction_id')}: ${transactionSignature?.substring(0, 16)}...\n` +
-        `${t('fee_details_label')}:\n` +
+        `✅ ${t('sent_successfully')}\n\n` +
+        `المبلغ: ${amount} ${token.symbol}\n` +
+        `إلى: ${recipient.substring(0, 10)}...\n` +
+        `رقم المعاملة: ${transactionSignature?.substring(0, 20)}...\n\n` +
+        `💳 تفاصيل الرسوم:\n` +
         `• ${t('network_fee')}: ${networkFee.toFixed(6)} SOL\n` +
         `• ${t('service_fee')}: ${serviceFee.toFixed(6)} SOL\n` +
-        `• ${t('total')}: ${totalFee.toFixed(6)} SOL\n\n` +
+        `• ${t('total')}: ${totalFee.toFixed(6)} SOL\n` +
         (recipientExists === false && currency === 'SOL' 
-          ? `${t('rent_exempt_fee')}: ${RENT_EXEMPTION_AMOUNT.toFixed(6)} SOL\n\n`
-          : '') +
-        `${t('fees_paid_in_sol')}`,
+          ? `\n📝 ${t('rent_exempt_fee')}: ${RENT_EXEMPTION_AMOUNT.toFixed(6)} SOL\n`
+          : ''),
         [{
           text: t('ok'),
           onPress: () => {
@@ -540,7 +579,7 @@ export default function SendScreen() {
       );
       
     } catch (err) {
-      console.error('❌ Transaction failed:', err);
+      console.error('❌ فشل المعاملة:', err);
       setLoading(false);
       
       // تسجيل الفشل
@@ -588,8 +627,10 @@ export default function SendScreen() {
       const maxAvailable = balance - totalFee - rentExemption;
       const safeMax = Math.max(0, maxAvailable);
       setAmount(safeMax.toFixed(currentToken.decimals || 6));
+      console.log(`💰 الحد الأقصى لـ SOL: ${balance} - ${totalFee} - ${rentExemption} = ${safeMax}`);
     } else {
       setAmount(balance.toFixed(currentToken.decimals || 6));
+      console.log(`💰 الحد الأقصى لـ ${currentToken.symbol}: ${balance}`);
     }
   };
 
@@ -599,6 +640,7 @@ export default function SendScreen() {
       const text = await Clipboard.getString();
       if (text) {
         setRecipient(text.trim());
+        console.log(`📋 تم لصق العنوان: ${text.substring(0, 15)}...`);
       }
     } catch (error) {
       console.warn('Failed to paste:', error);
@@ -968,7 +1010,7 @@ export default function SendScreen() {
   );
 }
 
-// الأنماط (نفسها بدون تغيير)
+// الأنماط
 const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
