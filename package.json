@@ -27,7 +27,7 @@
     "ed25519-hd-key": "^1.3.0",
     "events": "^3.3.0",
     "expo": "~54.0.33",
-    "expo-clipboard": "~8.0.7",
+    "expo-clipboard": "~8.0.8",
     "expo-crypto": "^15.0.8",
     "expo-device": "~8.0.9",
     "expo-font": "~14.0.11",

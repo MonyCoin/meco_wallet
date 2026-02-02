@@ -26,6 +26,7 @@ const FEE_COLLECTOR_ADDRESS = 'HXkEZSKictbSYan9ZxQGaHpFrbA4eLDyNtEDxVBkdFy6';
 // Dynamic network fees + service fees
 let DYNAMIC_FEE = 0.001;
 const SERVICE_FEE_PERCENTAGE = 0.1; // 10% of network fees go to developer
+const RENT_EXEMPTION_AMOUNT = 0.00203928; // Minimum SOL required for new account
 
 // Base tokens
 const BASE_TOKENS = [
@@ -64,54 +65,108 @@ const BASE_TOKENS = [
 ];
 
 // =============================================
-// ✅ CoinGecko API Functions
+// ✅ Enhanced Solana Connection
 // =============================================
-const fetchPrices = async () => {
-  try {
-    const coinIds = ['solana', 'tether', 'usd-coin'];
-    const response = await fetch(
-      `https://api.coingecko.com/api/v3/simple/price?ids=${coinIds.join(',')}&vs_currencies=usd`
-    );
-    const data = await response.json();
-    
-    return {
-      SOL: { price: data.solana?.usd || 90, source: 'CoinGecko' },
-      USDT: { price: data.tether?.usd || 1, source: 'CoinGecko' },
-      USDC: { price: data['usd-coin']?.usd || 1, source: 'CoinGecko' },
-      MECO: { price: 0.00617, source: 'Fixed' },
-    };
-  } catch (error) {
-    console.error('❌ Error fetching prices from CoinGecko:', error);
-    return {
-      SOL: { price: 90, source: 'Default' },
-      USDT: { price: 1, source: 'Default' },
-      USDC: { price: 1, source: 'Default' },
-      MECO: { price: 0.00617, source: 'Fixed' },
-    };
+const createConnection = async () => {
+  const endpoints = [
+    'https://api.mainnet-beta.solana.com',
+    'https://solana-api.projectserum.com',
+    'https://rpc.ankr.com/solana',
+    'https://rpc.helius.xyz/?api-key=886a8252-15e3-4eef-bc26-64bd552dded0'
+  ];
+
+  for (const endpoint of endpoints) {
+    try {
+      const conn = new web3.Connection(endpoint, {
+        commitment: 'confirmed',
+        confirmTransactionInitialTimeout: 60000,
+        wsEndpoint: endpoint.replace('https', 'wss')
+      });
+      
+      // Test connection
+      const version = await conn.getVersion();
+      console.log(`✅ Connected to ${endpoint} - Version: ${JSON.stringify(version)}`);
+      return conn;
+    } catch (error) {
+      console.warn(`❌ Failed to connect to ${endpoint}:`, error.message);
+      continue;
+    }
   }
+  
+  // Fallback to default
+  console.warn('⚠️ Using default connection after all endpoints failed');
+  return new web3.Connection('https://api.mainnet-beta.solana.com', 'confirmed');
 };
 
-const getTokens = async () => {
-  return BASE_TOKENS.map(token => ({
-    address: token.mint,
-    symbol: token.symbol,
-    name: token.name,
-    decimals: token.decimals,
-    logoURI: token.logoURI,
-    mint: token.mint,
-  }));
-};
-
+// =============================================
+// ✅ Validation Functions
+// =============================================
 async function isValidSolanaAddress(address) {
+  if (!address || typeof address !== 'string') return false;
+  
+  // Basic validation
+  if (address.length < 32 || address.length > 44) return false;
+  
   try {
     const pubKey = new web3.PublicKey(address);
+    // Additional check: verify it's on the ed25519 curve
     return web3.PublicKey.isOnCurve(pubKey);
   } catch {
     return false;
   }
 }
 
-// التحقق من التواقيع
+const validatePrivateKey = async () => {
+  try {
+    const secretKeyStr = await SecureStore.getItemAsync('wallet_private_key');
+    if (!secretKeyStr) {
+      console.error('❌ المفتاح الخاص غير موجود في SecureStore');
+      return { valid: false, error: 'Missing private key' };
+    }
+
+    let parsedKey;
+    try {
+      if (secretKeyStr.startsWith('[')) {
+        parsedKey = new Uint8Array(JSON.parse(secretKeyStr));
+      } else {
+        parsedKey = bs58.decode(secretKeyStr);
+      }
+    } catch (error) {
+      console.error('❌ فشل في تحليل المفتاح الخاص:', error);
+      return { valid: false, error: 'Invalid private key format' };
+    }
+
+    if (parsedKey.length !== 64) {
+      console.error(`❌ طول المفتاح غير صحيح: ${parsedKey.length}`);
+      return { valid: false, error: 'Invalid private key length' };
+    }
+
+    const keypair = web3.Keypair.fromSecretKey(parsedKey);
+    const fromPubkey = keypair.publicKey;
+    const storedPubkey = await SecureStore.getItemAsync('wallet_public_key');
+    
+    console.log('🔑 Public key validation:', {
+      stored: storedPubkey,
+      calculated: fromPubkey.toBase58(),
+      match: storedPubkey === fromPubkey.toBase58()
+    });
+    
+    if (!storedPubkey || storedPubkey !== fromPubkey.toBase58()) {
+      console.log('🔄 Updating stored public key...');
+      await SecureStore.setItemAsync('wallet_public_key', fromPubkey.toBase58());
+    }
+
+    console.log('✅ المفتاح الخاص صالح');
+    return { valid: true, keypair };
+  } catch (error) {
+    console.error('❌ خطأ في التحقق من المفتاح الخاص:', error);
+    return { valid: false, error: error.message };
+  }
+};
+
+// =============================================
+// ✅ Transaction Verification
+// =============================================
 const verifyTransactionSignatures = (tx, requiredSigners) => {
   try {
     console.log(`📌 التحقق من ${requiredSigners.length} موقع مطلوب`);
@@ -136,61 +191,9 @@ const verifyTransactionSignatures = (tx, requiredSigners) => {
   }
 };
 
-// وظيفة التحقق من المفتاح الخاص
-const validatePrivateKey = async () => {
-  try {
-    const secretKeyStr = await SecureStore.getItemAsync('wallet_private_key');
-    if (!secretKeyStr) {
-      console.error('❌ المفتاح الخاص غير موجود في SecureStore');
-      return { valid: false, error: 'Missing private key' };
-    }
-
-    let parsedKey;
-    try {
-      if (secretKeyStr.startsWith('[')) {
-        parsedKey = Uint8Array.from(JSON.parse(secretKeyStr));
-      } else {
-        parsedKey = bs58.decode(secretKeyStr);
-      }
-    } catch (error) {
-      console.error('❌ فشل في تحليل المفتاح الخاص:', error);
-      return { valid: false, error: 'Invalid private key format' };
-    }
-
-    if (parsedKey.length !== 64 && parsedKey.length !== 32) {
-      console.error(`❌ طول المفتاح غير صحيح: ${parsedKey.length}`);
-      return { valid: false, error: 'Invalid private key length' };
-    }
-
-    let keypair;
-    if (parsedKey.length === 64) {
-      keypair = web3.Keypair.fromSecretKey(parsedKey);
-    } else {
-      keypair = web3.Keypair.fromSeed(parsedKey.slice(0, 32));
-    }
-    
-    const fromPubkey = keypair.publicKey;
-    const storedPubkey = await SecureStore.getItemAsync('wallet_public_key');
-    
-    console.log('🔑 Public key validation:', {
-      stored: storedPubkey,
-      calculated: fromPubkey.toBase58(),
-      match: storedPubkey === fromPubkey.toBase58()
-    });
-    
-    if (!storedPubkey || storedPubkey !== fromPubkey.toBase58()) {
-      console.log('🔄 Updating stored public key...');
-      await SecureStore.setItemAsync('wallet_public_key', fromPubkey.toBase58());
-    }
-
-    console.log('✅ المفتاح الخاص صالح');
-    return { valid: true, keypair };
-  } catch (error) {
-    console.error('❌ خطأ في التحقق من المفتاح الخاص:', error);
-    return { valid: false, error: error.message };
-  }
-};
-
+// =============================================
+// ✅ Main Component
+// =============================================
 export default function SendScreen() {
   const { t } = useTranslation();
   const route = useRoute();
@@ -217,23 +220,17 @@ export default function SendScreen() {
   const [currency, setCurrency] = useState(preselected || 'SOL');
   const [modalVisible, setModalVisible] = useState(false);
   const [balance, setBalance] = useState(0);
-  const [solBalance, setSolBalance] = useState(0); // ✅ إضافة رصيد SOL منفصل
-  const [prices, setPrices] = useState({
-    'SOL': 185,
-    'USDT': 1,
-    'USDC': 1,
-    'MECO': 0.00617
-  });
+  const [solBalance, setSolBalance] = useState(0);
   const [availableTokens, setAvailableTokens] = useState([]);
   const [loading, setLoading] = useState(false);
   const [loadingTokens, setLoadingTokens] = useState(true);
   const [loadingPrices, setLoadingPrices] = useState(false);
-  const [networkFee, setNetworkFee] = useState(0.001);
+  const [networkFee, setNetworkFee] = useState(0.000005);
   const [connection, setConnection] = useState(null);
   const [fadeAnim] = useState(new Animated.Value(0));
-  const [recipientExists, setRecipientExists] = useState(true);
+  const [recipientExists, setRecipientExists] = useState(null);
 
-  // Calculate total fees (network + service)
+  // Calculate total fees
   const calculateTotalFee = () => {
     const serviceFee = networkFee * SERVICE_FEE_PERCENTAGE;
     return networkFee + serviceFee;
@@ -243,139 +240,47 @@ export default function SendScreen() {
   useEffect(() => {
     const initConnection = async () => {
       try {
-        const endpoints = [
-          'https://api.mainnet-beta.solana.com',
-          'https://solana-api.projectserum.com',
-          'https://rpc.ankr.com/solana'
-        ];
-        
-        let conn;
-        for (const endpoint of endpoints) {
-          try {
-            conn = new web3.Connection(endpoint, 'confirmed');
-            await conn.getVersion();
-            console.log(`✅ Connected to ${endpoint}`);
-            break;
-          } catch (error) {
-            console.log(`❌ Failed to connect to ${endpoint}`);
-            continue;
-          }
-        }
-        
-        if (!conn) {
-          conn = new web3.Connection('https://api.mainnet-beta.solana.com', 'confirmed');
-        }
-        
+        const conn = await createConnection();
         setConnection(conn);
       } catch (error) {
         console.error('Failed to initialize connection:', error);
-        const conn = new web3.Connection('https://api.mainnet-beta.solana.com', 'confirmed');
-        setConnection(conn);
+        Alert.alert(t('error'), t('connection_failed'));
       }
     };
     initConnection();
   }, []);
 
-  // Update prices periodically
-  useEffect(() => {
-    const updatePrices = async () => {
-      try {
-        setLoadingPrices(true);
-        const priceData = await fetchPrices();
-        console.log('📊 Prices fetched:', priceData);
-        
-        if (priceData && typeof priceData === 'object') {
-          const mergedPrices = {
-            'SOL': 185,
-            'USDT': 1,
-            'USDC': 1,
-            'MECO': 0.00617,
-            ...priceData
-          };
-          const extractedPrices = {};
-          Object.keys(mergedPrices).forEach(key => {
-            if (mergedPrices[key] && typeof mergedPrices[key] === 'object' && 'price' in mergedPrices[key]) {
-              extractedPrices[key] = mergedPrices[key].price;
-            } else {
-              extractedPrices[key] = mergedPrices[key];
-            }
-          });
-          setPrices(extractedPrices);
-        } else {
-          console.warn('⚠️ Invalid price data received');
-        }
-      } catch (error) {
-        console.warn('Failed to update prices:', error);
-        setPrices({
-          'SOL': 185,
-          'USDT': 1,
-          'USDC': 1,
-          'MECO': 0.00617
-        });
-      } finally {
-        setLoadingPrices(false);
-      }
-    };
-    
-    updatePrices();
-    const interval = setInterval(updatePrices, 30000);
-    return () => clearInterval(interval);
-  }, []);
-
-  // Update network fees periodically
-  useEffect(() => {
-    const updateNetworkFee = async () => {
-      try {
-        if (!connection) return;
-        
-        let fee = 0.001;
-        
-        try {
-          const fees = await connection.getRecentPrioritizationFees?.();
-          if (fees && fees.length > 0) {
-            const totalFees = fees.reduce((sum, f) => sum + f.prioritizationFee, 0);
-            fee = (totalFees / fees.length) / 1e9;
-          }
-        } catch (error) {
-          console.log('⚠️ Using default network fee');
-        }
-        
-        const minFee = 0.000005;
-        const maxFee = 0.01;
-        fee = Math.max(minFee, Math.min(fee, maxFee));
-        
-        setNetworkFee(fee);
-        DYNAMIC_FEE = fee;
-      } catch (error) {
-        console.warn('Failed to fetch network fee:', error);
-        setNetworkFee(0.001);
-      }
-    };
-    
-    updateNetworkFee();
-    const interval = setInterval(updateNetworkFee, 60000);
-    return () => clearInterval(interval);
-  }, [connection]);
-
   // Check recipient account
   useEffect(() => {
     const checkRecipientAccount = async () => {
-      if (recipient && connection) {
-        try {
-          const recipientInfo = await connection.getAccountInfo(new web3.PublicKey(recipient));
-          setRecipientExists(!!recipientInfo);
-          console.log(`📌 Recipient account exists: ${!!recipientInfo}`);
-        } catch (error) {
-          console.warn('Could not check recipient account:', error);
-          setRecipientExists(true);
-        }
+      if (!recipient || !connection) {
+        setRecipientExists(null);
+        return;
+      }
+
+      // Validate address first
+      if (!(await isValidSolanaAddress(recipient))) {
+        setRecipientExists(false);
+        return;
+      }
+
+      try {
+        const recipientPubkey = new web3.PublicKey(recipient);
+        const recipientInfo = await connection.getAccountInfo(recipientPubkey);
+        const exists = !!recipientInfo;
+        setRecipientExists(exists);
+        console.log(`📌 Recipient account exists: ${exists}`);
+      } catch (error) {
+        console.warn('Could not check recipient account:', error);
+        setRecipientExists(null);
       }
     };
-    
+
     const timeoutId = setTimeout(checkRecipientAccount, 1000);
     return () => clearTimeout(timeoutId);
   }, [recipient, connection]);
 
+  // Initialize component
   useEffect(() => {
     Animated.timing(fadeAnim, {
       toValue: 1,
@@ -386,21 +291,20 @@ export default function SendScreen() {
     loadTokensAndPrices();
   }, []);
 
-  // ✅ تحديث: تحميل رصيد العملة ورصيد SOL معاً
+  // Load balances when currency changes
   useEffect(() => {
     if (currency) {
       loadAllBalances();
     }
   }, [currency]);
 
-  // ✅ تحديث: تحميل جميع الأرصدة
+  // Load all balances
   async function loadAllBalances() {
     try {
-      // تحميل رصيد العملة المحددة
       if (currency === 'SOL') {
         const sol = await getSolBalance();
         setBalance(sol || 0);
-        setSolBalance(sol || 0); // رصيد SOL هو نفسه
+        setSolBalance(sol || 0);
       } else {
         const currentToken = availableTokens.find(t => t.symbol === currency);
         if (currentToken?.mint) {
@@ -410,7 +314,6 @@ export default function SendScreen() {
           setBalance(0);
         }
         
-        // تحميل رصيد SOL منفصل
         const sol = await getSolBalance();
         setSolBalance(sol || 0);
       }
@@ -421,79 +324,41 @@ export default function SendScreen() {
     }
   }
 
+  // Load tokens and prices
   async function loadTokensAndPrices() {
     try {
       setLoadingTokens(true);
       
-      let tokenList = [];
-      try {
-        tokenList = await getTokens();
-        if (!Array.isArray(tokenList)) {
-          tokenList = [];
-        }
-      } catch (error) {
-        console.log('⚠️ Using base token list');
-        tokenList = [];
-      }
+      const tokensWithIcons = BASE_TOKENS.map(t => ({ 
+        ...t, 
+        uniqueKey: t.mint || `base_${t.symbol}`,
+        userBalance: 0,
+        hasBalance: false 
+      }));
       
-      const baseSymbols = BASE_TOKENS.map(t => t.symbol);
-      const existingSymbols = new Set(tokenList.map(t => t.symbol));
-      
-      BASE_TOKENS.forEach(baseToken => {
-        if (!existingSymbols.has(baseToken.symbol)) {
-          tokenList.push({
-            ...baseToken,
-            address: baseToken.mint,
-            decimals: baseToken.decimals
-          });
-        }
-      });
-      
+      // Load user balances
       const pub = await SecureStore.getItemAsync('wallet_public_key');
-      let userBalances = {};
-      
       if (pub) {
         try {
           const solBalance = await getSolBalance();
-          userBalances.SOL = solBalance || 0;
+          const tokenIndex = tokensWithIcons.findIndex(t => t.symbol === 'SOL');
+          if (tokenIndex !== -1) {
+            tokensWithIcons[tokenIndex].userBalance = solBalance || 0;
+            tokensWithIcons[tokenIndex].hasBalance = (solBalance || 0) > 0;
+          }
           
-          const tokens = await getTokenAccounts();
-          tokens.forEach(token => {
-            const baseToken = BASE_TOKENS.find(t => t.mint === token.mint);
-            if (baseToken) {
-              userBalances[baseToken.symbol] = token.amount;
-            }
-          });
-          
+          // Load MECO balance
           const mecoMint = '7hBNyFfwYTv65z3ZudMAyKBw3BLMKxyKXsr5xM51Za4i';
           const mecoBalance = await getTokenBalance(mecoMint);
-          userBalances.MECO = mecoBalance || 0;
+          const mecoIndex = tokensWithIcons.findIndex(t => t.symbol === 'MECO');
+          if (mecoIndex !== -1) {
+            tokensWithIcons[mecoIndex].userBalance = mecoBalance || 0;
+            tokensWithIcons[mecoIndex].hasBalance = (mecoBalance || 0) > 0;
+          }
         } catch (err) {
           console.warn('Failed to load user balances:', err);
         }
       }
-      
-      const uniqueTokensMap = new Map();
-      
-      tokenList.forEach(token => {
-        const uniqueKey = token.mint || `${token.symbol}_${token.name}`;
-        
-        if (!uniqueTokensMap.has(uniqueKey)) {
-          const baseToken = BASE_TOKENS.find(t => t.symbol === token.symbol);
-          const userBalance = userBalances[token.symbol] || 0;
-          
-          uniqueTokensMap.set(uniqueKey, {
-            ...token,
-            uniqueKey: uniqueKey,
-            icon: baseToken?.icon || 'help-circle',
-            logoURI: baseToken?.logoURI || token.logoURI,
-            userBalance: userBalance,
-            hasBalance: userBalance > 0
-          });
-        }
-      });
-      
-      const tokensWithIcons = Array.from(uniqueTokensMap.values());
       
       setAvailableTokens(tokensWithIcons);
       
@@ -510,122 +375,119 @@ export default function SendScreen() {
     }
   }
 
+  // Get current token
   const getCurrentToken = () => {
     return availableTokens.find(token => token.symbol === currency) || BASE_TOKENS[0];
   };
 
-  const getUsdValue = (amount, symbol) => {
-    const price = prices[symbol] || 0;
-    const value = (parseFloat(amount || 0) * price);
-    return isNaN(value) ? '0.00' : value.toFixed(2);
-  };
-
+  // Handle send button press
   const handleSend = async () => {
     try {
       console.log('🔄 Starting send process...');
       
+      // Validate private key
       const keyValidation = await validatePrivateKey();
       if (!keyValidation.valid) {
         Alert.alert(t('error'), t('invalid_wallet_key') || 'مفتاح المحفظة غير صالح. يرجى التحقق من الإعدادات.');
         return;
       }
 
+      // Basic validation
       if (!recipient || !amount) {
         Alert.alert(t('error'), t('fill_fields'));
         return;
       }
 
-      if (!(await isValidSolanaAddress(recipient))) {
+      // Validate recipient address
+      const isValidAddress = await isValidSolanaAddress(recipient);
+      if (!isValidAddress) {
         Alert.alert(t('error'), t('invalid_address'));
         return;
       }
 
+      // Check if sending to self
       const myAddress = await SecureStore.getItemAsync('wallet_public_key');
       if (recipient === myAddress) {
         Alert.alert(t('error'), t('cannot_send_to_self'));
         return;
       }
 
+      // Validate amount
       const num = parseFloat(amount);
       if (isNaN(num) || num <= 0) {
         Alert.alert(t('error'), t('amount_must_be_positive'));
         return;
       }
 
-      // ✅ تحديث: تحميل جميع الأرصدة
+      // Refresh balances
       await loadAllBalances();
       
       const totalFee = calculateTotalFee();
+      const serviceFee = networkFee * SERVICE_FEE_PERCENTAGE;
       
-      // ✅ إصلاح: حساب المبلغ الإجمالي بطريقة صحيحة
-      let totalAmount = num;
-      let totalSolRequired = totalFee; // المطلوب من SOL للرسوم
+      // Calculate required amounts
+      let requiredSol = totalFee;
+      let totalRequired = num;
       
-      // إضافة رسوم الرانت للحسابات الجديدة (فقط للـSOL)
-      let rentExemptAmount = 0;
-      if (currency === 'SOL' && !recipientExists) {
-        rentExemptAmount = 0.002;
-        totalAmount += rentExemptAmount;
-        console.log(`📌 Adding rent exempt amount: ${rentExemptAmount} SOL`);
+      // If sending SOL to new account, add rent exemption
+      if (currency === 'SOL' && recipientExists === false) {
+        totalRequired += RENT_EXEMPTION_AMOUNT;
+        requiredSol += RENT_EXEMPTION_AMOUNT;
       }
-      
+
       console.log('💰 Balance check:', {
+        currency,
+        amount: num,
         balance,
         solBalance,
-        num,
         totalFee,
-        rentExemptAmount,
-        totalAmount,
-        currency
+        requiredSol,
+        recipientExists,
+        rentExemption: currency === 'SOL' && recipientExists === false ? RENT_EXEMPTION_AMOUNT : 0
       });
-      
-      // ✅ إصلاح: التحقق من الأرصدة بطريقة صحيحة
-      let errorMessage = '';
-      
+
+      // Check balances
       if (currency === 'SOL') {
-        // التحقق من رصيد SOL للمبلغ والرسوم معاً
-        const requiredSol = totalAmount + totalFee;
-        if (requiredSol > solBalance) {
-          errorMessage = `${t('insufficient_balance')}\n\n`;
-          errorMessage += `${t('your_balance') || 'رصيد SOL الخاص بك'}: ${solBalance.toFixed(6)} SOL\n`;
-          errorMessage += `${t('amount_to_send') || 'المبلغ المراد إرساله'}: ${num.toFixed(6)} SOL\n`;
-          errorMessage += `${t('network_fee')}: ${networkFee.toFixed(6)} SOL\n`;
-          errorMessage += `${t('service_fee')}: ${(networkFee * SERVICE_FEE_PERCENTAGE).toFixed(6)} SOL\n`;
-          
-          if (rentExemptAmount > 0) {
-            errorMessage += `${t('rent_exempt_fee') || 'رسوم إنشاء الحساب'}: ${rentExemptAmount.toFixed(6)} SOL\n`;
-          }
-          
-          errorMessage += `\n${t('total_required') || 'المطلوب إجمالاً'}: ${requiredSol.toFixed(6)} SOL`;
-          
-          Alert.alert(t('error'), errorMessage);
+        // Check if user has enough SOL for amount + fees + rent
+        if (totalRequired + totalFee > solBalance) {
+          Alert.alert(
+            t('error'),
+            `${t('insufficient_balance')}\n\n` +
+            `${t('your_sol_balance') || 'رصيد SOL الخاص بك'}: ${solBalance.toFixed(6)} SOL\n` +
+            `${t('amount_to_send') || 'المبلغ المراد إرساله'}: ${num.toFixed(6)} SOL\n` +
+            `${t('network_fee')}: ${networkFee.toFixed(6)} SOL\n` +
+            `${t('service_fee')}: ${serviceFee.toFixed(6)} SOL\n` +
+            (recipientExists === false ? `${t('rent_exempt_fee') || 'رسوم إنشاء الحساب'}: ${RENT_EXEMPTION_AMOUNT.toFixed(6)} SOL\n` : '') +
+            `\n${t('total_required') || 'المطلوب إجمالاً'}: ${(totalRequired + totalFee).toFixed(6)} SOL`
+          );
           return;
         }
       } else {
-        // التحقق من رصيد العملة للمبلغ
+        // Check token balance
         if (num > balance) {
-          Alert.alert(t('error'), 
+          Alert.alert(
+            t('error'),
             `${t('insufficient_balance_for_token') || 'رصيد غير كافي'}\n\n` +
             `${t('your_balance') || 'رصيدك'}: ${balance.toFixed(6)} ${currency}\n` +
             `${t('amount_to_send') || 'المبلغ المراد إرساله'}: ${num.toFixed(6)} ${currency}`
           );
           return;
         }
-        
-        // ✅ إصلاح مهم: التحقق من رصيد SOL للرسوم فقط
+
+        // Check SOL balance for fees
         if (totalFee > solBalance) {
-          Alert.alert(t('error'), 
+          Alert.alert(
+            t('error'),
             `${t('insufficient_sol_for_fees') || 'رصيد SOL غير كافي للرسوم'}\n\n` +
             `${t('required_fees') || 'الرسوم المطلوبة'}: ${totalFee.toFixed(6)} SOL\n` +
-            `${t('your_sol_balance') || 'رصيد SOL الخاص بك'}: ${solBalance.toFixed(6)} SOL\n\n` +
-            `${t('fees_paid_in_sol_only') || 'الرسوم تدفع فقط بعملة SOL'}`
+            `${t('your_sol_balance') || 'رصيد SOL الخاص بك'}: ${solBalance.toFixed(6)} SOL`
           );
           return;
         }
       }
 
       setLoading(true);
-      await proceedWithSend(num, totalFee, rentExemptAmount, keyValidation.keypair);
+      await proceedWithSend(num, totalFee, keyValidation.keypair);
     } catch (err) {
       console.error('Send validation error:', err);
       setLoading(false);
@@ -633,8 +495,8 @@ export default function SendScreen() {
     }
   };
 
-  // ✅ إصلاح كامل: دالة إرسال المعاملة
-  const proceedWithSend = async (num, totalFee, rentExemptAmount, keypair) => {
+  // Main send function
+  const proceedWithSend = async (num, totalFee, keypair) => {
     try {
       console.log('🔄 بدء عملية الإرسال...');
       
@@ -646,39 +508,44 @@ export default function SendScreen() {
         throw new Error('اتصال الشبكة غير متاح');
       }
 
-      const storedPubkey = await SecureStore.getItemAsync('wallet_public_key');
-      console.log('🔑 Public key check:', {
-        stored: storedPubkey,
-        calculated: fromPubkey.toBase58(),
-        match: storedPubkey === fromPubkey.toBase58()
-      });
-
       const currentToken = getCurrentToken();
       const serviceFee = networkFee * SERVICE_FEE_PERCENTAGE;
-
       let transactionSignature;
 
       if (currency === 'SOL') {
         console.log('🔄 إرسال SOL...');
         
+        // Calculate lamports
         const lamportsToSend = Math.floor(num * 1e9);
         const serviceFeeLamports = Math.floor(serviceFee * 1e9);
-        const rentExemptLamports = Math.floor(rentExemptAmount * 1e9);
+        const networkFeeLamports = Math.floor(networkFee * 1e9);
+        const rentExemptLamports = recipientExists === false ? Math.floor(RENT_EXEMPTION_AMOUNT * 1e9) : 0;
+        
         const instructions = [];
 
-        // 1. التحويل الرئيسي
-        const totalLamports = lamportsToSend + rentExemptLamports;
-        if (totalLamports > 0) {
+        // Main transfer
+        if (lamportsToSend > 0) {
           instructions.push(
             web3.SystemProgram.transfer({
               fromPubkey: fromPubkey,
               toPubkey: toPubkey,
-              lamports: totalLamports,
+              lamports: lamportsToSend,
             })
           );
         }
 
-        // ✅ إصلاح: رسوم الخدمة دائماً بـ SOL
+        // Add rent exemption if needed
+        if (rentExemptLamports > 0) {
+          instructions.push(
+            web3.SystemProgram.transfer({
+              fromPubkey: fromPubkey,
+              toPubkey: toPubkey,
+              lamports: rentExemptLamports,
+            })
+          );
+        }
+
+        // Service fee
         if (serviceFeeLamports > 0) {
           instructions.push(
             web3.SystemProgram.transfer({
@@ -693,23 +560,26 @@ export default function SendScreen() {
           throw new Error('لا توجد تعليمات للإرسال');
         }
 
+        // Create transaction
         const tx = new web3.Transaction().add(...instructions);
         
+        // Get latest blockhash
         console.log('🔄 جاري الحصول على blockhash...');
         const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('confirmed');
         tx.recentBlockhash = blockhash;
         tx.feePayer = fromPubkey;
-        tx.lastValidBlockHeight = lastValidBlockHeight;
 
+        // Sign transaction
         console.log('🔄 جاري توقيع المعاملة...');
         tx.sign(keypair);
         
+        // Verify signatures
         const requiredSigners = [fromPubkey];
         if (!verifyTransactionSignatures(tx, requiredSigners)) {
           throw new Error('فشل في توقيع المعاملة');
         }
 
-        // محاكاة المعاملة أولاً
+        // Simulate transaction
         console.log('🔄 جاري محاكاة المعاملة...');
         try {
           const simulation = await connection.simulateTransaction(tx, {
@@ -722,7 +592,7 @@ export default function SendScreen() {
             console.error('❌ فشل محاكاة المعاملة:', errorMsg);
             
             if (errorMsg.includes('insufficient funds')) {
-              throw new Error('رصيد غير كافي للرانت والرسوم');
+              throw new Error('رصيد غير كافي');
             }
             throw new Error(`فشل المحاكاة: ${errorMsg}`);
           }
@@ -731,31 +601,19 @@ export default function SendScreen() {
           console.warn('⚠️ تحذير في المحاكاة:', simError.message);
         }
 
-        // إرسال المعاملة
+        // Send transaction
         console.log('🔄 جاري إرسال المعاملة...');
         const rawTransaction = tx.serialize();
         
-        try {
-          transactionSignature = await connection.sendRawTransaction(rawTransaction, {
-            skipPreflight: true,
-            preflightCommitment: 'confirmed',
-          });
-          console.log('✅ تم إرسال المعاملة:', transactionSignature);
-        } catch (sendError) {
-          console.warn('⚠️ المحاولة الأولى فشلت، جرب طريقة بديلة...', sendError);
-          
-          transactionSignature = await web3.sendAndConfirmTransaction(
-            connection,
-            tx,
-            [keypair],
-            {
-              commitment: 'confirmed',
-              skipPreflight: true,
-            }
-          );
-        }
+        transactionSignature = await connection.sendRawTransaction(rawTransaction, {
+          skipPreflight: false,
+          preflightCommitment: 'confirmed',
+          maxRetries: 3,
+        });
+        
+        console.log('✅ تم إرسال المعاملة:', transactionSignature);
 
-        // انتظار التأكيد
+        // Confirm transaction
         console.log('🔄 جاري انتظار تأكيد المعاملة...');
         const confirmation = await connection.confirmTransaction({
           signature: transactionSignature,
@@ -786,16 +644,26 @@ export default function SendScreen() {
         const toATAInfo = await connection.getAccountInfo(toATA);
         if (!toATAInfo) {
           instructions.push(
-            splToken.createAssociatedTokenAccountInstruction(fromPubkey, toATA, toPubkey, mint)
+            splToken.createAssociatedTokenAccountInstruction(
+              fromPubkey, 
+              toATA, 
+              toPubkey, 
+              mint
+            )
           );
         }
 
-        // ✅ إصلاح مهم: إرسال العملة فقط للمستلم (لا رسوم بالتوكن)
+        // Transfer token
         instructions.push(
-          splToken.createTransferInstruction(fromATA, toATA, fromPubkey, amountToSend)
+          splToken.createTransferInstruction(
+            fromATA, 
+            toATA, 
+            fromPubkey, 
+            amountToSend
+          )
         );
 
-        // ✅ إصلاح: رسوم الخدمة دائماً بـ SOL (ليس بالتوكن)
+        // Service fee in SOL
         const serviceFeeLamports = Math.floor(serviceFee * 1e9);
         if (serviceFeeLamports > 0) {
           instructions.push(
@@ -807,20 +675,22 @@ export default function SendScreen() {
           );
         }
 
+        // Create transaction
         const tx = new web3.Transaction().add(...instructions);
         
         const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('confirmed');
         tx.recentBlockhash = blockhash;
         tx.feePayer = fromPubkey;
-        tx.lastValidBlockHeight = lastValidBlockHeight;
         
+        // Sign transaction
         tx.sign(keypair);
 
+        // Verify signatures
         if (!verifyTransactionSignatures(tx, [fromPubkey])) {
           throw new Error('فشل التحقق من توقيع المعاملة');
         }
 
-        // Simulate transaction first
+        // Simulate transaction
         try {
           const simulation = await connection.simulateTransaction(tx, {
             replaceRecentBlockhash: true,
@@ -833,14 +703,17 @@ export default function SendScreen() {
           console.warn('Transaction simulation warning:', simError.message);
         }
 
+        // Send transaction
         const rawTransaction = tx.serialize();
         transactionSignature = await connection.sendRawTransaction(rawTransaction, {
-          skipPreflight: true,
+          skipPreflight: false,
           preflightCommitment: 'confirmed',
+          maxRetries: 3,
         });
         
         console.log('✅ Transaction sent, waiting for confirmation...');
         
+        // Confirm transaction
         await connection.confirmTransaction({
           signature: transactionSignature,
           blockhash: blockhash,
@@ -852,7 +725,7 @@ export default function SendScreen() {
         throw new Error('رمز غير صالح');
       }
 
-      // تسجيل المعاملة
+      // Log transaction
       await logTransaction({
         type: 'send',
         to: recipient,
@@ -865,10 +738,10 @@ export default function SendScreen() {
         transactionSignature: transactionSignature,
         timestamp: new Date().toISOString(),
         status: 'completed',
-        feeCurrency: 'SOL', // ✅ إضافة: تأكيد أن الرسوم دُفعت بـ SOL
+        feeCurrency: 'SOL',
       });
 
-      // إظهار رسالة النجاح
+      // Show success message
       Alert.alert(
         t('success'),
         `✅ ${t('sent_successfully')}: ${num} ${currency}\n\n` +
@@ -877,6 +750,9 @@ export default function SendScreen() {
         `• ${t('network_fee')}: ${networkFee.toFixed(6)} SOL\n` +
         `• ${t('service_fee')}: ${serviceFee.toFixed(6)} SOL\n` +
         `• ${t('total')}: ${totalFee.toFixed(6)} SOL\n\n` +
+        (recipientExists === false && currency === 'SOL' 
+          ? `${t('rent_exempt_fee') || 'رسوم إنشاء الحساب'}: ${RENT_EXEMPTION_AMOUNT.toFixed(6)} SOL\n\n`
+          : '') +
         `${t('fees_paid_in_sol') || 'تم دفع الرسوم بعملة SOL'}`,
         [
           {
@@ -886,7 +762,7 @@ export default function SendScreen() {
               setAmount('');
               setModalVisible(false);
               setLoading(false);
-              loadAllBalances(); // ✅ تحديث جميع الأرصدة
+              loadAllBalances();
             }
           }
         ]
@@ -896,6 +772,7 @@ export default function SendScreen() {
       console.error('❌ خطأ في إرسال المعاملة:', err);
       setLoading(false);
       
+      // Log failed transaction
       try {
         await logTransaction({
           type: 'send',
@@ -914,10 +791,11 @@ export default function SendScreen() {
         console.error('❌ فشل في تسجيل المعاملة:', logError);
       }
       
+      // Show error message
       let errorMessage = `${t('send_failed')}: ${err.message}`;
       
       if (err.message.includes('insufficient funds')) {
-        errorMessage = t('insufficient_balance_for_transaction') || 'رصيد غير كافي للتغطية على المبلغ والرسوم والرانت المطلوب للحساب الجديد';
+        errorMessage = t('insufficient_balance_for_transaction') || 'رصيد غير كافي';
       } else if (err.message.includes('Invalid private key')) {
         errorMessage = 'المفتاح الخاص غير صالح. يرجى التحقق من إعدادات المحفظة.';
       } else if (err.message.includes('signature')) {
@@ -926,14 +804,13 @@ export default function SendScreen() {
         errorMessage = 'انتهت صلاحية Blockhash. يرجى إعادة المحاولة.';
       } else if (err.message.includes('network connection')) {
         errorMessage = 'فشل الاتصال بالشبكة. تحقق من اتصال الإنترنت.';
-      } else if (err.message.includes('رصيد غير كافي للرانت')) {
-        errorMessage = t('rent_exempt_insufficient') || 'رصيد غير كافي لمتطلبات الرانت';
       }
       
       Alert.alert(t('error'), errorMessage);
     }
   };
 
+  // Handle max amount
   const handleMaxAmount = () => {
     if (balance > 0) {
       if (currency === 'SOL') {
@@ -941,16 +818,15 @@ export default function SendScreen() {
         const maxAmount = Math.max(0, balance - totalFee);
         setAmount(maxAmount.toFixed(6));
       } else {
-        // للعملات الأخرى، الحد الأقصى هو الرصيد الكامل (الرسوم تدفع من SOL)
         setAmount(balance.toFixed(6));
       }
     }
   };
 
+  // Handle paste address
   const handlePasteAddress = async () => {
     try {
-      const { Clipboard } = await import('expo-clipboard');
-      const text = await Clipboard.getStringAsync();
+      const text = await Clipboard.getString();
       if (text) {
         setRecipient(text.trim());
       }
@@ -959,6 +835,7 @@ export default function SendScreen() {
     }
   };
 
+  // Render token item
   const renderTokenItem = ({ item }) => {
     const isSelected = currency === item.symbol;
     const hasBalance = item.hasBalance || item.userBalance > 0;
@@ -1059,22 +936,7 @@ export default function SendScreen() {
               {balance?.toFixed(6)} {currency}
             </Text>
             
-            <View style={styles.balanceValue}>
-              {loadingPrices ? (
-                <View style={styles.priceLoading}>
-                  <ActivityIndicator size="small" color={primaryColor} />
-                  <Text style={[styles.priceLoadingText, { color: colors.textSecondary }]}>
-                    {t('calculating_value') || 'جاري حساب القيمة...'}
-                  </Text>
-                </View>
-              ) : (
-                <Text style={[styles.usdValue, { color: colors.textSecondary }]}>
-                  ≈ ${getUsdValue(balance.toString(), currency)} USD
-                </Text>
-              )}
-            </View>
-            
-            {/* ✅ إضافة: عرض رصيد SOL منفصل */}
+            {/* SOL Balance */}
             {currency !== 'SOL' && (
               <View style={styles.solBalanceContainer}>
                 <Text style={[styles.solBalanceLabel, { color: colors.textSecondary }]}>
@@ -1139,11 +1001,22 @@ export default function SendScreen() {
                 </TouchableOpacity>
               )}
             </View>
-            {recipient && !recipientExists && currency === 'SOL' && (
+            
+            {/* Address validation messages */}
+            {recipient && recipientExists === false && currency === 'SOL' && (
               <View style={[styles.recipientWarning, { backgroundColor: colors.warning + '20' }]}>
-                <Ionicons name="warning-outline" size={16} color={colors.warning} />
+                <Ionicons name="information-circle-outline" size={16} color={colors.warning} />
                 <Text style={[styles.recipientWarningText, { color: colors.warning }]}>
-                  ⓘ {t('new_account_warning') || 'هذا حساب جديد وسيتطلب مبلغ إضافي للرانت (حوالي 0.002 SOL)'}
+                  ⓘ {t('new_account_warning') || 'هذا حساب جديد وسيتطلب مبلغ إضافي للرانت (0.00203928 SOL)'}
+                </Text>
+              </View>
+            )}
+            
+            {recipient && recipientExists === false && currency !== 'SOL' && (
+              <View style={[styles.recipientWarning, { backgroundColor: colors.success + '20' }]}>
+                <Ionicons name="information-circle-outline" size={16} color={colors.success} />
+                <Text style={[styles.recipientWarningText, { color: colors.success }]}>
+                  ⓘ {t('new_token_account_warning') || 'سيتم إنشاء حساب توكن للمستقبل (لا يلزم رصيد إضافي)'}
                 </Text>
               </View>
             )}
@@ -1174,11 +1047,6 @@ export default function SendScreen() {
                 {currency}
               </Text>
             </View>
-            {amount && (
-              <Text style={[styles.usdAmount, { color: colors.textSecondary }]}>
-                ≈ ${getUsdValue(amount, currency)} USD
-              </Text>
-            )}
           </View>
 
           {/* Fee Info */}
@@ -1215,28 +1083,19 @@ export default function SendScreen() {
               </Text>
             </View>
             
-            {/* ✅ إضافة: تأكيد أن الرسوم تدفع بـ SOL فقط */}
-            {currency !== 'SOL' && (
-              <View style={[styles.feeNote, { backgroundColor: primaryColor + '10' }]}>
-                <Ionicons name="information-circle" size={16} color={primaryColor} />
-                <Text style={[styles.feeNoteText, { color: primaryColor }]}>
-                  ⓘ {t('all_fees_paid_in_sol') || 'جميع الرسوم تدفع فقط بعملة SOL'}
-                </Text>
-              </View>
-            )}
-            
-            {!recipientExists && currency === 'SOL' && (
+            {/* Rent exemption for new SOL accounts */}
+            {recipientExists === false && currency === 'SOL' && (
               <View style={styles.feeRow}>
                 <View style={styles.feeLabelContainer}>
                   <Text style={[styles.feeLabel, { color: colors.warning }]}>
                     {t('rent_exempt_fee') || 'رسوم إنشاء الحساب'}
                   </Text>
                   <Text style={[styles.feeSubLabel, { color: colors.warning }]}>
-                    {t('for_new_account') || 'لإنشاء حساب جديد'}
+                    {t('for_new_account') || 'لإنشاء حساب جديد (مرة واحدة)'}
                   </Text>
                 </View>
                 <Text style={[styles.feeValue, { color: colors.warning }]}>
-                  ~0.002 SOL
+                  {RENT_EXEMPTION_AMOUNT.toFixed(6)} SOL
                 </Text>
               </View>
             )}
@@ -1246,9 +1105,19 @@ export default function SendScreen() {
                 {t('total_fees')}
               </Text>
               <Text style={[styles.totalAmount, { color: primaryColor }]}>
-                {totalFee.toFixed(6)} SOL
+                {(totalFee + (recipientExists === false && currency === 'SOL' ? RENT_EXEMPTION_AMOUNT : 0)).toFixed(6)} SOL
               </Text>
             </View>
+            
+            {/* Fee payment notice */}
+            {currency !== 'SOL' && (
+              <View style={[styles.feeNote, { backgroundColor: primaryColor + '10' }]}>
+                <Ionicons name="information-circle" size={16} color={primaryColor} />
+                <Text style={[styles.feeNoteText, { color: primaryColor }]}>
+                  ⓘ {t('all_fees_paid_in_sol') || 'جميع الرسوم تدفع فقط بعملة SOL'}
+                </Text>
+              </View>
+            )}
           </View>
 
           {/* Send Button */}
@@ -1385,23 +1254,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginBottom: 4,
   },
-  balanceValue: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  usdValue: {
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  priceLoading: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  priceLoadingText: {
-    fontSize: 14,
-    marginLeft: 8,
-  },
-  // ✅ إضافة: تنسيق رصيد SOL
   solBalanceContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1471,6 +1323,7 @@ const styles = StyleSheet.create({
   recipientWarningText: {
     fontSize: 12,
     marginLeft: 6,
+    flex: 1,
   },
   amountHeader: {
     flexDirection: 'row',
@@ -1498,10 +1351,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     marginLeft: 8,
-  },
-  usdAmount: {
-    fontSize: 14,
-    marginTop: 8,
   },
   feeCard: {
     borderRadius: 16,
@@ -1539,13 +1388,12 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     textAlign: 'right',
   },
-  // ✅ إضافة: ملاحظة الرسوم
   feeNote: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 8,
     borderRadius: 8,
-    marginBottom: 10,
+    marginTop: 10,
   },
   feeNoteText: {
     fontSize: 12,
