@@ -1,200 +1,235 @@
-// services/heliusService.js - الإصدار النهائي مع إصلاح Rate Limiting
+// services/heliusService.js - النسخة النهائية المثبتة
 import * as SecureStore from 'expo-secure-store';
 import * as web3 from '@solana/web3.js';
 import * as splToken from '@solana/spl-token';
 
-// ✅ بسيط وموثوق: RPCs مع fallbacks
+// ✅ قائمة RPCs مع أولويات
 const RPC_ENDPOINTS = [
-  'https://api.mainnet-beta.solana.com',
-  'https://solana-api.projectserum.com',
-  'https://rpc.ankr.com/solana'
+  { url: 'https://api.mainnet-beta.solana.com', priority: 1 },
+  { url: 'https://solana-api.projectserum.com', priority: 2 },
+  { url: 'https://rpc.ankr.com/solana', priority: 3 }
 ];
 
-// نظام caching للأرصدة
-const BALANCE_CACHE = {
-  sol: { value: 0, timestamp: 0 },
-  tokens: {} // mintAddress -> { value, timestamp }
+// ✅ نظام Caching محسن
+const CACHE = {
+  sol: { balance: 0, timestamp: 0 },
+  tokens: new Map(),
+  blockhash: null,
+  blockhashTime: 0
 };
-const CACHE_DURATION = 60000; // 60 ثانية - زيادة المدة
 
-// تأخير ذكي لتجنب Rate Limiting
-export async function delay(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
+const CACHE_DURATION = 30000; // 30 ثانية
+const BLOCKHASH_DURATION = 30000; // 30 ثانية
 
-// الحصول على اتصال يعمل
-async function getWorkingConnection() {
-  for (const endpoint of RPC_ENDPOINTS) {
+// ✅ الحصول على اتصال يعمل
+async function getConnection() {
+  // ترتيب حسب الأولوية
+  const endpoints = [...RPC_ENDPOINTS].sort((a, b) => a.priority - b.priority);
+  
+  for (const { url } of endpoints) {
     try {
-      const connection = new web3.Connection(endpoint, {
+      const connection = new web3.Connection(url, {
         commitment: 'confirmed',
-        confirmTransactionInitialTimeout: 30000
+        confirmTransactionInitialTimeout: 60000,
+        disableRetryOnRateLimit: false,
+        wsEndpoint: url.replace('https://', 'wss://')
       });
       
-      // اختبار سريع للاتصال
+      // اختبار الاتصال السريع
+      const start = Date.now();
       await Promise.race([
         connection.getEpochInfo(),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000))
+        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 3000))
       ]);
       
-      console.log(`✅ Connected to: ${endpoint.split('//')[1]}`);
+      console.log(`✅ Connected to ${url.split('//')[1]} (${Date.now() - start}ms)`);
       return connection;
     } catch (error) {
-      console.warn(`❌ Failed to connect to ${endpoint}:`, error.message);
+      console.warn(`❌ Failed ${url}:`, error.message);
       continue;
     }
   }
   
-  throw new Error('All RPC endpoints failed');
+  throw new Error('جميع اتصالات RPC فشلت');
 }
 
-// =============================================
-// 📊 دالات الأرصدة الأساسية
-// =============================================
+// ✅ الحصول على أحدث blockhash مع caching
+export async function getLatestBlockhash(forceRefresh = false) {
+  try {
+    const now = Date.now();
+    
+    if (!forceRefresh && 
+        CACHE.blockhash && 
+        (now - CACHE.blockhashTime) < BLOCKHASH_DURATION) {
+      return CACHE.blockhash;
+    }
+    
+    const connection = await getConnection();
+    const blockhash = await connection.getLatestBlockhash('confirmed');
+    
+    CACHE.blockhash = blockhash;
+    CACHE.blockhashTime = now;
+    
+    console.log('✅ Blockhash cached:', blockhash.blockhash.substring(0, 16));
+    return blockhash;
+  } catch (error) {
+    console.warn('⚠️ Failed to get blockhash:', error.message);
+    return {
+      blockhash: '11111111111111111111111111111111',
+      lastValidBlockHeight: 0
+    };
+  }
+}
 
+// ✅ الحصول على رصيد SOL
 export async function getSolBalance(forceRefresh = false) {
   try {
     const now = Date.now();
-    const cache = BALANCE_CACHE.sol;
+    const cache = CACHE.sol;
     
-    // استخدام الكاش إذا كان حديثاً
-    if (!forceRefresh && cache && (now - cache.timestamp) < CACHE_DURATION) {
-      console.log(`✅ SOL (cached): ${cache.value.toFixed(6)}`);
-      return cache.value;
+    if (!forceRefresh && (now - cache.timestamp) < CACHE_DURATION) {
+      console.log(`💾 SOL (cached): ${cache.balance.toFixed(6)}`);
+      return cache.balance;
     }
-
-    const pubKey = await SecureStore.getItemAsync('wallet_public_key');
-    if (!pubKey) {
-      console.log('No wallet public key');
+    
+    const pubKeyStr = await SecureStore.getItemAsync('wallet_public_key');
+    if (!pubKeyStr) {
+      console.log('No public key found');
       return 0;
     }
-
-    // ✅ تأخير لتجنب Rate Limiting
-    await delay(1500);
     
-    const connection = await getWorkingConnection();
-    const balanceInLamports = await connection.getBalance(new web3.PublicKey(pubKey));
-    const balance = balanceInLamports / 1e9;
+    const connection = await getConnection();
+    const pubKey = new web3.PublicKey(pubKeyStr);
+    const balanceLamports = await connection.getBalance(pubKey);
+    const balance = balanceLamports / web3.LAMPORTS_PER_SOL;
     
-    // تحديث الكاش
-    BALANCE_CACHE.sol = { value: balance, timestamp: now };
+    CACHE.sol = { balance, timestamp: now };
+    console.log(`✅ SOL Balance: ${balance.toFixed(6)}`);
     
-    console.log(`✅ SOL Balance: ${balance.toFixed(6)} SOL`);
     return balance;
   } catch (error) {
     console.warn('⚠️ SOL balance error:', error.message);
-    return BALANCE_CACHE.sol.value || 0;
+    return CACHE.sol.balance || 0;
   }
 }
 
-// دالة getTokenAccounts المبسطة (لشاشات أخرى)
-export async function getTokenAccounts() {
-  console.log('ℹ️ getTokenAccounts: Simplified version');
-  return []; // إرجاع مصفوفة فارغة
-}
-
+// ✅ الحصول على رصيد التوكن
 export async function getTokenBalance(mintAddress, forceRefresh = false) {
   try {
     const now = Date.now();
-    const cacheKey = mintAddress;
-    const cache = BALANCE_CACHE.tokens[cacheKey];
+    const cache = CACHE.tokens.get(mintAddress);
     
-    // استخدام الكاش إذا كان حديثاً
     if (!forceRefresh && cache && (now - cache.timestamp) < CACHE_DURATION) {
-      console.log(`✅ Token ${mintAddress.substring(0, 8)} (cached): ${cache.value}`);
-      return cache.value;
+      console.log(`💾 Token ${mintAddress.substring(0, 8)} (cached): ${cache.balance}`);
+      return cache.balance;
     }
-
-    const pubKey = await SecureStore.getItemAsync('wallet_public_key');
-    if (!pubKey) {
+    
+    const pubKeyStr = await SecureStore.getItemAsync('wallet_public_key');
+    if (!pubKeyStr) {
       console.log('No public key for token balance');
       return 0;
     }
-
-    console.log(`🔄 Token balance for: ${mintAddress.substring(0, 8)}...`);
     
-    // ✅ تأخير عشوائي طويل لتجنب Rate Limiting
-    const randomDelay = Math.floor(Math.random() * 3000) + 2000;
-    await delay(randomDelay);
+    const connection = await getConnection();
+    const pubKey = new web3.PublicKey(pubKeyStr);
+    const mint = new web3.PublicKey(mintAddress);
+    
+    // البحث عن Associated Token Account
+    const ata = await splToken.getAssociatedTokenAddress(mint, pubKey);
     
     try {
-      const connection = await getWorkingConnection();
+      const accountInfo = await connection.getAccountInfo(ata);
       
-      const tokenAccounts = await connection.getParsedTokenAccountsByOwner(
-        new web3.PublicKey(pubKey),
-        { 
-          mint: new web3.PublicKey(mintAddress),
-          programId: splToken.TOKEN_PROGRAM_ID
-        }
-      );
-
-      if (tokenAccounts.value.length === 0) {
+      if (!accountInfo) {
         console.log(`📭 No token account for ${mintAddress.substring(0, 8)}`);
-        BALANCE_CACHE.tokens[cacheKey] = { value: 0, timestamp: now };
+        CACHE.tokens.set(mintAddress, { balance: 0, timestamp: now });
         return 0;
       }
-
-      const account = tokenAccounts.value[0];
-      const balance = account.account.data.parsed.info.tokenAmount.uiAmount || 0;
       
-      BALANCE_CACHE.tokens[cacheKey] = { value: balance, timestamp: now };
+      const tokenAccount = splToken.AccountLayout.decode(accountInfo.data);
+      const rawBalance = tokenAccount.amount;
       
+      // الحصول على decimal places
+      const mintInfo = await splToken.getMint(connection, mint);
+      const balance = Number(rawBalance) / Math.pow(10, mintInfo.decimals);
+      
+      CACHE.tokens.set(mintAddress, { balance, timestamp: now });
       console.log(`✅ Token ${mintAddress.substring(0, 8)}: ${balance}`);
-      return balance;
       
-    } catch (web3Error) {
-      console.warn(`⚠️ Token balance failed: ${web3Error.message}`);
-      return BALANCE_CACHE.tokens[cacheKey]?.value || 0;
+      return balance;
+    } catch (ataError) {
+      console.warn(`Token account error:`, ataError.message);
+      CACHE.tokens.set(mintAddress, { balance: 0, timestamp: now });
+      return 0;
     }
     
   } catch (error) {
-    console.warn(`⚠️ getTokenBalance error: ${error.message}`);
-    return BALANCE_CACHE.tokens[mintAddress]?.value || 0;
+    console.warn(`⚠️ Token balance error:`, error.message);
+    return CACHE.tokens.get(mintAddress)?.balance || 0;
   }
 }
 
-// =============================================
-// 🚀 دالات دعم شاشة Send
-// =============================================
+// ✅ الحصول على جميع التوكنات للمستخدم
+export async function getTokenAccounts() {
+  try {
+    const pubKeyStr = await SecureStore.getItemAsync('wallet_public_key');
+    if (!pubKeyStr) return [];
+    
+    const connection = await getConnection();
+    const pubKey = new web3.PublicKey(pubKeyStr);
+    
+    const tokenAccounts = await connection.getParsedTokenAccountsByOwner(
+      pubKey,
+      { programId: splToken.TOKEN_PROGRAM_ID }
+    );
+    
+    const accounts = tokenAccounts.value.map(account => ({
+      pubkey: account.pubkey.toBase58(),
+      mint: account.account.data.parsed.info.mint,
+      owner: account.account.data.parsed.info.owner,
+      amount: account.account.data.parsed.info.tokenAmount.uiAmount,
+      decimals: account.account.data.parsed.info.tokenAmount.decimals
+    }));
+    
+    console.log(`✅ Found ${accounts.length} token accounts`);
+    return accounts;
+  } catch (error) {
+    console.warn('⚠️ Token accounts error:', error.message);
+    return [];
+  }
+}
 
+// ✅ التحقق من عنوان Solana
 export async function validateSolanaAddress(address) {
   try {
-    // تحقق سريع من الطول والصيغة
     if (!address || typeof address !== 'string') {
-      return { isValid: false, exists: false, error: 'Invalid format' };
+      return { isValid: false, exists: false, error: 'تنسيق غير صالح' };
     }
     
-    if (address.length < 32 || address.length > 44) {
-      return { isValid: false, exists: false, error: 'Invalid length' };
-    }
-    
-    // تحقق من صيغة Base58
+    // تحقق من Base58
     const base58Regex = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
     if (!base58Regex.test(address)) {
-      return { isValid: false, exists: false, error: 'Invalid base58' };
+      return { isValid: false, exists: false, error: 'تنسيق Base58 غير صالح' };
     }
     
-    // تحقق من وجود الحساب
+    // التحقق من العنوان نفسه
     try {
-      const connection = await getWorkingConnection();
-      const accountInfo = await connection.getAccountInfo(new web3.PublicKey(address));
-      const exists = !!accountInfo;
-      
-      return {
-        isValid: true,
-        exists,
-        isExecutable: accountInfo?.executable || false,
-        lamports: accountInfo?.lamports || 0,
-        error: null
-      };
-    } catch (accountError) {
-      return {
-        isValid: true,
-        exists: false,
-        error: null
-      };
+      new web3.PublicKey(address);
+    } catch {
+      return { isValid: false, exists: false, error: 'عنوان Solana غير صالح' };
     }
     
+    // التحقق من وجود الحساب
+    const connection = await getConnection();
+    const accountInfo = await connection.getAccountInfo(new web3.PublicKey(address));
+    
+    return {
+      isValid: true,
+      exists: !!accountInfo,
+      isExecutable: accountInfo?.executable || false,
+      lamports: accountInfo?.lamports || 0,
+      error: null
+    };
   } catch (error) {
     console.warn('Address validation warning:', error.message);
     return {
@@ -205,85 +240,162 @@ export async function validateSolanaAddress(address) {
   }
 }
 
+// ✅ حساب رسوم الشبكة الحالية
 export async function getCurrentNetworkFee() {
   try {
-    await delay(1000); // تأخير قبل طلب الرسوم
+    const connection = await getConnection();
     
-    const connection = await getWorkingConnection();
-    const fees = await connection.getRecentPrioritizationFees();
+    // الحصول على رسوم الأولوية الأخيرة
+    const fees = await connection.getRecentPrioritizationFees?.();
     
     if (fees && fees.length > 0) {
-      const recentFees = fees.slice(0, Math.min(fees.length, 3));
-      const total = recentFees.reduce((sum, f) => sum + f.prioritizationFee, 0);
-      const average = total / recentFees.length;
+      const recent = fees.slice(0, Math.min(fees.length, 5));
+      const total = recent.reduce((sum, f) => sum + (f.prioritizationFee || 0), 0);
+      const average = total / recent.length;
       
-      const baseFee = average / 1e9;
-      const calculatedFee = Math.max(0.000005, Math.min(baseFee, 0.01));
+      // تحويل من microLamports إلى SOL
+      const feeInSol = average / 1_000_000 / web3.LAMPORTS_PER_SOL;
       
+      // حدود معقولة
+      const minFee = 0.000001; // 0.000001 SOL
+      const maxFee = 0.01;     // 0.01 SOL
+      
+      const calculatedFee = Math.max(minFee, Math.min(feeInSol, maxFee));
       console.log(`💰 Network fee: ${calculatedFee.toFixed(6)} SOL`);
+      
       return calculatedFee;
     }
     
-    return 0.000005; // Default
+    // Default fees based on recent network conditions
+    return 0.000005; // 0.000005 SOL (~$0.001)
   } catch (error) {
     console.warn('⚠️ Network fee error:', error.message);
     return 0.000005;
   }
 }
 
-export function clearBalanceCache() {
-  BALANCE_CACHE.sol = { value: 0, timestamp: 0 };
-  BALANCE_CACHE.tokens = {};
-  console.log('🧹 Balance cache cleared');
-}
-
-// =============================================
-// 🔧 دالات مساعدة
-// =============================================
-
-export async function getAccountInfo(publicKey) {
+// ✅ إرسال معاملة SOL
+export async function sendSolTransaction(fromKeypair, toAddress, amount, fee = 0.000005) {
   try {
-    await delay(1000);
-    const connection = await getWorkingConnection();
-    const accountInfo = await connection.getAccountInfo(new web3.PublicKey(publicKey));
+    const connection = await getConnection();
+    const { blockhash, lastValidBlockHeight } = await getLatestBlockhash();
     
-    if (!accountInfo) return null;
+    const transaction = new web3.Transaction().add(
+      web3.SystemProgram.transfer({
+        fromPubkey: fromKeypair.publicKey,
+        toPubkey: new web3.PublicKey(toAddress),
+        lamports: Math.floor(amount * web3.LAMPORTS_PER_SOL)
+      })
+    );
     
-    return {
-      value: {
-        executable: accountInfo.executable,
-        lamports: accountInfo.lamports,
-        owner: accountInfo.owner.toBase58()
+    transaction.recentBlockhash = blockhash;
+    transaction.feePayer = fromKeypair.publicKey;
+    
+    // التوقيع
+    const signedTx = await web3.sendAndConfirmTransaction(
+      connection,
+      transaction,
+      [fromKeypair],
+      {
+        commitment: 'confirmed',
+        skipPreflight: false,
+        maxRetries: 3,
+        preflightCommitment: 'confirmed'
       }
-    };
+    );
+    
+    console.log('✅ SOL transaction sent:', signedTx);
+    return signedTx;
   } catch (error) {
-    console.warn('Account info error:', error.message);
-    return null;
+    console.error('❌ SOL transaction failed:', error);
+    throw error;
   }
 }
 
-export async function getLatestBlockhash() {
+// ✅ إرسال معاملة توكن
+export async function sendTokenTransaction(fromKeypair, toAddress, mintAddress, amount) {
   try {
-    const connection = await getWorkingConnection();
-    return await connection.getLatestBlockhash('confirmed');
+    const connection = await getConnection();
+    const { blockhash } = await getLatestBlockhash();
+    
+    const mint = new web3.PublicKey(mintAddress);
+    const fromATA = await splToken.getAssociatedTokenAddress(mint, fromKeypair.publicKey);
+    const toATA = await splToken.getAssociatedTokenAddress(mint, new web3.PublicKey(toAddress));
+    
+    const mintInfo = await splToken.getMint(connection, mint);
+    const amountRaw = BigInt(Math.floor(amount * Math.pow(10, mintInfo.decimals)));
+    
+    const instructions = [];
+    
+    // إنشاء حساب التوكن للمستقبل إذا لم يكن موجوداً
+    const toAccountInfo = await connection.getAccountInfo(toATA);
+    if (!toAccountInfo) {
+      instructions.push(
+        splToken.createAssociatedTokenAccountInstruction(
+          fromKeypair.publicKey,
+          toATA,
+          new web3.PublicKey(toAddress),
+          mint
+        )
+      );
+    }
+    
+    // تعليمات التحويل
+    instructions.push(
+      splToken.createTransferInstruction(
+        fromATA,
+        toATA,
+        fromKeypair.publicKey,
+        amountRaw
+      )
+    );
+    
+    const transaction = new web3.Transaction().add(...instructions);
+    transaction.recentBlockhash = blockhash;
+    transaction.feePayer = fromKeypair.publicKey;
+    
+    const signedTx = await web3.sendAndConfirmTransaction(
+      connection,
+      transaction,
+      [fromKeypair],
+      {
+        commitment: 'confirmed',
+        skipPreflight: false,
+        maxRetries: 3
+      }
+    );
+    
+    console.log('✅ Token transaction sent:', signedTx);
+    return signedTx;
   } catch (error) {
-    console.warn('Blockhash error:', error.message);
-    return {
-      blockhash: '11111111111111111111111111111111',
-      lastValidBlockHeight: 0
-    };
+    console.error('❌ Token transaction failed:', error);
+    throw error;
   }
 }
 
-// ✅ التصدير الكامل
+// ✅ مسح الكاش
+export function clearBalanceCache() {
+  CACHE.sol = { balance: 0, timestamp: 0 };
+  CACHE.tokens.clear();
+  CACHE.blockhash = null;
+  CACHE.blockhashTime = 0;
+  console.log('🧹 Cache cleared');
+}
+
+// ✅ دالة تأخير مساعدة
+export function delay(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 export default {
   getSolBalance,
-  getTokenAccounts,
   getTokenBalance,
+  getTokenAccounts,
   validateSolanaAddress,
   getCurrentNetworkFee,
-  clearBalanceCache,
-  getAccountInfo,
   getLatestBlockhash,
+  sendSolTransaction,
+  sendTokenTransaction,
+  clearBalanceCache,
   delay
 };
