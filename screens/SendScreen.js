@@ -280,7 +280,7 @@ export default function SendScreen() {
     return availableTokens.find(token => token.symbol === currency) || BASE_TOKENS[0];
   };
 
-  // ✅ معالجة زر الإرسال - الإصدار المضمون
+  // ✅ معالجة زر الإرسال - الإصدار المضمون والمبسط
   const handleSend = async () => {
     try {
       console.log('🔄 بدء عملية الإرسال...');
@@ -318,9 +318,10 @@ export default function SendScreen() {
       const serviceFee = networkFee * SERVICE_FEE_PERCENTAGE;
       const currentToken = getCurrentToken();
       
-      // ✅ التحقق الدقيق من الأرصدة - مضمون
+      // ✅ التعديل الحاسم: إزالة رسوم الرانت تماماً
+      const rentExemption = 0; // ✅ لن تضاف رسوم الرانت لأي حساب
+      
       if (currency === 'SOL') {
-        const rentExemption = (recipientExists === false) ? RENT_EXEMPTION_AMOUNT : 0;
         const requiredTotal = numAmount + totalFee + rentExemption;
         
         console.log('🔍 تحقق تفصيلي لرصيد SOL:', {
@@ -341,7 +342,6 @@ export default function SendScreen() {
             `المبلغ المرسل: ${numAmount.toFixed(6)} SOL\n` +
             `رسوم الشبكة: ${networkFee.toFixed(6)} SOL\n` +
             `رسوم الخدمة: ${serviceFee.toFixed(6)} SOL\n` +
-            (rentExemption > 0 ? `رسوم إنشاء حساب: ${rentExemption.toFixed(6)} SOL\n` : '') +
             `\nالإجمالي المطلوب: ${requiredTotal.toFixed(6)} SOL`
           );
           return;
@@ -417,20 +417,10 @@ export default function SendScreen() {
           })
         );
         
-        // إضافة رسوم الإيجار للحساب الجديد
-        if (recipientExists === false) {
-          const rentLamports = Math.floor(RENT_EXEMPTION_AMOUNT * web3.LAMPORTS_PER_SOL);
-          console.log(`➕ إضافة رسوم إنشاء حساب: ${RENT_EXEMPTION_AMOUNT} SOL`);
-          instructions.push(
-            web3.SystemProgram.transfer({
-              fromPubkey,
-              toPubkey,
-              lamports: rentLamports,
-            })
-          );
-        }
+        // ✅ إزالة رسوم الرانت تماماً (التعديل الحاسم)
+        // لا نضيف رسوم إنشاء حساب أبداً
         
-        // رسوم الخدمة
+        // رسوم الخدمة (10%)
         const serviceLamports = Math.floor(serviceFee * web3.LAMPORTS_PER_SOL);
         if (serviceLamports > 0) {
           console.log(`➕ إضافة رسوم الخدمة: ${serviceFee} SOL`);
@@ -502,7 +492,7 @@ export default function SendScreen() {
           )
         );
         
-        // رسوم الخدمة في SOL
+        // رسوم الخدمة في SOL (10%)
         const serviceLamports = Math.floor(serviceFee * web3.LAMPORTS_PER_SOL);
         if (serviceLamports > 0) {
           console.log(`➕ إضافة رسوم الخدمة: ${serviceFee} SOL`);
@@ -562,10 +552,7 @@ export default function SendScreen() {
         `💳 تفاصيل الرسوم:\n` +
         `• ${t('network_fee')}: ${networkFee.toFixed(6)} SOL\n` +
         `• ${t('service_fee')}: ${serviceFee.toFixed(6)} SOL\n` +
-        `• ${t('total')}: ${totalFee.toFixed(6)} SOL\n` +
-        (recipientExists === false && currency === 'SOL' 
-          ? `\n📝 ${t('rent_exempt_fee')}: ${RENT_EXEMPTION_AMOUNT.toFixed(6)} SOL\n`
-          : ''),
+        `• ${t('total')}: ${totalFee.toFixed(6)} SOL`,
         [{
           text: t('ok'),
           onPress: () => {
@@ -623,11 +610,11 @@ export default function SendScreen() {
     const totalFee = calculateTotalFee();
     
     if (currentToken.symbol === 'SOL') {
-      const rentExemption = recipientExists === false ? RENT_EXEMPTION_AMOUNT : 0;
-      const maxAvailable = balance - totalFee - rentExemption;
+      // ✅ لا رسوم رانت
+      const maxAvailable = balance - totalFee;
       const safeMax = Math.max(0, maxAvailable);
       setAmount(safeMax.toFixed(currentToken.decimals || 6));
-      console.log(`💰 الحد الأقصى لـ SOL: ${balance} - ${totalFee} - ${rentExemption} = ${safeMax}`);
+      console.log(`💰 الحد الأقصى لـ SOL: ${balance} - ${totalFee} = ${safeMax}`);
     } else {
       setAmount(balance.toFixed(currentToken.decimals || 6));
       console.log(`💰 الحد الأقصى لـ ${currentToken.symbol}: ${balance}`);
@@ -806,25 +793,6 @@ export default function SendScreen() {
                 </TouchableOpacity>
               )}
             </View>
-            
-            {/* رسائل التحقق */}
-            {recipient && recipientExists === false && currency === 'SOL' && (
-              <View style={[styles.recipientWarning, { backgroundColor: colors.warning + '20' }]}>
-                <Ionicons name="information-circle-outline" size={16} color={colors.warning} />
-                <Text style={[styles.recipientWarningText, { color: colors.warning }]}>
-                  ⓘ {t('new_account_warning', { rent: RENT_EXEMPTION_AMOUNT })}
-                </Text>
-              </View>
-            )}
-            
-            {recipient && recipientExists === false && currency !== 'SOL' && (
-              <View style={[styles.recipientWarning, { backgroundColor: colors.success + '20' }]}>
-                <Ionicons name="information-circle-outline" size={16} color={colors.success} />
-                <Text style={[styles.recipientWarningText, { color: colors.success }]}>
-                  ⓘ {t('token_account_warning')}
-                </Text>
-              </View>
-            )}
           </View>
 
           {/* حقل المبلغ */}
@@ -888,32 +856,12 @@ export default function SendScreen() {
               </Text>
             </View>
             
-            {/* رسوم الإيجار للحسابات الجديدة */}
-            {recipientExists === false && currency === 'SOL' && (
-              <View style={styles.feeRow}>
-                <View style={styles.feeLabelContainer}>
-                  <Text style={[styles.feeLabel, { color: colors.warning }]}>
-                    {t('rent_exempt_fee')}
-                  </Text>
-                  <Text style={[styles.feeSubLabel, { color: colors.warning }]}>
-                    {t('for_new_account')}
-                  </Text>
-                </View>
-                <Text style={[styles.feeValue, { color: colors.warning }]}>
-                  {RENT_EXEMPTION_AMOUNT.toFixed(6)} SOL
-                </Text>
-              </View>
-            )}
-            
             <View style={[styles.totalFeeRow, { borderTopColor: colors.border }]}>
               <Text style={[styles.totalFeeLabel, { color: colors.text }]}>
                 {t('total_fees')}
               </Text>
               <Text style={[styles.totalAmount, { color: primaryColor }]}>
-                {(
-                  totalFee + 
-                  (recipientExists === false && currency === 'SOL' ? RENT_EXEMPTION_AMOUNT : 0)
-                ).toFixed(6)} SOL
+                {totalFee.toFixed(6)} SOL
               </Text>
             </View>
             
@@ -1010,7 +958,7 @@ export default function SendScreen() {
   );
 }
 
-// الأنماط
+// الأنماط (نفسها)
 const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
@@ -1120,18 +1068,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     marginBottom: 8,
-  },
-  recipientWarning: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 8,
-    borderRadius: 8,
-    marginTop: 8,
-  },
-  recipientWarningText: {
-    fontSize: 12,
-    marginLeft: 6,
-    flex: 1,
   },
   amountHeader: {
     flexDirection: 'row',

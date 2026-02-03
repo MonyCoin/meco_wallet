@@ -21,7 +21,7 @@ import { useTranslation } from 'react-i18next';
 import * as SecureStore from 'expo-secure-store';
 import { Ionicons } from '@expo/vector-icons';
 import { executeRealSwap } from '../services/transactionLogger';
-import { getSolBalance, getTokenAccounts } from '../services/heliusService';
+import { getSolBalance, getTokenBalance, getCurrentNetworkFee } from '../services/heliusService';
 
 const { width } = Dimensions.get('window');
 
@@ -60,6 +60,9 @@ const BASE_SWAP_TOKENS = [
     image: 'https://assets.coingecko.com/coins/images/6319/large/usdc.png'
   },
 ];
+
+// ✅ سقف أقصى للرسوم
+const MAX_NETWORK_FEE = 0.00001; // 0.00001 SOL كحد أقصى
 
 export default function SwapScreen() {
   const route = useRoute();
@@ -106,11 +109,9 @@ export default function SwapScreen() {
 
   const [fromToken, setFromToken] = useState('SOL');
   const [toToken, setToToken] = useState(() => {
-    // إذا كان الرمز المختار متاحاً للتبادل، استخدمه
     if (selectedToken?.swapAvailable) {
       return selectedToken.symbol;
     }
-    // وإلا استخدم MECO كافتراضي
     return 'MECO';
   });
   const [fromAmount, setFromAmount] = useState('');
@@ -121,36 +122,43 @@ export default function SwapScreen() {
   const [showToModal, setShowToModal] = useState(false);
   const [quote, setQuote] = useState(null);
   const [balances, setBalances] = useState({});
-  const [networkFee] = useState(0.0005);
+  const [networkFee, setNetworkFee] = useState(0.000005); // ✅ قيمة آمنة بدءية
   const [error, setError] = useState(null);
   const [tokenPrice, setTokenPrice] = useState(null);
-  const [realSolPrice, setRealSolPrice] = useState(115); // سعر SOL الحقيقي
+  const [realSolPrice, setRealSolPrice] = useState(115);
 
-  // 🔧 **إصلاح: جلب سعر SOL الحقيقي من CoinGecko**
+  // ✅ تحديث رسوم الشبكة مع سقف أقصى
+  const updateNetworkFee = async () => {
+    try {
+      let fee = await getCurrentNetworkFee();
+      
+      if (fee > MAX_NETWORK_FEE) {
+        console.warn(`⚠️ رسوم الشبكة مرتفعة ${fee.toFixed(6)}، تم تحديدها إلى ${MAX_NETWORK_FEE.toFixed(6)} SOL`);
+        fee = MAX_NETWORK_FEE;
+      }
+      
+      setNetworkFee(fee);
+      console.log(`💰 رسوم الشبكة في Swap: ${fee.toFixed(6)} SOL`);
+    } catch (error) {
+      console.warn('⚠️ Failed to update network fee, using safe value:', error.message);
+      setNetworkFee(0.000005);
+    }
+  };
+
+  // 🔧 جلب سعر SOL الحقيقي
   useEffect(() => {
     const fetchRealSolPrice = async () => {
       try {
-        console.log('🔍 جاري جلب سعر SOL الحقيقي من CoinGecko...');
         const response = await fetch(
           'https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd',
-          {
-            headers: {
-              'Accept': 'application/json',
-              'Content-Type': 'application/json',
-            },
-            timeout: 10000
-          }
+          { timeout: 10000 }
         );
         
-        if (!response.ok) {
-          console.warn('⚠️ تعذر جلب سعر SOL الحقيقي، استخدام القيمة الافتراضية');
-          return;
-        }
-        
-        const data = await response.json();
-        if (data.solana && data.solana.usd) {
-          console.log('✅ حصلنا على سعر SOL الحقيقي:', data.solana.usd);
-          setRealSolPrice(data.solana.usd);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.solana && data.solana.usd) {
+            setRealSolPrice(data.solana.usd);
+          }
         }
       } catch (error) {
         console.warn('⚠️ خطأ في جلب سعر SOL، استخدام القيمة الافتراضية:', realSolPrice);
@@ -158,17 +166,16 @@ export default function SwapScreen() {
     };
 
     fetchRealSolPrice();
+    updateNetworkFee();
   }, []);
 
   // معالجة الرمز المختار عند تحميل الشاشة
   useEffect(() => {
     if (selectedToken) {
-      // تعيين سعر الرمز المختار
       if (selectedToken.price) {
         setTokenPrice(selectedToken.price);
       }
 
-      // إذا كان الرمز غير متاح للتبادل، عرض رسالة
       if (!selectedToken.swapAvailable) {
         Alert.alert(
           t('swap_token_not_available'),
@@ -176,7 +183,6 @@ export default function SwapScreen() {
           [{
             text: t('ok'),
             onPress: () => {
-              // الرجوع إلى الافتراضي إذا لم يكن متاحاً
               if (!selectedToken.swapAvailable) {
                 setToToken('MECO');
               }
@@ -187,31 +193,39 @@ export default function SwapScreen() {
     }
   }, [selectedToken]);
 
-  // تحميل الأرصدة
+  // ✅ تحميل الأرصدة - نسخة مبسطة وموثوقة
   useEffect(() => {
     loadBalances();
   }, []);
 
   const loadBalances = async () => {
     try {
-      const pubKey = await SecureStore.getItemAsync('wallet_public_key');
-      if (!pubKey) return;
-
-      const solBalance = await getSolBalance(pubKey);
-      const tokens = await getTokenAccounts(pubKey);
-
+      console.log('🔄 جاري تحميل الأرصدة لـ Swap...');
+      
+      // جلب رصيد SOL
+      const solBalance = await getSolBalance();
       const balancesObj = { SOL: solBalance || 0 };
+      
+      console.log(`✅ رصيد SOL: ${solBalance.toFixed(6)}`);
 
-      swapTokens.forEach(token => {
-        if (token.symbol !== 'SOL') {
-          const tokenData = tokens?.find(t => t.mint === token.mint);
-          balancesObj[token.symbol] = tokenData?.uiAmount || 0;
+      // جلب أرصدة التوكنات الأخرى
+      for (const token of swapTokens) {
+        if (token.symbol !== 'SOL' && token.mint) {
+          try {
+            const balance = await getTokenBalance(token.mint);
+            balancesObj[token.symbol] = balance || 0;
+            console.log(`✅ رصيد ${token.symbol}: ${balance}`);
+          } catch (error) {
+            console.warn(`❌ فشل تحميل رصيد ${token.symbol}:`, error.message);
+            balancesObj[token.symbol] = 0;
+          }
         }
-      });
-
+      }
+      
       setBalances(balancesObj);
     } catch (error) {
-      console.error('Load balances error:', error);
+      console.error('❌ Load balances error:', error);
+      setBalances({ SOL: 0 });
     }
   };
 
@@ -229,12 +243,12 @@ export default function SwapScreen() {
         setToAmount('');
         setQuote(null);
       }
-    }, 800); // 🔧 زيادة المهلة لتقليل الطلبات
+    }, 1000);
 
     return () => clearTimeout(timeoutId);
   }, [fromToken, toToken, fromAmount]);
 
-  // 🔧 **إصلاح كامل لدالة Jupiter API**
+  // ✅ دالة Jupiter API - نسخة مبسطة وموثوقة
   const getJupiterQuote = async (inputTokenSymbol, outputTokenSymbol, amount) => {
     try {
       const inputTokenInfo = getTokenInfo(inputTokenSymbol);
@@ -244,105 +258,71 @@ export default function SwapScreen() {
         throw new Error(t('swap_invalid_token_selection'));
       }
 
-      // إذا كان أحد الرموز لا يحتوي على mint (غير متاح على Solana)
+      // إذا كان أحد الرموز لا يحتوي على mint
       if (!inputTokenInfo.mint || !outputTokenInfo.mint) {
         throw new Error(t('swap_token_unavailable_solana'));
       }
 
       const amountInSmallestUnit = Math.floor(amount * Math.pow(10, inputTokenInfo.decimals));
 
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 15000);
+      // ✅ إصلاح: استخدام URL صحيح مع وقت انتظار مناسب
+      const url = `https://quote-api.jup.ag/v6/quote?inputMint=${inputTokenInfo.mint}&outputMint=${outputTokenInfo.mint}&amount=${amountInSmallestUnit}&slippageBps=50`;
 
-      try {
-        // 🔧 **إصلاح: استخدام URL صحيح مع معاملات مشفرة**
-        const url = `https://quote-api.jup.ag/v6/quote?inputMint=${encodeURIComponent(inputTokenInfo.mint)}&outputMint=${encodeURIComponent(outputTokenInfo.mint)}&amount=${amountInSmallestUnit}&slippageBps=50&feeBps=0`;
+      console.log('🔄 طلب السعر من Jupiter:', {
+        input: inputTokenSymbol,
+        output: outputTokenSymbol,
+        amount: amount,
+        url: url
+      });
 
-        console.log('🔄 جاري طلب السعر من Jupiter:', {
-          input: inputTokenSymbol,
-          output: outputTokenSymbol,
-          amount: amount,
-          url: url
-        });
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: { 'Accept': 'application/json' },
+        timeout: 10000
+      });
 
-        const response = await fetch(url, {
-          signal: controller.signal,
-          method: 'GET',
-          headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json',
-          },
-        });
-
-        clearTimeout(timeoutId);
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error('❌ Jupiter API Error:', response.status, errorText);
-          
-          if (response.status === 400) {
-            throw new Error(t('swap_invalid_token_pair'));
-          } else if (response.status === 429) {
-            throw new Error(t('swap_rate_limit'));
-          } else {
-            throw new Error(`${t('swap_network_error')}: ${response.status}`);
-          }
-        }
-
-        const data = await response.json();
-
-        if (!data || data.error) {
-          throw new Error(data?.error || t('swap_failed_to_get_price'));
-        }
-
-        // 🔧 **إصلاح: التحقق من وجود outAmount**
-        if (!data.outAmount) {
-          throw new Error(t('swap_invalid_quote_response'));
-        }
-
-        const outputAmount = Number(data.outAmount) / Math.pow(10, outputTokenInfo.decimals);
-        const rate = outputAmount / amount;
-
-        console.log('✅ حصلنا على سعر من Jupiter:', {
-          input: amount,
-          output: outputAmount,
-          rate: rate,
-          priceImpact: data.priceImpactPct
-        });
-
-        return {
-          inputAmount: amount,
-          outputAmount,
-          rate,
-          priceImpact: data.priceImpactPct || '0',
-          swapMode: data.swapMode || 'fixed',
-          quoteId: data.quoteId,
-          inAmount: data.inAmount,
-          outAmount: data.outAmount,
-        };
-      } catch (fetchError) {
-        clearTimeout(timeoutId);
-        throw fetchError;
+      if (!response.ok) {
+        throw new Error(`${t('swap_network_error')}: ${response.status}`);
       }
+
+      const data = await response.json();
+
+      if (!data || data.error || !data.outAmount) {
+        throw new Error(t('swap_invalid_quote_response'));
+      }
+
+      const outputAmount = Number(data.outAmount) / Math.pow(10, outputTokenInfo.decimals);
+      const rate = outputAmount / amount;
+
+      console.log('✅ حصلنا على سعر من Jupiter:', {
+        input: amount,
+        output: outputAmount,
+        rate: rate
+      });
+
+      return {
+        inputAmount: amount,
+        outputAmount,
+        rate,
+        priceImpact: data.priceImpactPct || '0',
+        swapMode: data.swapMode || 'fixed',
+        quoteId: data.quoteId,
+        inAmount: data.inAmount,
+        outAmount: data.outAmount,
+      };
     } catch (error) {
       console.warn('⚠️ Jupiter quote error, using fallback:', error.message);
-
-      // 🔧 **تحسين: استخدام أسعار حقيقية كبديل**
-      console.log('🔄 استخدام سعر افتراضي بناءً على سعر السوق');
-
-      // أسعار العملات بالنسبة للدولار (تحديث من CoinGecko إذا أمكن)
+      
+      // ✅ استخدام سعر افتراضي بسيط
       const tokenPrices = {
         'SOL': realSolPrice,
         'USDT': 1.00,
         'USDC': 1.00,
-        'MECO': selectedToken?.price || 0.09,
+        'MECO': 0.09,
       };
 
-      // احسب السعر الافتراضي بناءً على الأسعار الحقيقية
       const fromPrice = tokenPrices[inputTokenSymbol] || 1;
       const toPrice = tokenPrices[outputTokenSymbol] || 1;
-
-      // احسب السعر: (سعر العملة الأولى ÷ سعر العملة الثانية)
       const realRate = fromPrice / toPrice;
       const outputAmount = amount * realRate;
 
@@ -352,8 +332,7 @@ export default function SwapScreen() {
         rate: realRate,
         priceImpact: '0.5',
         swapMode: 'fixed',
-        isFallback: true,
-        fallbackReason: error.message
+        isFallback: true
       };
     }
   };
@@ -366,7 +345,7 @@ export default function SwapScreen() {
         return;
       }
 
-      // 🔧 **التحقق من الرصيد قبل طلب السعر**
+      // ✅ التحقق من الرصيد بطريقة مبسطة
       const balance = balances[fromToken] || 0;
       if (amount > balance) {
         setError(t('swap_insufficient_balance'));
@@ -405,13 +384,22 @@ export default function SwapScreen() {
     setError(null);
   };
 
+  // ✅ تحديد أقصى مبلغ - نسخة مصححة
   const handleMaxAmount = () => {
     const balance = balances[fromToken] || 0;
-    const fee = fromToken === 'SOL' ? networkFee : 0;
-    const maxAmount = Math.max(0, balance - fee - (balance * 0.01)); // 🔧 تخفيض النسبة
+    let maxAmount = balance;
+    
+    // إذا كان الرمز المرسل هو SOL، نخصم الرسوم
+    if (fromToken === 'SOL') {
+      const fee = networkFee * 1.1; // ✅ الرسوم الكلية (شبكة + خدمة)
+      maxAmount = Math.max(0, balance - fee - (balance * 0.001)); // هامش أمان صغير
+    }
+    
     setFromAmount(maxAmount.toFixed(6));
+    console.log(`💰 الحد الأقصى لـ ${fromToken}: ${balance} - الرسوم = ${maxAmount}`);
   };
 
+  // ✅ معالجة التبادل - نسخة مصححة ومضمونة
   const handleSwap = async () => {
     try {
       if (!fromAmount || !toAmount) {
@@ -425,18 +413,37 @@ export default function SwapScreen() {
         return;
       }
 
+      // ✅ التحقق البسيط من الرصيد
       const balance = balances[fromToken] || 0;
       if (amount > balance) {
-        Alert.alert(t('error'), `${t('swap_insufficient_balance_for')} ${fromToken}. ${t('swap_available')}: ${balance.toFixed(6)}`);
+        Alert.alert(
+          t('error'),
+          `${t('swap_insufficient_balance_for')} ${fromToken}\n\n` +
+          `${t('swap_available')}: ${balance.toFixed(6)} ${fromToken}\n` +
+          `${t('swap_enter_amount')}: ${amount.toFixed(6)} ${fromToken}`
+        );
         return;
       }
 
-      if (!quote) {
-        Alert.alert(t('error'), t('swap_wait_for_price'));
-        return;
+      // ✅ إذا كان الرمز المرسل هو SOL، تحقق من الرصيد للرسوم
+      if (fromToken === 'SOL') {
+        const totalFee = networkFee * 1.1;
+        const totalRequired = amount + totalFee;
+        
+        if (totalRequired > balance) {
+          Alert.alert(
+            t('error'),
+            `${t('swap_insufficient_balance')}\n\n` +
+            `${t('swap_balance')}: ${balance.toFixed(6)} SOL\n` +
+            `${t('swap_enter_amount')}: ${amount.toFixed(6)} SOL\n` +
+            `${t('swap_network_fee')}: ${totalFee.toFixed(6)} SOL\n` +
+            `\n${t('swap_available')}: ${totalRequired.toFixed(6)} SOL`
+          );
+          return;
+        }
       }
 
-      // التحقق من توفر الرمز للتبادل
+      // ✅ التحقق من توفر الرمز للتبادل
       const toTokenInfo = getTokenInfo(toToken);
       if (!toTokenInfo.mint) {
         Alert.alert(t('error'), `${toToken} ${t('swap_token_unavailable_solana')}`);
@@ -447,18 +454,18 @@ export default function SwapScreen() {
       setError(null);
 
       const walletPublicKey = await SecureStore.getItemAsync('wallet_public_key');
-
       if (!walletPublicKey) {
         throw new Error(t('swap_wallet_not_found'));
       }
 
-      // تنفيذ التبادل الفعلي
+      // ✅ تنفيذ التبادل الفعلي
       const swapResult = await executeRealSwap({
         fromToken,
         toToken,
         fromAmount: amount,
         quote,
         walletPublicKey,
+        networkFee, // ✅ إرسال قيمة networkFee الحقيقية
       });
 
       if (swapResult.success) {
@@ -469,7 +476,8 @@ export default function SwapScreen() {
             fromToken: fromToken, 
             outputAmount: swapResult.outputAmount?.toFixed(6) || toAmount, 
             toToken: toToken 
-          })}`,
+          })}\n\n` +
+          `${t('swap_network_fee')}: ${networkFee.toFixed(6)} SOL`,
           [
             {
               text: t('swap_view_transaction'),
@@ -489,8 +497,6 @@ export default function SwapScreen() {
                 setQuote(null);
                 loadBalances();
                 setLoading(false);
-
-                // العودة إلى شاشة Market بعد التبادل الناجح
                 navigation.navigate('Market');
               }
             }
@@ -501,7 +507,7 @@ export default function SwapScreen() {
       }
 
     } catch (error) {
-      console.error('Swap error:', error);
+      console.error('❌ Swap error:', error);
       setError(error.message || t('swap_failed_try_again'));
       Alert.alert(
         `❌ ${t('swap_failed')}`,
@@ -581,31 +587,6 @@ export default function SwapScreen() {
     return token?.image;
   };
 
-  // عرض السعر الحقيقي في واجهة المستخدم
-  const displayRealRate = () => {
-    if (!quote || !realSolPrice) return null;
-
-    if (fromToken === 'SOL' && (toToken === 'USDT' || toToken === 'USDC')) {
-      const expectedStable = parseFloat(fromAmount) * realSolPrice;
-      const actualStable = parseFloat(toAmount);
-      const difference = Math.abs(expectedStable - actualStable);
-      const percentage = (difference / expectedStable) * 100;
-
-      if (percentage > 5) {
-        return (
-          <View style={[styles.realRateNotice, { backgroundColor: colors.warning + '20' }]}>
-            <Ionicons name="alert-circle" size={16} color={colors.warning} />
-            <Text style={[styles.realRateText, { color: colors.warning }]}>
-              {t('swap_real_price')}: 1 SOL ≈ ${realSolPrice.toFixed(2)}
-            </Text>
-          </View>
-        );
-      }
-    }
-
-    return null;
-  };
-
   return (
     <KeyboardAvoidingView
       style={{ flex: 1, backgroundColor: colors.background }}
@@ -640,9 +621,6 @@ export default function SwapScreen() {
               <Text style={[styles.errorText, { color: colors.error }]}>{error}</Text>
             </View>
           )}
-
-          {/* عرض السعر الحقيقي */}
-          {displayRealRate()}
 
           {/* بطاقة التبادل */}
           <View style={[styles.swapCard, { backgroundColor: colors.card }]}>
@@ -687,7 +665,7 @@ export default function SwapScreen() {
                 </Text>
                 {fromToken === 'SOL' && (
                   <Text style={[styles.feeText, { color: colors.warning }]}>
-                    ({t('swap_network_fee')}: {networkFee} SOL)
+                    ({t('swap_network_fee')}: {(networkFee * 1.1).toFixed(6)} SOL)
                   </Text>
                 )}
               </View>
@@ -758,32 +736,10 @@ export default function SwapScreen() {
                   </Text>
                 </View>
                 
-                {fromToken === 'SOL' && (toToken === 'USDT' || toToken === 'USDC') && (
-                  <View style={styles.quoteRow}>
-                    <Text style={[styles.quoteLabel, { color: colors.textSecondary }]}>{t('swap_market_price')}</Text>
-                    <Text style={[styles.quoteValue, { color: colors.success }]}>
-                      1 SOL ≈ ${realSolPrice.toFixed(2)} {toToken}
-                    </Text>
-                  </View>
-                )}
-
-                <View style={styles.quoteRow}>
-                  <Text style={[styles.quoteLabel, { color: colors.textSecondary }]}>{t('swap_price_impact')}</Text>
-                  <Text style={[
-                    styles.quoteValue,
-                    {
-                      color: parseFloat(quote.priceImpact) > 1 ? colors.error :
-                             parseFloat(quote.priceImpact) > 0.5 ? colors.warning :
-                             colors.success
-                    }
-                  ]}>
-                    {quote.priceImpact || '0'}%
-                  </Text>
-                </View>
                 <View style={styles.quoteRow}>
                   <Text style={[styles.quoteLabel, { color: colors.textSecondary }]}>{t('swap_network_fee')}</Text>
                   <Text style={[styles.quoteValue, { color: colors.text }]}>
-                    {networkFee.toFixed(6)} SOL
+                    {(networkFee * 1.1).toFixed(6)} SOL
                   </Text>
                 </View>
                 {quote.isFallback && (
@@ -830,40 +786,6 @@ export default function SwapScreen() {
             </View>
 
           </View>
-
-          {/* معلومات إضافية إذا كان هناك رمز مختار */}
-          {selectedToken && (
-            <View style={[styles.selectedTokenCard, { backgroundColor: colors.card }]}>
-              <View style={styles.selectedTokenHeader}>
-                <Image
-                  source={{ uri: selectedToken.image }}
-                  style={styles.selectedTokenCardImage}
-                />
-                <View style={styles.selectedTokenCardDetails}>
-                  <Text style={[styles.selectedTokenCardSymbol, { color: colors.text }]}>
-                    {selectedToken.symbol}
-                  </Text>
-                  <Text style={[styles.selectedTokenCardName, { color: colors.textSecondary }]}>
-                    {selectedToken.name}
-                  </Text>
-                </View>
-              </View>
-              <View style={styles.selectedTokenStats}>
-                <View style={styles.statItem}>
-                  <Text style={[styles.statLabel, { color: colors.textSecondary }]}>{t('swap_current_price')}</Text>
-                  <Text style={[styles.statValue, { color: colors.text }]}>
-                    ${selectedToken.price?.toFixed(4) || 'N/A'}
-                  </Text>
-                </View>
-                <View style={styles.statItem}>
-                  <Text style={[styles.statLabel, { color: colors.textSecondary }]}>{t('swap_your_balance')}</Text>
-                  <Text style={[styles.statValue, { color: colors.text }]}>
-                    {(balances[selectedToken.symbol] || 0).toFixed(4)}
-                  </Text>
-                </View>
-              </View>
-            </View>
-          )}
 
           {/* تعليمات الأمان */}
           <View style={[styles.securityCard, { backgroundColor: colors.card }]}>
@@ -968,20 +890,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginLeft: 8,
     flex: 1,
-  },
-  realRateNotice: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-    borderRadius: 12,
-    marginHorizontal: 20,
-    marginBottom: 16,
-  },
-  realRateText: {
-    fontSize: 12,
-    marginLeft: 8,
-    flex: 1,
-    fontWeight: '600',
   },
   swapCard: {
     borderRadius: 20,
@@ -1133,53 +1041,6 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     flex: 1,
     textAlign: 'center',
-  },
-  selectedTokenCard: {
-    borderRadius: 16,
-    padding: 16,
-    marginHorizontal: 20,
-    marginBottom: 16,
-  },
-  selectedTokenHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  selectedTokenCardImage: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    marginRight: 12,
-  },
-  selectedTokenCardDetails: {
-    flex: 1,
-  },
-  selectedTokenCardSymbol: {
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  selectedTokenCardName: {
-    fontSize: 12,
-    marginTop: 2,
-  },
-  selectedTokenStats: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(0,0,0,0.1)',
-    paddingTop: 12,
-  },
-  statItem: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  statLabel: {
-    fontSize: 11,
-    marginBottom: 4,
-  },
-  statValue: {
-    fontSize: 14,
-    fontWeight: '600',
   },
   securityCard: {
     flexDirection: 'row',
