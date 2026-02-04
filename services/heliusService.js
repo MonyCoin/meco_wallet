@@ -240,7 +240,7 @@ export async function validateSolanaAddress(address) {
   }
 }
 
-// ✅ حساب رسوم الشبكة الحالية مع سقف أقصى
+// ✅ حساب رسوم الشبكة الحالية مع سقف أقصى - معدلة لتتوافق مع SendScreen ✅
 export async function getCurrentNetworkFee() {
   try {
     const connection = await getConnection();
@@ -256,9 +256,9 @@ export async function getCurrentNetworkFee() {
       // تحويل من microLamports إلى SOL
       const feeInSol = average / 1_000_000 / web3.LAMPORTS_PER_SOL;
       
-      // ✅ حدود آمنة ومضمونة
-      const minFee = 0.000001; // 0.000001 SOL
-      const maxFee = 0.00001;  // 0.00001 SOL (سقف آمن)
+      // ✅ حدود آمنة ومضمونة - معدلة لتتوافق مع SendScreen
+      const minFee = 0.000005; // ✅ 0.000005 SOL (نفس القيمة الافتراضية في SendScreen)
+      const maxFee = 0.00001;  // ✅ 0.00001 SOL (سقف آمن - نفس MAX_NETWORK_FEE في SendScreen)
       
       const calculatedFee = Math.max(minFee, Math.min(feeInSol, maxFee));
       console.log(`💰 Network fee: ${calculatedFee.toFixed(6)} SOL`);
@@ -266,11 +266,11 @@ export async function getCurrentNetworkFee() {
       return calculatedFee;
     }
     
-    // Default fees آمنة
+    // Default fees آمنة - نفس القيمة في SendScreen
     return 0.000005; // 0.000005 SOL
   } catch (error) {
     console.warn('⚠️ Network fee error:', error.message);
-    return 0.000005; // قيمة آمنة
+    return 0.000005; // ✅ نفس القيمة الافتراضية في SendScreen
   }
 }
 
@@ -324,6 +324,11 @@ export async function sendTokenTransaction(fromKeypair, toAddress, mintAddress, 
     
     const mintInfo = await splToken.getMint(connection, mint);
     const amountRaw = BigInt(Math.floor(amount * Math.pow(10, mintInfo.decimals)));
+    
+    // ✅ التحقق من أن المبلغ ليس صفراً (خاصة للمبالغ الصغيرة جداً)
+    if (amountRaw === 0n) {
+      throw new Error('المبلغ صغير جداً للإرسال');
+    }
     
     const instructions = [];
     
@@ -496,6 +501,6 @@ export default {
   sendTokenTransaction,
   clearBalanceCache,
   delay,
-  heliusRpcRequest, // ✅ تمت الإضافة
-  getTransactionHistory // ✅ دالة إضافية اختيارية
+  heliusRpcRequest,
+  getTransactionHistory
 };

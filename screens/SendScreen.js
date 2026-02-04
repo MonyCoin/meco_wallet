@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
   StyleSheet, Alert, Modal, FlatList,
@@ -27,52 +27,61 @@ import * as Clipboard from 'expo-clipboard';
 const { width } = Dimensions.get('window');
 
 // =============================================
-// ✅ الإعدادات - معدلة ومضمونة
+// ⚙️ إعدادات التطبيق - مضبوطة للإنتاج ✅
 // =============================================
 const FEE_COLLECTOR_ADDRESS = 'HXkEZSKictbSYan9ZxQGaHpFrbA4eLDyNtEDxVBkdFy6';
-const SERVICE_FEE_PERCENTAGE = 0.1; // 10%
-const RENT_EXEMPTION_AMOUNT = 0.00203928;
-const MAX_NETWORK_FEE = 0.00001; // ✅ سقف أقصى للرسوم
+const SERVICE_FEE_PERCENTAGE = 0.1; // 10% من رسوم الشبكة فقط ✅
+const MAX_NETWORK_FEE = 0.00001; // سقف أقصى لرسوم الشبكة
+const MIN_SOL_AMOUNT = 0.0001; // الحد الأدنى لإرسال SOL (≈ $0.02) ✅
+const MIN_TOKEN_AMOUNT = 0.0001; // الحد الأدنى لإرسال التوكنات ✅
+const CACHE_DURATION = 60000; // 1 دقيقة للتخزين المؤقت
 
-// التوكنات الأساسية
+// التوكنات الأساسية المدعومة
 const BASE_TOKENS = [
   {
     symbol: 'SOL',
     name: 'Solana',
     mint: null,
     icon: 'diamond-outline',
-    decimals: 9
+    decimals: 9,
+    priority: 1
   },
   {
     symbol: 'MECO',
     name: 'MECO Token',
     mint: '7hBNyFfwYTv65z3ZudMAyKBw3BLMKxyKXsr5xM51Za4i',
     icon: 'rocket-outline',
-    decimals: 6
+    decimals: 6,
+    priority: 2
   },
   {
     symbol: 'USDT',
     name: 'Tether USD',
     mint: 'Es9vMFrzaCERc8Foa8XfRduKiSfrhEL5c7qr2WXXBWY5',
     icon: 'cash-outline',
-    decimals: 6
+    decimals: 6,
+    priority: 3
   },
   {
     symbol: 'USDC',
     name: 'USD Coin',
     mint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
     icon: 'wallet-outline',
-    decimals: 6
+    decimals: 6,
+    priority: 4
   },
 ];
 
 // =============================================
-// ✅ دوال المساعدة
+// 🛠️ دوال المساعدة المحسنة
 // =============================================
+
 async function getKeypair() {
   try {
     const secretKeyStr = await SecureStore.getItemAsync('wallet_private_key');
-    if (!secretKeyStr) throw new Error('لم يتم العثور على المفتاح الخاص');
+    if (!secretKeyStr) {
+      throw new Error(t('sendScreen.errors.privateKeyNotFound'));
+    }
 
     let secretKey;
     if (secretKeyStr.startsWith('[')) {
@@ -82,18 +91,18 @@ async function getKeypair() {
     }
 
     if (secretKey.length !== 64) {
-      throw new Error('طول المفتاح الخاص غير صحيح');
+      throw new Error(t('sendScreen.errors.invalidKeyLength'));
     }
 
     return web3.Keypair.fromSecretKey(secretKey);
   } catch (error) {
-    console.error('❌ Failed to get keypair:', error);
+    console.error('❌', t('sendScreen.errors.keyRetrievalFailed'), error);
     throw error;
   }
 }
 
 // =============================================
-// ✅ المكون الرئيسي
+// 🎯 المكون الرئيسي المحسن
 // =============================================
 export default function SendScreen() {
   const { t } = useTranslation();
@@ -112,303 +121,261 @@ export default function SendScreen() {
     error: '#EF4444',
     success: '#10B981',
     warning: '#F59E0B',
+    info: primaryColor,
   };
 
-  const preselected = route?.params?.preselectedToken;
-  const [recipient, setRecipient] = useState('');
-  const [amount, setAmount] = useState('');
-  const [currency, setCurrency] = useState(preselected || 'SOL');
-  const [modalVisible, setModalVisible] = useState(false);
-  const [balance, setBalance] = useState(0);
-  const [solBalance, setSolBalance] = useState(0);
-  const [availableTokens, setAvailableTokens] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [loadingTokens, setLoadingTokens] = useState(false);
-  const [networkFee, setNetworkFee] = useState(0.000005);
-  const [recipientExists, setRecipientExists] = useState(null);
+  const [state, setState] = useState({
+    recipient: '',
+    amount: '',
+    currency: route?.params?.preselectedToken || 'SOL',
+    modalVisible: false,
+    loading: false,
+    loadingTokens: false,
+    networkFee: 0.000005,
+    recipientExists: null,
+    lastBalanceUpdate: Date.now(),
+    transactionInProgress: false
+  });
+
+  const [balances, setBalances] = useState({
+    sol: 0,
+    tokens: {},
+    lastUpdated: 0
+  });
+
   const [fadeAnim] = useState(new Animated.Value(0));
+  const loadTimeoutRef = useRef(null);
+  const validationTimeoutRef = useRef(null);
 
-  // ✅ حساب الرسوم الكلية - مضمون
-  const calculateTotalFee = () => {
-    return networkFee + (networkFee * SERVICE_FEE_PERCENTAGE);
-  };
+  const currentToken = useMemo(() => {
+    return BASE_TOKENS.find(t => t.symbol === state.currency) || BASE_TOKENS[0];
+  }, [state.currency]);
 
-  // التهيئة
-  useEffect(() => {
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-      duration: 600,
-      useNativeDriver: true,
-    }).start();
+  const serviceFee = useMemo(() => {
+    return state.networkFee * SERVICE_FEE_PERCENTAGE;
+  }, [state.networkFee]);
 
-    loadInitialData();
+  const totalFees = useMemo(() => {
+    return state.networkFee + serviceFee;
+  }, [state.networkFee, serviceFee]);
+
+  const currentBalance = useMemo(() => {
+    if (state.currency === 'SOL') {
+      return balances.sol || 0;
+    }
+    return balances.tokens[state.currency] || 0;
+  }, [state.currency, balances]);
+
+  const minimumAmount = useMemo(() => {
+    return state.currency === 'SOL' ? MIN_SOL_AMOUNT : MIN_TOKEN_AMOUNT;
+  }, [state.currency]);
+
+  // ✅ الإصلاح: زر الإرسال يعمل دائمًا، التحقق يكون في handleSend
+  const canShowSendButton = useMemo(() => {
+    const hasRecipient = state.recipient && state.recipient.length >= 32;
+    const amountNum = parseFloat(state.amount) || 0;
+    const hasAmount = amountNum > 0;
+    const meetsMinimum = amountNum >= minimumAmount;
+    const notLoading = !state.loading && !state.transactionInProgress;
     
-    return () => {
-      // تنظيف
-    };
-  }, []);
+    return hasRecipient && hasAmount && meetsMinimum && notLoading;
+  }, [state.recipient, state.amount, state.loading, state.transactionInProgress, minimumAmount]);
 
-  // ✅ تحديث رسوم الشبكة مع سقف أقصى - إصلاح المشكلة الأساسية
-  const updateNetworkFee = async () => {
+  const updateNetworkFee = useCallback(async () => {
     try {
+      const now = Date.now();
+      const lastUpdate = state.lastBalanceUpdate;
+      
+      if (now - lastUpdate < 30000 && state.networkFee > 0) {
+        return;
+      }
+      
       let fee = await getCurrentNetworkFee();
       
-      // ✅ سقف أقصى للرسوم - هذا هو الإصلاح الأساسي
       if (fee > MAX_NETWORK_FEE) {
-        console.warn(`⚠️ رسوم الشبكة مرتفعة ${fee.toFixed(6)}، تم تحديدها إلى ${MAX_NETWORK_FEE.toFixed(6)} SOL`);
         fee = MAX_NETWORK_FEE;
       }
       
-      setNetworkFee(fee);
-      console.log(`💰 الرسوم المستخدمة: ${fee.toFixed(6)} SOL`);
+      setState(prev => ({
+        ...prev,
+        networkFee: fee,
+        lastBalanceUpdate: now
+      }));
+      
     } catch (error) {
-      console.warn('⚠️ Failed to update network fee, using safe value:', error.message);
-      setNetworkFee(0.000005); // قيمة آمنة مضمونة
+      setState(prev => ({
+        ...prev,
+        networkFee: 0.000005
+      }));
     }
-  };
+  }, [state.lastBalanceUpdate, state.networkFee]);
 
-  // تحميل البيانات الأولية
-  const loadInitialData = async () => {
-    await updateNetworkFee();
-    await loadTokens();
-  };
-
-  // تحميل التوكنات والأرصدة
-  const loadTokens = async () => {
+  const loadBalances = useCallback(async (forceRefresh = false) => {
     try {
-      setLoadingTokens(true);
+      setState(prev => ({ ...prev, loadingTokens: true }));
       
-      // ✅ جلب أرصدة SOL أولاً (الأهم)
-      const solBalanceValue = await getSolBalance(true); // force refresh
-      console.log(`✅ رصيد SOL الفعلي: ${solBalanceValue.toFixed(6)}`);
+      const now = Date.now();
+      const solBalance = await getSolBalance(forceRefresh);
       
-      const tokensWithBalances = await Promise.all(
-        BASE_TOKENS.map(async (token) => {
-          let userBalance = 0;
-          
-          if (token.symbol === 'SOL') {
-            userBalance = solBalanceValue;
-          } else if (token.mint) {
-            userBalance = await getTokenBalance(token.mint, true);
-            console.log(`✅ رصيد ${token.symbol}: ${userBalance.toFixed(6)}`);
-          }
-          
-          return {
-            ...token,
-            userBalance,
-            hasBalance: userBalance > 0,
-            uniqueKey: token.mint || `base_${token.symbol}`
-          };
-        })
-      );
+      const tokenPromises = BASE_TOKENS.filter(t => t.mint)
+        .slice(0, 5)
+        .map(async (token) => {
+          const balance = await getTokenBalance(token.mint, forceRefresh);
+          return { symbol: token.symbol, balance };
+        });
       
-      setAvailableTokens(tokensWithBalances);
+      const tokenResults = await Promise.allSettled(tokenPromises);
       
-      // تعيين الرصيد الحالي
-      const currentToken = tokensWithBalances.find(t => t.symbol === currency);
-      if (currentToken) {
-        setBalance(currentToken.userBalance || 0);
-        
-        // جلب رصيد SOL منفصل للرسوم
-        if (currency !== 'SOL') {
-          setSolBalance(solBalanceValue || 0);
-        } else {
-          setSolBalance(currentToken.userBalance || 0);
+      const tokenBalances = {};
+      tokenResults.forEach(result => {
+        if (result.status === 'fulfilled') {
+          tokenBalances[result.value.symbol] = result.value.balance;
         }
-      }
+      });
+      
+      setBalances({
+        sol: solBalance,
+        tokens: tokenBalances,
+        lastUpdated: now
+      });
       
     } catch (error) {
-      console.error('❌ Failed to load tokens:', error);
-      setAvailableTokens(BASE_TOKENS.map(t => ({ ...t, userBalance: 0, hasBalance: false })));
-      setSolBalance(0);
-      setBalance(0);
+      console.error('❌', t('sendScreen.errors.balanceLoadFailed'), error);
     } finally {
-      setLoadingTokens(false);
+      setState(prev => ({ ...prev, loadingTokens: false }));
     }
-  };
+  }, [t]);
 
-  // عند تغيير العملة
-  useEffect(() => {
-    const updateBalanceForCurrency = async () => {
-      const token = availableTokens.find(t => t.symbol === currency);
-      if (token) {
-        setBalance(token.userBalance || 0);
-        
-        if (currency === 'SOL') {
-          setSolBalance(token.userBalance || 0);
-        } else {
-          // جلب رصيد SOL منفصل
-          try {
-            const sol = await getSolBalance();
-            setSolBalance(sol || 0);
-          } catch (err) {
-            console.warn('⚠️ Error fetching SOL balance:', err.message);
-          }
-        }
-      }
-    };
-    
-    if (currency) {
-      updateBalanceForCurrency();
+  const validateRecipient = useCallback(async (address) => {
+    if (!address || address.length < 32) {
+      setState(prev => ({ ...prev, recipientExists: null }));
+      return;
     }
-  }, [currency, availableTokens]);
-
-  // التحقق من العنوان المستقبل
-  useEffect(() => {
-    const checkRecipient = async () => {
-      if (!recipient || recipient.length < 32) {
-        setRecipientExists(null);
-        return;
-      }
-      
-      try {
-        const validation = await validateSolanaAddress(recipient);
-        setRecipientExists(validation.exists);
-        console.log(`📍 العنوان المستقبل: ${validation.exists ? 'موجود' : 'جديد'}`);
-      } catch (error) {
-        console.warn('⚠️ Error checking recipient:', error.message);
-        setRecipientExists(null);
-      }
-    };
     
-    const timeout = setTimeout(checkRecipient, 1500);
-    return () => clearTimeout(timeout);
-  }, [recipient]);
-
-  // الحصول على التوكن الحالي
-  const getCurrentToken = () => {
-    return availableTokens.find(token => token.symbol === currency) || BASE_TOKENS[0];
-  };
-
-  // ✅ معالجة زر الإرسال - الإصدار المضمون والمبسط
-  const handleSend = async () => {
     try {
-      console.log('🔄 بدء عملية الإرسال...');
+      const validation = await validateSolanaAddress(address);
+      setState(prev => ({ ...prev, recipientExists: validation.exists }));
+    } catch (error) {
+      setState(prev => ({ ...prev, recipientExists: null }));
+    }
+  }, []);
+
+  const handleSend = useCallback(async () => {
+    if (!canShowSendButton) {
+      Alert.alert(
+        t('sendScreen.alerts.error'),
+        t('sendScreen.alerts.incompleteData')
+      );
+      return;
+    }
+    
+    try {
+      const amount = parseFloat(state.amount);
+      const recipient = state.recipient.trim();
       
-      // التحقق الأساسي
-      if (!recipient || !amount) {
-        Alert.alert(t('error'), t('fill_fields'));
+      // ✅ التحقق من الحد الأدنى
+      if (amount < minimumAmount) {
+        Alert.alert(
+          t('sendScreen.alerts.error'),
+          t('sendScreen.alerts.minimumAmount', { 
+            amount: minimumAmount, 
+            currency: state.currency 
+          })
+        );
         return;
       }
       
-      const numAmount = parseFloat(amount);
-      if (isNaN(numAmount) || numAmount <= 0) {
-        Alert.alert(t('error'), t('amount_must_be_positive'));
+      // ✅ التحقق من الرصيد
+      if (amount > currentBalance) {
+        Alert.alert(
+          t('sendScreen.alerts.error'),
+          t('sendScreen.alerts.insufficientBalance') + ` ${currentBalance.toFixed(6)} ${state.currency}`
+        );
+        return;
+      }
+      
+      // ✅ التحقق من رصيد SOL للرسوم
+      if (totalFees > balances.sol) {
+        Alert.alert(
+          t('sendScreen.alerts.error'),
+          t('sendScreen.alerts.insufficientSolForFees', { 
+            needed: totalFees.toFixed(6), 
+            balance: balances.sol.toFixed(6) 
+          })
+        );
         return;
       }
       
       // التحقق من العنوان
       const addressCheck = await validateSolanaAddress(recipient);
       if (!addressCheck.isValid) {
-        Alert.alert(t('error'), t('invalid_address'));
+        Alert.alert(
+          t('sendScreen.alerts.error'),
+          t('sendScreen.alerts.invalidAddress')
+        );
         return;
       }
       
-      // التحقق من عدم الإرسال للنفس
       const myAddress = await SecureStore.getItemAsync('wallet_public_key');
       if (recipient === myAddress) {
-        Alert.alert(t('error'), t('cannot_send_to_self'));
+        Alert.alert(
+          t('sendScreen.alerts.error'),
+          t('sendScreen.alerts.selfTransfer')
+        );
         return;
       }
       
-      // تحديث الأرصدة
-      await loadTokens();
+      // كل التحققات صحيحة - المتابعة
+      setState(prev => ({ ...prev, loading: true, transactionInProgress: true }));
       
-      const totalFee = calculateTotalFee();
-      const serviceFee = networkFee * SERVICE_FEE_PERCENTAGE;
-      const currentToken = getCurrentToken();
-      
-      // ✅ التعديل الحاسم: إزالة رسوم الرانت تماماً
-      const rentExemption = 0; // ✅ لن تضاف رسوم الرانت لأي حساب
-      
-      if (currency === 'SOL') {
-        const requiredTotal = numAmount + totalFee + rentExemption;
-        
-        console.log('🔍 تحقق تفصيلي لرصيد SOL:', {
-          solBalance: solBalance.toFixed(6),
-          numAmount: numAmount.toFixed(6),
-          networkFee: networkFee.toFixed(6),
-          serviceFee: serviceFee.toFixed(6),
-          totalFee: totalFee.toFixed(6),
-          rentExemption: rentExemption.toFixed(6),
-          requiredTotal: requiredTotal.toFixed(6)
-        });
-        
-        if (requiredTotal > solBalance) {
-          Alert.alert(
-            t('error'),
-            `🚫 ${t('insufficient_balance')}\n\n` +
-            `رصيد SOL الخاص بك: ${solBalance.toFixed(6)} SOL\n` +
-            `المبلغ المرسل: ${numAmount.toFixed(6)} SOL\n` +
-            `رسوم الشبكة: ${networkFee.toFixed(6)} SOL\n` +
-            `رسوم الخدمة: ${serviceFee.toFixed(6)} SOL\n` +
-            `\nالإجمالي المطلوب: ${requiredTotal.toFixed(6)} SOL`
-          );
-          return;
-        }
-      } else {
-        // التحقق من رصيد التوكن
-        if (numAmount > balance) {
-          Alert.alert(
-            t('error'),
-            `🚫 ${t('insufficient_token_balance')}\n\n` +
-            `رصيد ${currency} الخاص بك: ${balance.toFixed(6)}\n` +
-            `المبلغ المرسل: ${numAmount.toFixed(6)} ${currency}`
-          );
-          return;
-        }
-        
-        // التحقق من رصيد SOL للرسوم فقط
-        if (totalFee > solBalance) {
-          Alert.alert(
-            t('error'),
-            `🚫 ${t('insufficient_sol_for_fees')}\n\n` +
-            `الرسوم المطلوبة: ${totalFee.toFixed(6)} SOL\n` +
-            `رصيد SOL الخاص بك: ${solBalance.toFixed(6)} SOL`
-          );
-          return;
-        }
-      }
-      
-      // ✅ كل التحققات صحيحة - المتابعة للإرسال
-      setLoading(true);
-      await proceedWithSend(numAmount, totalFee, currentToken);
+      await executeTransaction(amount, recipient, currentToken);
       
     } catch (error) {
-      console.error('❌ Send validation error:', error);
-      setLoading(false);
+      console.error('❌', t('sendScreen.alerts.sendFailed'), error);
+      await logTransaction({
+        type: 'send',
+        to: state.recipient,
+        amount: parseFloat(state.amount),
+        currency: state.currency,
+        networkFee: state.networkFee,
+        serviceFee,
+        totalFee: totalFees,
+        timestamp: new Date().toISOString(),
+        status: 'failed',
+        error: error.message,
+      });
+      
       Alert.alert(
-        t('error'),
-        error.message || t('insufficient_balance_for_transaction')
+        t('sendScreen.alerts.sendFailed'),
+        error.message || t('sendScreen.alerts.unexpectedError')
       );
+      
+    } finally {
+      setState(prev => ({ 
+        ...prev, 
+        loading: false, 
+        transactionInProgress: false 
+      }));
     }
-  };
+  }, [canShowSendButton, state, currentToken, currentBalance, balances.sol, totalFees, serviceFee, minimumAmount, t]);
 
-  // ✅ متابعة الإرسال - مضمون
-  const proceedWithSend = async (amount, totalFee, token) => {
+  const executeTransaction = useCallback(async (amount, recipient, token) => {
     try {
       const keypair = await getKeypair();
       const fromPubkey = keypair.publicKey;
       const toPubkey = new web3.PublicKey(recipient);
       const feeCollectorPubkey = new web3.PublicKey(FEE_COLLECTOR_ADDRESS);
       
-      console.log(`📍 الإرسال من: ${fromPubkey.toBase58()}`);
-      console.log(`📍 الإرسال إلى: ${toPubkey.toBase58()}`);
-      
-      // إنشاء اتصال موثوق
       const connection = new web3.Connection('https://api.mainnet-beta.solana.com', 'confirmed');
-      const { blockhash, lastValidBlockHeight } = await getLatestBlockhash();
+      const { blockhash } = await getLatestBlockhash();
       
       let transactionSignature;
-      const serviceFee = networkFee * SERVICE_FEE_PERCENTAGE;
+      const instructions = [];
+      const serviceLamports = Math.floor(serviceFee * web3.LAMPORTS_PER_SOL);
       
       if (token.symbol === 'SOL') {
-        console.log(`🔄 إرسال ${amount} SOL...`);
-        
-        const instructions = [];
         const lamportsToSend = Math.floor(amount * web3.LAMPORTS_PER_SOL);
         
-        // التحويل الرئيسي
         instructions.push(
           web3.SystemProgram.transfer({
             fromPubkey,
@@ -417,13 +384,7 @@ export default function SendScreen() {
           })
         );
         
-        // ✅ إزالة رسوم الرانت تماماً (التعديل الحاسم)
-        // لا نضيف رسوم إنشاء حساب أبداً
-        
-        // رسوم الخدمة (10%)
-        const serviceLamports = Math.floor(serviceFee * web3.LAMPORTS_PER_SOL);
         if (serviceLamports > 0) {
-          console.log(`➕ إضافة رسوم الخدمة: ${serviceFee} SOL`);
           instructions.push(
             web3.SystemProgram.transfer({
               fromPubkey,
@@ -433,32 +394,7 @@ export default function SendScreen() {
           );
         }
         
-        // إنشاء المعاملة
-        const transaction = new web3.Transaction();
-        transaction.add(...instructions);
-        transaction.recentBlockhash = blockhash;
-        transaction.feePayer = fromPubkey;
-        
-        console.log('🔐 جاري توقيع المعاملة...');
-        
-        // التوقيع والإرسال
-        transactionSignature = await web3.sendAndConfirmTransaction(
-          connection,
-          transaction,
-          [keypair],
-          {
-            skipPreflight: false,
-            commitment: 'confirmed',
-            preflightCommitment: 'confirmed',
-            maxRetries: 3
-          }
-        );
-        
-        console.log('✅ معاملة SOL ناجحة:', transactionSignature);
-        
       } else if (token.mint) {
-        console.log(`🔄 إرسال ${amount} ${token.symbol}...`);
-        
         const mint = new web3.PublicKey(token.mint);
         const fromATA = await splToken.getAssociatedTokenAddress(mint, fromPubkey);
         const toATA = await splToken.getAssociatedTokenAddress(mint, toPubkey);
@@ -466,12 +402,12 @@ export default function SendScreen() {
         const mintInfo = await splToken.getMint(connection, mint);
         const amountRaw = BigInt(Math.floor(amount * Math.pow(10, mintInfo.decimals)));
         
-        const instructions = [];
+        if (amountRaw === 0n) {
+          throw new Error(t('sendScreen.alerts.amountTooSmall'));
+        }
         
-        // إنشاء حساب التوكن للمستقبل إذا لزم
         const toAccountInfo = await connection.getAccountInfo(toATA);
         if (!toAccountInfo) {
-          console.log(`➕ إنشاء حساب توكن للمستقبل...`);
           instructions.push(
             splToken.createAssociatedTokenAccountInstruction(
               fromPubkey,
@@ -482,7 +418,6 @@ export default function SendScreen() {
           );
         }
         
-        // تحويل التوكن
         instructions.push(
           splToken.createTransferInstruction(
             fromATA,
@@ -492,10 +427,7 @@ export default function SendScreen() {
           )
         );
         
-        // رسوم الخدمة في SOL (10%)
-        const serviceLamports = Math.floor(serviceFee * web3.LAMPORTS_PER_SOL);
         if (serviceLamports > 0) {
-          console.log(`➕ إضافة رسوم الخدمة: ${serviceFee} SOL`);
           instructions.push(
             web3.SystemProgram.transfer({
               fromPubkey,
@@ -504,139 +436,165 @@ export default function SendScreen() {
             })
           );
         }
-        
-        // إنشاء المعاملة
-        const transaction = new web3.Transaction();
-        transaction.add(...instructions);
-        transaction.recentBlockhash = blockhash;
-        transaction.feePayer = fromPubkey;
-        
-        console.log('🔐 جاري توقيع معاملة التوكن...');
-        
-        // التوقيع والإرسال
-        transactionSignature = await web3.sendAndConfirmTransaction(
-          connection,
-          transaction,
-          [keypair],
-          {
-            skipPreflight: false,
-            commitment: 'confirmed',
-            maxRetries: 3
-          }
-        );
-        
-        console.log(`✅ معاملة ${token.symbol} ناجحة:`, transactionSignature);
       }
       
-      // ✅ تسجيل المعاملة
+      const transaction = new web3.Transaction();
+      transaction.add(...instructions);
+      transaction.recentBlockhash = blockhash;
+      transaction.feePayer = fromPubkey;
+      
+      transactionSignature = await web3.sendAndConfirmTransaction(
+        connection,
+        transaction,
+        [keypair],
+        {
+          skipPreflight: false,
+          commitment: 'confirmed',
+          preflightCommitment: 'confirmed',
+          maxRetries: 3
+        }
+      );
+      
       await logTransaction({
         type: 'send',
         to: recipient,
-        amount: amount,
+        amount,
         currency: token.symbol,
-        networkFee: networkFee,
-        serviceFee: serviceFee,
-        totalFee: totalFee,
+        networkFee: state.networkFee,
+        serviceFee,
+        totalFee: totalFees,
         transactionSignature,
         timestamp: new Date().toISOString(),
         status: 'completed'
       });
       
-      // ✅ رسالة النجاح
+      await loadBalances(true);
+      clearBalanceCache();
+      
       Alert.alert(
-        t('success'),
-        `✅ ${t('sent_successfully')}\n\n` +
-        `المبلغ: ${amount} ${token.symbol}\n` +
-        `إلى: ${recipient.substring(0, 10)}...\n` +
-        `رقم المعاملة: ${transactionSignature?.substring(0, 20)}...\n\n` +
-        `💳 تفاصيل الرسوم:\n` +
-        `• ${t('network_fee')}: ${networkFee.toFixed(6)} SOL\n` +
-        `• ${t('service_fee')}: ${serviceFee.toFixed(6)} SOL\n` +
-        `• ${t('total')}: ${totalFee.toFixed(6)} SOL`,
+        t('sendScreen.alerts.success'),
+        `${t('sendScreen.alerts.sent')} ${amount} ${token.symbol}\n` +
+        `${t('sendScreen.alerts.to')} ${recipient.substring(0, 8)}...\n\n` +
+        `${t('sendScreen.alerts.fees')} ${totalFees.toFixed(6)} SOL\n` +
+        `${t('sendScreen.alerts.transactionHash')} ${transactionSignature.substring(0, 16)}...`,
         [{
-          text: t('ok'),
+          text: t('sendScreen.alerts.done'),
           onPress: () => {
-            setRecipient('');
-            setAmount('');
-            setLoading(false);
-            clearBalanceCache();
-            loadTokens();
+            setState(prev => ({ 
+              ...prev, 
+              recipient: '', 
+              amount: '' 
+            }));
           }
         }]
       );
       
-    } catch (err) {
-      console.error('❌ فشل المعاملة:', err);
-      setLoading(false);
-      
-      // تسجيل الفشل
-      await logTransaction({
-        type: 'send',
-        to: recipient,
-        amount: amount,
-        currency: token.symbol,
-        networkFee: networkFee,
-        serviceFee: networkFee * SERVICE_FEE_PERCENTAGE,
-        totalFee: calculateTotalFee(),
-        timestamp: new Date().toISOString(),
-        status: 'failed',
-        error: err.message,
-      });
-      
-      // رسالة الخطأ
-      let errorMessage = `${t('send_failed')}: ${err.message}`;
-      
-      if (err.message.includes('insufficient funds')) {
-        errorMessage = t('insufficient_balance_for_transaction');
-      } else if (err.message.includes('Invalid private key')) {
-        errorMessage = t('invalid_wallet_key');
-      } else if (err.message.includes('signature')) {
-        errorMessage = 'فشل في توقيع المعاملة. تأكد من صلاحية المفتاح الخاص.';
-      } else if (err.message.includes('Blockhash')) {
-        errorMessage = 'انتهت صلاحية Blockhash. يرجى إعادة المحاولة.';
-      } else if (err.message.includes('network connection')) {
-        errorMessage = 'فشل الاتصال بالشبكة. تحقق من اتصال الإنترنت.';
-      }
-      
-      Alert.alert(t('error'), errorMessage);
+    } catch (error) {
+      console.error('❌', t('sendScreen.alerts.sendFailed'), error);
+      throw error;
     }
-  };
+  }, [state.networkFee, serviceFee, totalFees, loadBalances, t]);
 
-  // تحديد أقصى مبلغ
-  const handleMaxAmount = () => {
-    if (balance <= 0) return;
+  const handleMaxAmount = useCallback(() => {
+    if (currentBalance <= 0) {
+      Alert.alert(
+        t('sendScreen.alerts.info'),
+        t('sendScreen.alerts.noBalance')
+      );
+      return;
+    }
     
-    const currentToken = getCurrentToken();
-    const totalFee = calculateTotalFee();
-    
-    if (currentToken.symbol === 'SOL') {
-      // ✅ لا رسوم رانت
-      const maxAvailable = balance - totalFee;
-      const safeMax = Math.max(0, maxAvailable);
-      setAmount(safeMax.toFixed(currentToken.decimals || 6));
-      console.log(`💰 الحد الأقصى لـ SOL: ${balance} - ${totalFee} = ${safeMax}`);
+    let maxAmount;
+    if (state.currency === 'SOL') {
+      maxAmount = Math.max(0, currentBalance - totalFees);
     } else {
-      setAmount(balance.toFixed(currentToken.decimals || 6));
-      console.log(`💰 الحد الأقصى لـ ${currentToken.symbol}: ${balance}`);
+      maxAmount = currentBalance;
     }
-  };
+    
+    if (maxAmount < minimumAmount) {
+      Alert.alert(
+        t('sendScreen.alerts.unavailable'),
+        t('sendScreen.alerts.balanceBelowMinimum')
+      );
+      return;
+    }
+    
+    if (maxAmount > 0) {
+      const decimals = currentToken.decimals || 6;
+      setState(prev => ({ 
+        ...prev, 
+        amount: maxAmount.toFixed(decimals) 
+      }));
+    }
+  }, [currentBalance, state.currency, totalFees, currentToken, minimumAmount, t]);
 
-  // لصق العنوان
-  const handlePasteAddress = async () => {
+  const handlePasteAddress = useCallback(async () => {
     try {
       const text = await Clipboard.getString();
       if (text) {
-        setRecipient(text.trim());
-        console.log(`📋 تم لصق العنوان: ${text.substring(0, 15)}...`);
+        const trimmedText = text.trim();
+        setState(prev => ({ ...prev, recipient: trimmedText }));
       }
     } catch (error) {
-      console.warn('Failed to paste:', error);
+      console.warn(t('sendScreen.errors.copyFailed'), error);
     }
-  };
+  }, [t]);
 
-  // عرض عنصر التوكن
-  const renderTokenItem = ({ item }) => {
-    const isSelected = currency === item.symbol;
+  useEffect(() => {
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 600,
+      useNativeDriver: true,
+    }).start();
+
+    const init = async () => {
+      await updateNetworkFee();
+      await loadBalances();
+    };
+    
+    init();
+
+    return () => {
+      if (loadTimeoutRef.current) clearTimeout(loadTimeoutRef.current);
+      if (validationTimeoutRef.current) clearTimeout(validationTimeoutRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (validationTimeoutRef.current) {
+      clearTimeout(validationTimeoutRef.current);
+    }
+    
+    validationTimeoutRef.current = setTimeout(() => {
+      validateRecipient(state.recipient);
+    }, 1000);
+    
+    return () => {
+      if (validationTimeoutRef.current) {
+        clearTimeout(validationTimeoutRef.current);
+      }
+    };
+  }, [state.recipient, validateRecipient]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (!state.loading && !state.transactionInProgress) {
+        loadBalances();
+        updateNetworkFee();
+      }
+    }, 30000);
+    
+    return () => clearInterval(interval);
+  }, [state.loading, state.transactionInProgress, loadBalances, updateNetworkFee]);
+
+  // ✅ الإصلاح: دالة عرض التوكنات تسمح باختيار أي توكن
+  const renderTokenItem = useCallback(({ item }) => {
+    const isSelected = state.currency === item.symbol;
+    const balance = item.symbol === 'SOL' ? balances.sol : balances.tokens[item.symbol] || 0;
+    const hasBalance = balance > 0;
+    
+    // استخدام الترجمات لأسماء التوكنات
+    const tokenName = t(`sendScreen.tokens.${item.symbol.toLowerCase()}Token`, { defaultValue: item.name });
     
     return (
       <TouchableOpacity
@@ -645,12 +603,13 @@ export default function SendScreen() {
           { 
             backgroundColor: colors.card,
             borderColor: isSelected ? primaryColor : 'transparent',
+            opacity: hasBalance ? 1 : 0.7, // ✅ توضيح للرصيد الصفري
           }
         ]}
         onPress={() => {
-          setCurrency(item.symbol);
-          setModalVisible(false);
+          setState(prev => ({ ...prev, currency: item.symbol, modalVisible: false }));
         }}
+        activeOpacity={0.7}
       >
         <View style={styles.tokenItemContent}>
           <View style={[styles.tokenIcon, { backgroundColor: primaryColor + '20' }]}>
@@ -661,30 +620,22 @@ export default function SendScreen() {
               {item.symbol}
             </Text>
             <Text style={[styles.tokenItemSymbol, { color: colors.textSecondary }]}>
-              {item.name}
+              {tokenName}
             </Text>
-            {item.userBalance > 0 && (
-              <Text style={[styles.tokenBalance, { color: colors.textSecondary }]}>
-                {t('balance')}: {item.userBalance.toFixed(4)}
-              </Text>
-            )}
+            <Text style={[
+              styles.tokenBalance, 
+              { color: hasBalance ? colors.textSecondary : colors.textSecondary + '80' }
+            ]}>
+              {hasBalance ? `${t('sendScreen.tokens.balance')} ${balance.toFixed(4)}` : t('sendScreen.tokens.noBalance')}
+            </Text>
           </View>
           {isSelected && (
             <Ionicons name="checkmark-circle" size={24} color={primaryColor} />
           )}
-          {!item.hasBalance && !isSelected && (
-            <Text style={[styles.noBalanceText, { color: colors.textSecondary }]}>
-              {t('no_balance')}
-            </Text>
-          )}
         </View>
       </TouchableOpacity>
     );
-  };
-
-  const currentToken = getCurrentToken();
-  const totalFee = calculateTotalFee();
-  const serviceFee = networkFee * SERVICE_FEE_PERCENTAGE;
+  }, [state.currency, colors, primaryColor, balances, t]);
 
   return (
     <KeyboardAvoidingView
@@ -697,54 +648,56 @@ export default function SendScreen() {
       >
         <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
           
-          {/* العنوان */}
           <View style={styles.header}>
-            <Text style={[styles.title, { color: colors.text }]}>{t('send')}</Text>
+            <Text style={[styles.title, { color: colors.text }]}>
+              {t('sendScreen.title')}
+            </Text>
             <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-              {t('transfer_to_another_wallet')}
+              {t('sendScreen.subtitle')}
             </Text>
           </View>
 
-          {/* بطاقة الرصيد */}
           <View style={[styles.balanceCard, { backgroundColor: colors.card }]}>
             <View style={styles.balanceHeader}>
               <Text style={[styles.balanceLabel, { color: colors.textSecondary }]}>
-                {t('available_balance')}
+                {t('sendScreen.balance.available')}
               </Text>
               <TouchableOpacity 
-                onPress={loadTokens} 
+                onPress={() => loadBalances(true)} 
                 style={styles.refreshButton}
-                disabled={loadingTokens}
+                disabled={state.loadingTokens}
               >
                 <Ionicons 
                   name="refresh-outline" 
                   size={20} 
-                  color={loadingTokens ? colors.textSecondary : primaryColor} 
+                  color={state.loadingTokens ? colors.textSecondary : primaryColor} 
                 />
               </TouchableOpacity>
             </View>
             
             <Text style={[styles.balanceAmount, { color: colors.text }]}>
-              {balance.toFixed(6)} {currency}
+              {currentBalance.toFixed(6)} {state.currency}
             </Text>
             
-            {/* رصيد SOL للرسوم */}
-            {currency !== 'SOL' && (
+            {state.currency !== 'SOL' && (
               <View style={styles.solBalanceContainer}>
                 <Text style={[styles.solBalanceLabel, { color: colors.textSecondary }]}>
-                  {t('your_sol_balance')}:
+                  {t('sendScreen.balance.solForFees')}
                 </Text>
-                <Text style={[styles.solBalanceAmount, { color: solBalance >= totalFee ? colors.success : colors.warning }]}>
-                  {solBalance.toFixed(6)} SOL
+                <Text style={[styles.solBalanceAmount, { 
+                  color: balances.sol >= totalFees ? colors.success : colors.warning 
+                }]}>
+                  {balances.sol.toFixed(6)} SOL
                 </Text>
               </View>
             )}
           </View>
 
-          {/* اختيار التوكن */}
+          {/* اختيار التوكن - يعمل دائمًا */}
           <TouchableOpacity
             style={[styles.tokenSelector, { backgroundColor: colors.card }]}
-            onPress={() => setModalVisible(true)}
+            onPress={() => setState(prev => ({ ...prev, modalVisible: true }))}
+            activeOpacity={0.7}
           >
             <View style={styles.tokenSelectorContent}>
               <View style={styles.tokenInfo}>
@@ -760,7 +713,7 @@ export default function SendScreen() {
                     {currentToken.symbol}
                   </Text>
                   <Text style={[styles.tokenSymbol, { color: colors.textSecondary }]}>
-                    {currentToken.name}
+                    {t(`sendScreen.tokens.${currentToken.symbol.toLowerCase()}Token`, { defaultValue: currentToken.name })}
                   </Text>
                 </View>
               </View>
@@ -768,23 +721,25 @@ export default function SendScreen() {
             </View>
           </TouchableOpacity>
 
-          {/* حقل العنوان المستقبل */}
           <View style={styles.inputSection}>
             <Text style={[styles.inputLabel, { color: colors.text }]}>
-              {t('recipient_address')}
+              {t('sendScreen.inputs.recipient')}
             </Text>
-            <View style={[styles.inputContainer, { backgroundColor: colors.inputBackground, borderColor: colors.border }]}>
+            <View style={[styles.inputContainer, { 
+              backgroundColor: colors.inputBackground, 
+              borderColor: state.recipientExists === false ? colors.error : colors.border 
+            }]}>
               <TextInput
                 style={[styles.input, { color: colors.text }]}
-                placeholder={t('enter_recipient_address')}
+                placeholder={t('sendScreen.inputs.recipientPlaceholder')}
                 placeholderTextColor={colors.textSecondary}
-                value={recipient}
-                onChangeText={setRecipient}
+                value={state.recipient}
+                onChangeText={(text) => setState(prev => ({ ...prev, recipient: text }))}
                 autoCapitalize="none"
                 autoCorrect={false}
               />
-              {recipient ? (
-                <TouchableOpacity onPress={() => setRecipient('')}>
+              {state.recipient ? (
+                <TouchableOpacity onPress={() => setState(prev => ({ ...prev, recipient: '' }))}>
                   <Ionicons name="close-circle" size={20} color={colors.textSecondary} />
                 </TouchableOpacity>
               ) : (
@@ -793,162 +748,139 @@ export default function SendScreen() {
                 </TouchableOpacity>
               )}
             </View>
+            {state.recipientExists === false && (
+              <Text style={[styles.warningText, { color: colors.warning }]}>
+                {t('sendScreen.warnings.inactiveAddress')}
+              </Text>
+            )}
           </View>
 
-          {/* حقل المبلغ */}
           <View style={styles.inputSection}>
             <View style={styles.amountHeader}>
               <Text style={[styles.inputLabel, { color: colors.text }]}>
-                {t('amount')}
+                {t('sendScreen.inputs.amount')}
               </Text>
               <TouchableOpacity onPress={handleMaxAmount}>
                 <Text style={[styles.maxButton, { color: primaryColor }]}>
-                  {t('max')}
+                  {t('sendScreen.inputs.maxButton')}
                 </Text>
               </TouchableOpacity>
             </View>
             <View style={[styles.inputContainer, { backgroundColor: colors.inputBackground, borderColor: colors.border }]}>
               <TextInput
                 style={[styles.input, { color: colors.text, flex: 1 }]}
-                placeholder={t('enter_amount')}
+                placeholder={t('sendScreen.inputs.amountPlaceholder')}
                 placeholderTextColor={colors.textSecondary}
                 keyboardType="numeric"
-                value={amount}
-                onChangeText={setAmount}
+                value={state.amount}
+                onChangeText={(text) => setState(prev => ({ ...prev, amount: text }))}
               />
               <Text style={[styles.currencyLabel, { color: colors.textSecondary }]}>
-                {currency}
+                {state.currency}
               </Text>
             </View>
-          </View>
-
-          {/* معلومات الرسوم */}
-          <View style={[styles.feeCard, { backgroundColor: colors.card }]}>
-            <Text style={[styles.feeCardTitle, { color: colors.text }]}>
-              📊 {t('fee_details')}
+            <Text style={[styles.minimumText, { color: colors.textSecondary }]}>
+              {t('sendScreen.inputs.minimum')} {minimumAmount} {state.currency}
             </Text>
-            
-            <View style={styles.feeRow}>
-              <View style={styles.feeLabelContainer}>
-                <Text style={[styles.feeLabel, { color: colors.textSecondary }]}>
-                  {t('network_fee')}
-                </Text>
-                <Text style={[styles.feeSubLabel, { color: colors.textSecondary }]}>
-                  {t('dynamic_based_on_congestion')}
-                </Text>
-              </View>
-              <Text style={[styles.feeValue, { color: colors.text }]}>
-                {networkFee.toFixed(6)} SOL
-              </Text>
-            </View>
-            
-            <View style={styles.feeRow}>
-              <View style={styles.feeLabelContainer}>
-                <Text style={[styles.feeLabel, { color: colors.textSecondary }]}>
-                  {t('service_fee')}
-                </Text>
-                <Text style={[styles.feeSubLabel, { color: colors.textSecondary }]}>
-                  {t('for_developer_support')}
-                </Text>
-              </View>
-              <Text style={[styles.feeValue, { color: colors.text }]}>
-                {serviceFee.toFixed(6)} SOL
-              </Text>
-            </View>
-            
-            <View style={[styles.totalFeeRow, { borderTopColor: colors.border }]}>
-              <Text style={[styles.totalFeeLabel, { color: colors.text }]}>
-                {t('total_fees')}
-              </Text>
-              <Text style={[styles.totalAmount, { color: primaryColor }]}>
-                {totalFee.toFixed(6)} SOL
-              </Text>
-            </View>
-            
-            {/* ملاحظة */}
-            {currency !== 'SOL' && (
-              <View style={[styles.feeNote, { backgroundColor: primaryColor + '10' }]}>
-                <Ionicons name="information-circle" size={16} color={primaryColor} />
-                <Text style={[styles.feeNoteText, { color: primaryColor }]}>
-                  ⓘ {t('all_fees_paid_in_sol')}
-                </Text>
-              </View>
-            )}
           </View>
 
-          {/* زر الإرسال */}
+          {/* رسوم بسيطة */}
+          <View style={[styles.simpleFeeRow, { backgroundColor: colors.card }]}>
+            <Text style={[styles.simpleFeeText, { color: colors.textSecondary }]}>
+              {t('sendScreen.fees.networkFee')}
+            </Text>
+            <Text style={[styles.simpleFeeAmount, { color: colors.text }]}>
+              {totalFees.toFixed(6)} SOL
+            </Text>
+          </View>
+
+          {/* ✅ زر الإرسال - يعمل دائمًا مع رسائل خطأ واضحة */}
           <TouchableOpacity
             style={[
               styles.sendButton,
               { 
-                backgroundColor: primaryColor,
-                opacity: (!recipient || !amount || loading) ? 0.6 : 1
+                backgroundColor: canShowSendButton ? primaryColor : colors.textSecondary,
+                opacity: canShowSendButton ? 1 : 0.5
               }
             ]}
             onPress={handleSend}
-            disabled={!recipient || !amount || loading}
+            disabled={!canShowSendButton || state.loading}
           >
-            {loading ? (
+            {state.loading ? (
               <View style={styles.loadingContainer}>
                 <ActivityIndicator size="small" color="#FFFFFF" />
                 <Text style={[styles.loadingText, { color: '#FFFFFF', marginLeft: 8 }]}>
-                  {t('sending')}
+                  {t('sendScreen.buttons.sending')}
                 </Text>
               </View>
             ) : (
               <>
                 <Ionicons name="paper-plane-outline" size={20} color="#FFFFFF" />
                 <Text style={styles.sendButtonText}>
-                  {t('confirm_send')}
+                  {t('sendScreen.buttons.send')}
                 </Text>
               </>
             )}
           </TouchableOpacity>
 
-          {/* ملاحظات */}
-          <View style={[styles.infoNotice, { backgroundColor: primaryColor + '10', borderColor: primaryColor + '30' }]}>
-            <Ionicons name="information-circle-outline" size={16} color={primaryColor} />
-            <Text style={[styles.infoText, { color: colors.text }]}>
-              ⓘ {t('fee_developer_notice')}
-            </Text>
-          </View>
-          
+          {/* رسالة توضيحية عند تعطيل الزر */}
+          {!canShowSendButton && (
+            <View style={styles.hintContainer}>
+              <Ionicons name="information-circle-outline" size={16} color={colors.textSecondary} />
+              <Text style={[styles.hintText, { color: colors.textSecondary }]}>
+                {!state.recipient ? t('sendScreen.warnings.enterRecipient') : 
+                 !state.amount ? t('sendScreen.warnings.enterAmount') : 
+                 parseFloat(state.amount || 0) < minimumAmount ? 
+                   `${t('sendScreen.inputs.minimum')} ${minimumAmount} ${state.currency}` : 
+                 t('sendScreen.warnings.availableToSend')}
+              </Text>
+            </View>
+          )}
+
           <View style={styles.securityNotice}>
             <Ionicons name="shield-checkmark-outline" size={16} color={colors.textSecondary} />
             <Text style={[styles.securityText, { color: colors.textSecondary }]}>
-              {t('verify_address_before_sending')}
+              {t('sendScreen.warnings.verifyAddress')}
             </Text>
           </View>
         </Animated.View>
       </ScrollView>
 
-      {/* نافذة اختيار التوكن */}
-      <Modal visible={modalVisible} transparent animationType="slide">
+      {/* نافذة اختيار التوكن - تعمل دائمًا */}
+      <Modal 
+        visible={state.modalVisible} 
+        transparent 
+        animationType="slide"
+        onRequestClose={() => setState(prev => ({ ...prev, modalVisible: false }))}
+      >
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
             <View style={styles.modalHeader}>
               <Text style={[styles.modalTitle, { color: colors.text }]}>
-                {t('select_token')}
+                {t('sendScreen.modals.chooseCurrency')}
               </Text>
-              <TouchableOpacity onPress={() => setModalVisible(false)}>
+              <TouchableOpacity onPress={() => setState(prev => ({ ...prev, modalVisible: false }))}>
                 <Ionicons name="close" size={24} color={colors.text} />
               </TouchableOpacity>
             </View>
 
-            {loadingTokens ? (
+            {state.loadingTokens ? (
               <View style={styles.loadingContainer}>
                 <ActivityIndicator size="small" color={primaryColor} />
                 <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
-                  {t('loading_tokens')}
+                  {t('sendScreen.modals.loadingBalances')}
                 </Text>
               </View>
             ) : (
               <FlatList
-                data={availableTokens}
-                keyExtractor={(item) => item.uniqueKey}
+                data={BASE_TOKENS}
+                keyExtractor={(item) => item.mint || item.symbol}
                 renderItem={renderTokenItem}
                 contentContainerStyle={styles.tokenList}
                 showsVerticalScrollIndicator={false}
+                initialNumToRender={10}
+                maxToRenderPerBatch={10}
+                windowSize={5}
               />
             )}
           </View>
@@ -958,7 +890,9 @@ export default function SendScreen() {
   );
 }
 
-// الأنماط (نفسها)
+// =============================================
+// 🎨 الأنماط المحسنة
+// =============================================
 const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
@@ -983,14 +917,14 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   balanceCard: {
-    borderRadius: 20,
+    borderRadius: 16,
     padding: 20,
     marginBottom: 20,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
-    shadowRadius: 16,
-    elevation: 8,
+    shadowRadius: 8,
+    elevation: 4,
   },
   balanceHeader: {
     flexDirection: 'row',
@@ -1069,6 +1003,11 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginBottom: 8,
   },
+  warningText: {
+    fontSize: 12,
+    marginTop: 4,
+    fontWeight: '500',
+  },
   amountHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1077,6 +1016,11 @@ const styles = StyleSheet.create({
   maxButton: {
     fontSize: 14,
     fontWeight: '600',
+  },
+  minimumText: {
+    fontSize: 11,
+    marginTop: 4,
+    textAlign: 'right',
   },
   inputContainer: {
     flexDirection: 'row',
@@ -1096,69 +1040,26 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginLeft: 8,
   },
-  feeCard: {
-    borderRadius: 16,
+  simpleFeeRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderRadius: 12,
     padding: 16,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.1)',
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  feeCardTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  feeRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  feeLabelContainer: {
-    flex: 1,
-  },
-  feeLabel: {
+  simpleFeeText: {
     fontSize: 14,
     fontWeight: '500',
   },
-  feeSubLabel: {
-    fontSize: 11,
-    opacity: 0.7,
-    marginTop: 2,
-  },
-  feeValue: {
-    fontSize: 14,
-    fontWeight: '500',
-    textAlign: 'right',
-  },
-  feeNote: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 8,
-    borderRadius: 8,
-    marginTop: 10,
-  },
-  feeNoteText: {
-    fontSize: 12,
-    marginLeft: 8,
-    flex: 1,
-  },
-  totalFeeRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingTop: 10,
-    borderTopWidth: 1,
-    marginTop: 4,
-  },
-  totalFeeLabel: {
+  simpleFeeAmount: {
     fontSize: 15,
     fontWeight: '600',
-  },
-  totalAmount: {
-    fontSize: 16,
-    fontWeight: '700',
   },
   sendButton: {
     flexDirection: 'row',
@@ -1188,18 +1089,16 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginLeft: 8,
   },
-  infoNotice: {
+  hintContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    marginBottom: 16,
+    justifyContent: 'center',
+    padding: 8,
+    marginBottom: 12,
   },
-  infoText: {
+  hintText: {
     fontSize: 12,
     marginLeft: 8,
-    flex: 1,
     textAlign: 'center',
   },
   securityNotice: {
@@ -1265,9 +1164,5 @@ const styles = StyleSheet.create({
   tokenBalance: {
     fontSize: 12,
     marginTop: 2,
-  },
-  noBalanceText: {
-    fontSize: 12,
-    fontStyle: 'italic',
   },
 });

@@ -371,6 +371,78 @@ const resources = {
       swap_unavailable: "غير متاح",
       swap_not_available: "غير متاح",
       swap_real_price: "السعر الحقيقي",
+
+      // ========== مفاتيح SendScreen المحدثة (من شاشة Send) ==========
+      sendScreen: {
+        title: "إرسال",
+        subtitle: "تحويل إلى محفظة أخرى",
+        balance: {
+          available: "الرصيد المتاح",
+          solForFees: "رصيد SOL للرسوم:"
+        },
+        inputs: {
+          recipient: "عنوان المستلم",
+          recipientPlaceholder: "أدخل عنوان المحفظة",
+          amount: "المبلغ",
+          amountPlaceholder: "أدخل المبلغ",
+          maxButton: "أقصى قيمة",
+          minimum: "الحد الأدنى:"
+        },
+        fees: {
+          networkFee: "رسوم الشبكة:"
+        },
+        buttons: {
+          send: "إرسال",
+          sending: "جاري الإرسال..."
+        },
+        modals: {
+          chooseCurrency: "اختر العملة",
+          loadingBalances: "جاري تحميل الأرصدة..."
+        },
+        warnings: {
+          inactiveAddress: "⚠️ هذا العنوان قد لا يكون نشطاً",
+          enterRecipient: "أدخل عنوان المستلم",
+          enterAmount: "أدخل المبلغ",
+          availableToSend: "متاح للإرسال",
+          verifyAddress: "تحقق من العنوان قبل الإرسال"
+        },
+        tokens: {
+          solana: "Solana",
+          mecoToken: "MECO Token",
+          tetherUSD: "Tether USD",
+          usdCoin: "USD Coin",
+          noBalance: "لا يوجد رصيد",
+          balance: "الرصيد:"
+        },
+        alerts: {
+          error: "خطأ",
+          incompleteData: "البيانات غير مكتملة أو غير صالحة للإرسال",
+          invalidAddress: "عنوان المستلم غير صالح",
+          selfTransfer: "لا يمكن الإرسال لنفس المحفظة",
+          amountTooSmall: "المبلغ صغير جداً للإرسال",
+          insufficientBalance: "رصيدك غير كافي. الرصيد الحالي:",
+          insufficientSolForFees: "رصيد SOL غير كافي للرسوم. تحتاج {{needed}} SOL، رصيدك: {{balance}} SOL",
+          minimumAmount: "الحد الأدنى للإرسال هو {{amount}} {{currency}}",
+          info: "معلومات",
+          noBalance: "لا يوجد رصيد",
+          unavailable: "غير متاح",
+          balanceBelowMinimum: "الرصيد المتاح أقل من الحد الأدنى للإرسال",
+          success: "✅ تم الإرسال بنجاح",
+          sent: "تم إرسال",
+          to: "إلى:",
+          fees: "📊 الرسوم:",
+          transactionHash: "🔗",
+          done: "تم",
+          sendFailed: "فشل الإرسال",
+          unexpectedError: "حدث خطأ غير متوقع"
+        },
+        errors: {
+          privateKeyNotFound: "لم يتم العثور على المفتاح الخاص",
+          invalidKeyLength: "طول المفتاح الخاص غير صحيح",
+          keyRetrievalFailed: "❌ فشل استرجاع المفتاح:",
+          balanceLoadFailed: "❌ فشل تحميل الأرصدة:"
+        }
+      }
     }
   },
   en: {
@@ -741,6 +813,78 @@ const resources = {
       swap_unavailable: "Unavailable",
       swap_not_available: "Not available",
       swap_real_price: "Real price",
+
+      // ========== Updated SendScreen Keys (from Send Screen) ==========
+      sendScreen: {
+        title: "Send",
+        subtitle: "Transfer to another wallet",
+        balance: {
+          available: "Available Balance",
+          solForFees: "SOL Balance for Fees:"
+        },
+        inputs: {
+          recipient: "Recipient Address",
+          recipientPlaceholder: "Enter wallet address",
+          amount: "Amount",
+          amountPlaceholder: "Enter amount",
+          maxButton: "MAX",
+          minimum: "Minimum:"
+        },
+        fees: {
+          networkFee: "Network Fee:"
+        },
+        buttons: {
+          send: "Send",
+          sending: "Sending..."
+        },
+        modals: {
+          chooseCurrency: "Choose Currency",
+          loadingBalances: "Loading balances..."
+        },
+        warnings: {
+          inactiveAddress: "⚠️ This address may not be active",
+          enterRecipient: "Enter recipient address",
+          enterAmount: "Enter amount",
+          availableToSend: "Available to send",
+          verifyAddress: "Verify address before sending"
+        },
+        tokens: {
+          solana: "Solana",
+          mecoToken: "MECO Token",
+          tetherUSD: "Tether USD",
+          usdCoin: "USD Coin",
+          noBalance: "No balance",
+          balance: "Balance:"
+        },
+        alerts: {
+          error: "Error",
+          incompleteData: "Incomplete or invalid data for sending",
+          invalidAddress: "Recipient address is invalid",
+          selfTransfer: "Cannot send to the same wallet",
+          amountTooSmall: "Amount is too small for sending",
+          insufficientBalance: "Your balance is insufficient. Current balance:",
+          insufficientSolForFees: "Insufficient SOL for fees. You need {{needed}} SOL, your balance: {{balance}} SOL",
+          minimumAmount: "Minimum amount to send is {{amount}} {{currency}}",
+          info: "Info",
+          noBalance: "No balance",
+          unavailable: "Unavailable",
+          balanceBelowMinimum: "Available balance is below minimum for sending",
+          success: "✅ Sent successfully",
+          sent: "Sent",
+          to: "To:",
+          fees: "📊 Fees:",
+          transactionHash: "🔗",
+          done: "Done",
+          sendFailed: "Send failed",
+          unexpectedError: "An unexpected error occurred"
+        },
+        errors: {
+          privateKeyNotFound: "Private key not found",
+          invalidKeyLength: "Private key length is incorrect",
+          keyRetrievalFailed: "❌ Failed to retrieve key:",
+          balanceLoadFailed: "❌ Failed to load balances:"
+        }
+      }
     }
   }
 };
