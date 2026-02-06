@@ -44,7 +44,7 @@ const BASE_SWAP_TOKENS = [
     mint: '7hBNyFfwYTv65z3ZudMAyKBw3BLMKxyKXsr5xM51Za4i',
     icon: 'rocket-outline',
     decimals: 9, // ✅ تصحيح هام: تم التعديل إلى 9 لتطابق الإعدادات الصحيحة
-    image: 'https://raw.githubusercontent.com/saadeh73/meco-project/main/meco-logo.png'
+    image: 'https://raw.githubusercontent.com/MonyCoin/meco-token/refs/heads/main/meco-logo.png'
   },
   {
     symbol: 'USDC',
