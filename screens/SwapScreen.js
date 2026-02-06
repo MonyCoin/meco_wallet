@@ -1,19 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  Alert,
-  Modal,
-  ScrollView,
-  Dimensions,
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-  Linking,
-  Image
+  View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, Modal,
+  ScrollView, Dimensions, ActivityIndicator, KeyboardAvoidingView,
+  Platform, Linking, Image
 } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { useAppStore } from '../store';
@@ -29,8 +18,8 @@ const { width } = Dimensions.get('window');
 // ⚙️ إعدادات التبادل
 // =============================================
 const JUPITER_QUOTE_API = 'https://quote-api.jup.ag/v6/quote';
-const SLIPPAGE_BPS = 50; // 0.5% Slippage (قياسي)
-const MIN_SOL_FOR_GAS = 0.002; // الحد الأدنى من SOL الذي يجب بقاؤه في المحفظة للأمان
+const SLIPPAGE_BPS = 50; // 0.5%
+const SERVICE_FEE_SOL = 0.0005; // ✅ تم توحيد الرسوم مع شاشة الإرسال
 
 const BASE_SWAP_TOKENS = [
   {
@@ -54,7 +43,7 @@ const BASE_SWAP_TOKENS = [
     name: 'MECO Token',
     mint: '7hBNyFfwYTv65z3ZudMAyKBw3BLMKxyKXsr5xM51Za4i',
     icon: 'rocket-outline',
-    decimals: 6,
+    decimals: 9, // ✅ تصحيح هام: تم التعديل إلى 9 لتطابق الإعدادات الصحيحة
     image: 'https://raw.githubusercontent.com/saadeh73/meco-project/main/meco-logo.png'
   },
   {
@@ -76,7 +65,6 @@ export default function SwapScreen() {
   const isDark = theme === 'dark';
   const isMounted = useRef(true);
 
-  // استلام الرمز المختار
   const selectedToken = route.params?.selectedToken;
 
   const [swapTokens, setSwapTokens] = useState(() => {
@@ -125,22 +113,17 @@ export default function SwapScreen() {
   const [networkFee, setNetworkFee] = useState(0.000005);
   const [error, setError] = useState(null);
   
-  // Ref لـ Timeout لمنع التحديث المتكرر
   const quoteTimeoutRef = useRef(null);
 
-  // تحديث الرسوم
   const updateNetworkFee = useCallback(async () => {
     try {
       let fee = await getCurrentNetworkFee();
-      // سقف منطقي للرسوم لتجنب الأرقام الفلكية في العرض، لكن التنفيذ الفعلي يعتمد على الشبكة
-      if (fee > 0.0001) fee = 0.0001; 
       if (isMounted.current) setNetworkFee(fee);
     } catch (error) {
       if (isMounted.current) setNetworkFee(0.000005);
     }
   }, []);
 
-  // تحميل الأرصدة
   const loadBalances = useCallback(async () => {
     try {
       const solBalance = await getSolBalance();
@@ -173,10 +156,8 @@ export default function SwapScreen() {
     };
   }, [loadBalances, updateNetworkFee]);
 
-  // helper للحصول على معلومات التوكن
   const getTokenInfo = (symbol) => swapTokens.find(t => t.symbol === symbol);
 
-  // ✅ دالة جلب السعر من Jupiter (الأكثر أهمية)
   const getJupiterQuote = async (inputSymbol, outputSymbol, amount) => {
     const inputToken = getTokenInfo(inputSymbol);
     const outputToken = getTokenInfo(outputSymbol);
@@ -185,8 +166,7 @@ export default function SwapScreen() {
       throw new Error(t('swap_invalid_token_selection'));
     }
 
-    // تحويل المبلغ لأصغر وحدة (Lamports/Decimals)
-    // استخدام Math.round لتفادي الكسور الناتجة عن ضرب الفلوت
+    // ✅ استخدام عدد الخانات الصحيح من المصفوفة المحدثة
     const amountInSmallestUnit = Math.round(amount * Math.pow(10, inputToken.decimals));
 
     const url = `${JUPITER_QUOTE_API}?inputMint=${inputToken.mint}&outputMint=${outputToken.mint}&amount=${amountInSmallestUnit}&slippageBps=${SLIPPAGE_BPS}`;
@@ -204,17 +184,16 @@ export default function SwapScreen() {
       const outAmountNum = Number(data.outAmount) / Math.pow(10, outputToken.decimals);
       
       return {
-        ...data, // نعيد كامل الاوبجكت لأننا نحتاجه للتنفيذ
+        ...data,
         outputAmountUI: outAmountNum,
         rate: outAmountNum / amount
       };
     } catch (error) {
       console.warn('Jupiter Quote Failed:', error);
-      throw error; // نرمي الخطأ ليعالجه الـ UI
+      throw error;
     }
   };
 
-  // مراقبة المدخلات لتحديث السعر
   useEffect(() => {
     if (quoteTimeoutRef.current) clearTimeout(quoteTimeoutRef.current);
 
@@ -239,16 +218,14 @@ export default function SwapScreen() {
         if (isMounted.current) {
           setQuote(null);
           setToAmount('');
-          // لا نعرض الخطأ كنص أحمر مزعج فوراً إلا إذا كان خطأ اتصال، يمكن الاكتفاء بتعطيل الزر
         }
       } finally {
         if (isMounted.current) setLoadingQuote(false);
       }
-    }, 600); // 600ms Debounce
+    }, 600);
 
   }, [fromToken, toToken, fromAmount]);
 
-  // زر التبديل (قلب العملات)
   const handleSwitchTokens = () => {
     setFromToken(toToken);
     setToToken(fromToken);
@@ -257,72 +234,65 @@ export default function SwapScreen() {
     setQuote(null);
   };
 
-  // زر Max
   const handleMaxAmount = () => {
     const balance = balances[fromToken] || 0;
     let maxVal = balance;
 
     if (fromToken === 'SOL') {
-      // إذا كان SOL، نترك مبلغ للغاز
-      maxVal = Math.max(0, balance - MIN_SOL_FOR_GAS - networkFee);
+      // ✅ خصم الرسوم الثابتة الجديدة + رسوم الشبكة + هامش أمان
+      maxVal = Math.max(0, balance - SERVICE_FEE_SOL - networkFee - 0.00001);
     }
     
-    // تنسيق الرقم لـ 6 خانات عشرية كحد أقصى للنص
     setFromAmount(maxVal > 0 ? maxVal.toFixed(6) : '0');
   };
 
-  // ✅ تنفيذ التبادل
   const handleSwap = async () => {
     const amount = parseFloat(fromAmount);
     
-    // 1. التحقق من المدخلات
     if (!amount || amount <= 0) {
       Alert.alert(t('error'), t('swap_amount_must_be_positive'));
       return;
     }
 
-    // 2. التحقق من رصيد العملة المراد إرسالها
     const tokenBalance = balances[fromToken] || 0;
     if (amount > tokenBalance) {
       Alert.alert(t('error'), t('swap_insufficient_balance'));
       return;
     }
 
-    // 3. ✅ التحقق الحرج: هل يوجد رصيد SOL كافٍ للرسوم؟ (مهما كانت العملة المرسلة)
     const solBalance = balances.SOL || 0;
-    const estimatedFee = networkFee * 1.5; // هامش أمان
+    // ✅ حساب إجمالي الرسوم المطلوبة (شبكة + خدمة)
+    const estimatedTotalFee = networkFee + SERVICE_FEE_SOL;
 
     if (fromToken === 'SOL') {
-      if (amount + estimatedFee > solBalance) {
+      if (amount + estimatedTotalFee > solBalance) {
         Alert.alert(t('error'), t('swap_insufficient_sol_gas'));
         return;
       }
     } else {
-      // إذا كنا نرسل توكن، يجب أن يكون لدينا SOL منفصل للغاز
-      if (solBalance < estimatedFee) {
-        Alert.alert(t('error'), `${t('swap_insufficient_sol_gas')} (~${estimatedFee.toFixed(5)} SOL)`);
+      if (solBalance < estimatedTotalFee) {
+        Alert.alert(t('error'), `${t('swap_insufficient_sol_gas')} (~${estimatedTotalFee.toFixed(5)} SOL)`);
         return;
       }
     }
 
-    // 4. التحقق من وجود عرض سعر حقيقي
     if (!quote || !quote.outAmount) {
       Alert.alert(t('error'), t('swap_no_route_found'));
       return;
     }
 
-    // البدء
     setLoading(true);
     try {
       const walletPublicKey = await SecureStore.getItemAsync('wallet_public_key');
       
       const result = await executeRealSwap({
-        quoteResponse: quote, // نمرر الرد الأصلي من Jupiter
+        quoteResponse: quote,
         walletPublicKey,
         fromToken,
         toToken,
         amount,
-        networkFee
+        networkFee,
+        serviceFee: SERVICE_FEE_SOL // ✅ تمرير رسوم الخدمة الثابتة
       });
 
       if (result.success) {
@@ -352,7 +322,6 @@ export default function SwapScreen() {
     }
   };
 
-  // مكون فرعي لعنصر القائمة
   const renderTokenItem = (token, isFrom) => {
     const tokenInfo = getTokenInfo(token.symbol);
     const balance = balances[token.symbol] || 0;
@@ -407,7 +376,6 @@ export default function SwapScreen() {
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.container}>
           
-          {/* Header */}
           <View style={styles.header}>
             <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
               <Ionicons name="arrow-back" size={24} color={colors.text} />
@@ -416,10 +384,8 @@ export default function SwapScreen() {
             <View style={{ width: 40 }} /> 
           </View>
 
-          {/* Swap Card */}
           <View style={[styles.swapCard, { backgroundColor: colors.card }]}>
             
-            {/* FROM Section */}
             <View style={styles.section}>
               <View style={styles.labelRow}>
                 <Text style={[styles.label, { color: colors.textSecondary }]}>{t('swap_pay')}</Text>
@@ -441,24 +407,17 @@ export default function SwapScreen() {
                     placeholderTextColor={colors.textSecondary}
                     keyboardType="numeric"
                     value={fromAmount}
-                    onChangeText={(t) => setFromAmount(t.replace(/,/g, '.'))} // Fix commas
+                    onChangeText={(t) => setFromAmount(t.replace(/,/g, '.'))}
                  />
               </View>
               
-              {/* Max & Fee Hint */}
               <View style={styles.helpersRow}>
                 <TouchableOpacity onPress={handleMaxAmount}>
                   <Text style={[styles.maxBtn, { color: primaryColor }]}>MAX</Text>
                 </TouchableOpacity>
-                {fromToken === 'SOL' && (
-                  <Text style={[styles.feeHint, { color: colors.warning }]}>
-                    {t('swap_gas_reserved')}
-                  </Text>
-                )}
               </View>
             </View>
 
-            {/* Switcher */}
             <View style={styles.switcherContainer}>
               <View style={[styles.divider, { backgroundColor: colors.border }]} />
               <TouchableOpacity 
@@ -470,7 +429,6 @@ export default function SwapScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* TO Section */}
             <View style={styles.section}>
               <View style={styles.labelRow}>
                 <Text style={[styles.label, { color: colors.textSecondary }]}>{t('swap_receive')}</Text>
@@ -498,7 +456,6 @@ export default function SwapScreen() {
               </View>
             </View>
 
-            {/* Quote Info */}
             {quote && (
               <View style={[styles.infoBox, { backgroundColor: primaryColor + '10' }]}>
                 <View style={styles.infoRow}>
@@ -509,12 +466,12 @@ export default function SwapScreen() {
                 </View>
                 <View style={styles.infoRow}>
                    <Text style={[styles.infoLabel, {color: colors.textSecondary}]}>{t('swap_est_fee')}</Text>
-                   <Text style={[styles.infoValue, {color: colors.text}]}>~{networkFee.toFixed(6)} SOL</Text>
+                   {/* عرض الرسوم الإجمالية للمستخدم */}
+                   <Text style={[styles.infoValue, {color: colors.text}]}>~{(networkFee + SERVICE_FEE_SOL).toFixed(5)} SOL</Text>
                 </View>
               </View>
             )}
 
-            {/* Main Action Button */}
             <TouchableOpacity
               style={[
                 styles.actionButton,
@@ -541,7 +498,6 @@ export default function SwapScreen() {
         </View>
       </ScrollView>
 
-      {/* Modals */}
       <Modal visible={showFromModal} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
            <View style={[styles.modalBody, { backgroundColor: colors.background }]}>
@@ -578,9 +534,6 @@ export default function SwapScreen() {
   );
 }
 
-// =============================================
-// 🎨 Styles
-// =============================================
 const styles = StyleSheet.create({
   scrollContent: { flexGrow: 1 },
   container: { flex: 1, padding: 20 },
@@ -601,7 +554,6 @@ const styles = StyleSheet.create({
   outputText: { fontSize: 20, fontWeight: '600' },
   helpersRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 6, minHeight: 20 },
   maxBtn: { fontSize: 12, fontWeight: '700' },
-  feeHint: { fontSize: 10 },
   switcherContainer: { height: 20, justifyContent: 'center', alignItems: 'center', zIndex: 10, marginVertical: -10 },
   divider: { width: '100%', height: 1 },
   switchBtn: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center', borderWidth: 4 },
