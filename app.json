@@ -2,7 +2,7 @@
   "expo": {
     "name": "meco wallet",
     "slug": "meco_wallet",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "scheme": "meco-wallet",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -15,7 +15,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.meco.wallet",
-      "buildNumber": "2"
+      "buildNumber": "3"
     },
     "android": {
       "adaptiveIcon": {
@@ -23,7 +23,7 @@
         "backgroundColor": "#ffffff"
       },
       "package": "com.meco.wallet",
-      "versionCode": 2,
+      "versionCode": 3,
       "permissions": [
         "CAMERA",
         "READ_EXTERNAL_STORAGE",

@@ -273,7 +273,7 @@ export default function PresaleScreen() {
           
           <View style={[styles.inputContainer, { backgroundColor: colors.inputBackground, borderColor: colors.border }]}>
             <Image 
-              source={{ uri: 'https://raw.githubusercontent.com/saadeh73/meco-project/main/meco-logo.png' }} 
+              source={{ uri: 'https://raw.githubusercontent.com/MonyCoin/meco-token/refs/heads/main/meco-logo.png' }} 
               style={styles.coinIcon} 
             />
             <TextInput

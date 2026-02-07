@@ -1,5 +1,6 @@
 import { LogBox } from 'react-native';
 LogBox.ignoreLogs(['"solana" is not a valid icon name']);
+
 import React, { useEffect, useState } from 'react';
 import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
@@ -41,7 +42,6 @@ function BottomTabs() {
           Settings: 'settings-outline',
           Wallet: 'wallet-outline',
           Market: 'stats-chart-outline',
-          Presale: 'flame-outline',
         };
 
         return {
@@ -51,12 +51,20 @@ function BottomTabs() {
           tabBarIcon: ({ color, size }) => (
             <Ionicons name={icons[route.name]} size={size} color={color} />
           ),
+          tabBarStyle: {
+            paddingBottom: 5,
+            paddingTop: 5,
+            height: 60,
+          },
+          tabBarLabelStyle: {
+            fontSize: 12,
+            marginBottom: 5,
+          }
         };
       }}
     >
       <Tab.Screen name="Wallet" component={WalletScreen} options={{ tabBarLabel: t('wallet') }} />
       <Tab.Screen name="Market" component={MarketScreen} options={{ tabBarLabel: t('market') }} />
-      <Tab.Screen name="Presale" component={PresaleScreen} options={{ tabBarLabel: t('presale') }} />
       <Tab.Screen name="Settings" component={SettingsScreen} options={{ tabBarLabel: t('user_settings') }} />
     </Tab.Navigator>
   );
@@ -67,6 +75,9 @@ export default function AppContainer() {
   const language = useAppStore(state => state.language);
   const primaryColor = useAppStore(state => state.primaryColor);
   const [initialRoute, setInitialRoute] = useState(null);
+  
+  // ✅ استخدام هوك الترجمة داخل المكون الرئيسي
+  const { t } = useTranslation();
 
   useEffect(() => {
     if (language) {
@@ -80,20 +91,21 @@ export default function AppContainer() {
       try {
         console.log('🔄 بدء التهيئة...');
         const initialized = await SecureStore.getItemAsync('wallet_initialized');
-        console.log('🧠 حالة المحفظة:', initialized);
-
+        
         if (initialized === 'true') {
           const loadWallet = useAppStore.getState().loadWallet;
           const ok = await loadWallet();
           if (ok) {
             const hasHardware = await LocalAuthentication.hasHardwareAsync();
             const hasBiometrics = await LocalAuthentication.isEnrolledAsync();
+            
             if (hasHardware && hasBiometrics) {
               const result = await LocalAuthentication.authenticateAsync({
-                promptMessage: 'تأكيد الهوية بالبصمة',
+                promptMessage: 'تأكيد الهوية للدخول',
                 cancelLabel: 'إلغاء',
                 disableDeviceFallback: true,
               });
+              
               if (!result.success) {
                 setInitialRoute('Home');
                 return;
@@ -135,6 +147,10 @@ export default function AppContainer() {
         <Stack.Screen name="Send" component={SendScreen} options={{ title: 'إرسال' }} />
         <Stack.Screen name="Receive" component={ReceiveScreen} options={{ title: 'استقبال' }} />
         <Stack.Screen name="Swap" component={SwapScreen} options={{ title: 'تبادل' }} />
+        
+        {/* ✅ العنوان أصبح يترجم تلقائياً: "بيع مسبق 🚀" أو "Presale 🚀" */}
+        <Stack.Screen name="Presale" component={PresaleScreen} options={{ title: t('presale') + ' 🚀' }} />
+        
         <Stack.Screen name="Backup" component={BackupScreen} options={{ title: 'نسخ احتياطي' }} />
         <Stack.Screen name="TransactionHistory" component={TransactionHistoryScreen} options={{ title: 'السجل' }} />
       </Stack.Navigator>
