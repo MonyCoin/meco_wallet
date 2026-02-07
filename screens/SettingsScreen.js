@@ -417,7 +417,7 @@ export default function SettingsScreen() {
               </View>
               
               <Text style={[styles.appName, { color: colors.text }]}>MECO Wallet</Text>
-              <Text style={[styles.appVersion, { color: colors.textSecondary }]}>Version 1.0.0</Text>
+              <Text style={[styles.appVersion, { color: colors.textSecondary }]}>Version 1.0.3</Text>
               
               <Text style={[styles.appDescription, { color: colors.textSecondary }]}>
                 {t('secure_crypto_wallet_description')}
