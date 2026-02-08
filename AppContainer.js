@@ -8,7 +8,9 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import * as SecureStore from 'expo-secure-store';
 import * as LocalAuthentication from 'expo-local-authentication';
-import { ActivityIndicator, View, I18nManager } from 'react-native';
+import { ActivityIndicator, View, I18nManager, Platform } from 'react-native';
+// ✅ استدعاء هوك المناطق الآمنة
+import { useSafeAreaInsets } from 'react-native-safe-area-context'; 
 import { useAppStore } from './store';
 import { useTranslation } from 'react-i18next';
 import i18n from './i18n';
@@ -33,6 +35,11 @@ const Tab = createBottomTabNavigator();
 function BottomTabs() {
   const { t } = useTranslation();
   const primaryColor = useAppStore(state => state.primaryColor);
+  const theme = useAppStore(state => state.theme);
+  const isDark = theme === 'dark';
+  
+  // ✅ الحل الجذري: حساب المسافة الآمنة السفلية للجهاز
+  const insets = useSafeAreaInsets();
 
   return (
     <Tab.Navigator
@@ -51,14 +58,31 @@ function BottomTabs() {
           tabBarIcon: ({ color, size }) => (
             <Ionicons name={icons[route.name]} size={size} color={color} />
           ),
+          // ✅ ضبط الستايل ديناميكياً بناءً على أبعاد الجهاز الحقيقية
           tabBarStyle: {
-            paddingBottom: 5,
-            paddingTop: 5,
-            height: 60,
+            backgroundColor: isDark ? '#1A1A2E' : '#FFFFFF',
+            borderTopWidth: 0,
+            elevation: 10, // ظل للأندرويد
+            shadowColor: '#000', // ظل للـ iOS
+            shadowOpacity: 0.1,
+            shadowRadius: 10,
+            
+            // الارتفاع = ارتفاع ثابت (60) + المسافة الآمنة للجهاز
+            height: 60 + insets.bottom, 
+            
+            // المسافة الداخلية السفلية = المسافة الآمنة (لرفع الأيقونات فوق خط الهوم)
+            paddingBottom: insets.bottom > 0 ? insets.bottom : 10, 
+            
+            paddingTop: 10,
+            position: 'absolute', // لجعل الخلفية شفافة أو مدمجة (اختياري، يمكن حذفه لثبات أكثر)
+            bottom: 0,
+            left: 0,
+            right: 0,
           },
           tabBarLabelStyle: {
             fontSize: 12,
-            marginBottom: 5,
+            marginBottom: insets.bottom > 0 ? 0 : 5, // ضبط النص إذا لم يكن هناك نوتش
+            fontWeight: '600',
           }
         };
       }}
@@ -76,7 +100,6 @@ export default function AppContainer() {
   const primaryColor = useAppStore(state => state.primaryColor);
   const [initialRoute, setInitialRoute] = useState(null);
   
-  // ✅ استخدام هوك الترجمة داخل المكون الرئيسي
   const { t } = useTranslation();
 
   useEffect(() => {
@@ -143,14 +166,13 @@ export default function AppContainer() {
         <Stack.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
         <Stack.Screen name="CreateWallet" component={CreateWalletScreen} options={{ title: 'إنشاء المحفظة' }} />
         <Stack.Screen name="ImportWallet" component={ImportWalletScreen} options={{ title: 'استيراد المحفظة' }} />
+        
         <Stack.Screen name="BottomTabs" component={BottomTabs} options={{ headerShown: false }} />
+        
         <Stack.Screen name="Send" component={SendScreen} options={{ title: 'إرسال' }} />
         <Stack.Screen name="Receive" component={ReceiveScreen} options={{ title: 'استقبال' }} />
         <Stack.Screen name="Swap" component={SwapScreen} options={{ title: 'تبادل' }} />
-        
-        {/* ✅ العنوان أصبح يترجم تلقائياً: "بيع مسبق 🚀" أو "Presale 🚀" */}
         <Stack.Screen name="Presale" component={PresaleScreen} options={{ title: t('presale') + ' 🚀' }} />
-        
         <Stack.Screen name="Backup" component={BackupScreen} options={{ title: 'نسخ احتياطي' }} />
         <Stack.Screen name="TransactionHistory" component={TransactionHistoryScreen} options={{ title: 'السجل' }} />
       </Stack.Navigator>

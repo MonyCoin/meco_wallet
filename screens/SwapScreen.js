@@ -17,8 +17,8 @@ const { width } = Dimensions.get('window');
 // ⚙️ إعدادات التبادل
 // =============================================
 const JUPITER_QUOTE_API = 'https://quote-api.jup.ag/v6/quote';
-const SLIPPAGE_BPS = 50; // 0.5%
-const SERVICE_FEE_SOL = 0.0005; 
+const SLIPPAGE_BPS = 50; // 0.5% Slippage
+const SERVICE_FEE_SOL = 0.0005; // ✅ رسوم ثابتة
 
 // قائمة العملات الافتراضية للتبادل
 const BASE_SWAP_TOKENS = [
@@ -42,7 +42,7 @@ const BASE_SWAP_TOKENS = [
     symbol: 'MECO',
     name: 'MonyCoin',
     mint: '7hBNyFfwYTv65z3ZudMAyKBw3BLMKxyKXsr5xM51Za4i',
-    icon: 'rocket-r',
+    icon: 'rocket-outline',
     decimals: 9, 
     image: 'https://raw.githubusercontent.com/MonyCoin/meco-token/refs/heads/main/meco-logo.png'
   },
@@ -60,17 +60,12 @@ export default function SwapScreen() {
   const route = useRoute();
   const navigation = useNavigation();
   const { t } = useTranslation();
-  
-  // الوضع الافتراضي: إذا لم يتم تمرير عملة، نستخدم القائمة الأساسية
   const selectedTokenParam = route.params?.selectedToken;
 
   const [swapTokens, setSwapTokens] = useState(() => {
     if (!selectedTokenParam) return BASE_SWAP_TOKENS;
-    
-    // إذا تم تمرير عملة من Market، نضيفها للقائمة إذا لم تكن موجودة
     const exists = BASE_SWAP_TOKENS.find(t => t.symbol === selectedTokenParam.symbol);
     if (exists) return BASE_SWAP_TOKENS;
-
     return [...BASE_SWAP_TOKENS, {
       symbol: selectedTokenParam.symbol,
       name: selectedTokenParam.name,
@@ -83,9 +78,8 @@ export default function SwapScreen() {
 
   const isMounted = useRef(true);
   
-  // الألوان (يمكنك استبدالها بـ useAppStore)
   const colors = {
-    background: '#0A0A0F', // Dark Theme Default
+    background: '#0A0A0F',
     card: '#1A1A2E',
     text: '#FFFFFF',
     textSecondary: '#A0A0B0',
@@ -95,9 +89,6 @@ export default function SwapScreen() {
     error: '#EF4444',
   };
 
-  // الحالة الأولية:
-  // إذا جئنا من Market، نضع العملة المختارة في "إلى" (Receive)
-  // وإلا، الافتراضي هو SOL -> MECO
   const [fromToken, setFromToken] = useState('SOL');
   const [toToken, setToToken] = useState(() => {
     if (selectedTokenParam?.symbol && selectedTokenParam.symbol !== 'SOL') {
@@ -152,31 +143,64 @@ export default function SwapScreen() {
     };
   }, [loadData]);
 
-  // جلب السعر من Jupiter
+  // ✅ دالة جلب السعر من Jupiter (معدلة بالـ Headers)
   const getJupiterQuote = async (inputSymbol, outputSymbol, amount) => {
     const inputToken = swapTokens.find(t => t.symbol === inputSymbol);
     const outputToken = swapTokens.find(t => t.symbol === outputSymbol);
 
     if (!inputToken?.mint || !outputToken?.mint) throw new Error('Invalid token pair');
 
-    const amountInSmallestUnit = Math.round(amount * Math.pow(10, inputToken.decimals));
-    const url = `${JUPITER_QUOTE_API}?inputMint=${inputToken.mint}&outputMint=${outputToken.mint}&amount=${amountInSmallestUnit}&slippageBps=${SLIPPAGE_BPS}`;
+    const amountInSmallestUnit = Math.floor(amount * Math.pow(10, inputToken.decimals));
+
+    const url = `${JUPITER_QUOTE_API}?inputMint=${inputToken.mint}&outputMint=${outputToken.mint}&amount=${amountInSmallestUnit}&slippageBps=${SLIPPAGE_BPS}&swapMode=ExactIn`;
+
+    console.log("Fetching Quote URL:", url);
 
     try {
-      const response = await fetch(url);
+      // ✅ إضافة الهيدرز الضرورية لتجاوز حجب البوتات
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'Origin': 'https://jup.ag',
+          'User-Agent': 'Mozilla/5.0 (MecoWallet/1.0)',
+          'Referer': 'https://jup.ag'
+        }
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Jupiter API Error Response:", errorText);
+        throw new Error(`Jupiter API returned status: ${response.status}`);
+      }
+
       const data = await response.json();
-      if (!data || !data.outAmount) throw new Error('No route found');
+      
+      if (!data || data.error) {
+        throw new Error(data.error || 'No route found');
+      }
+      
+      if (!data.outAmount) {
+        throw new Error('No output amount received');
+      }
 
       const outAmountNum = Number(data.outAmount) / Math.pow(10, outputToken.decimals);
-      return { ...data, outputAmountUI: outAmountNum, rate: outAmountNum / amount };
+      
+      return {
+        ...data,
+        outputAmountUI: outAmountNum,
+        rate: outAmountNum / amount
+      };
     } catch (error) {
+      console.error("Jupiter Quote Error:", error);
       throw error;
     }
   };
 
-  // مراقبة الكتابة (Debounce)
   useEffect(() => {
     if (quoteTimeoutRef.current) clearTimeout(quoteTimeoutRef.current);
+
     if (!fromAmount || parseFloat(fromAmount) <= 0) {
       setToAmount('');
       setQuote(null);
@@ -184,6 +208,8 @@ export default function SwapScreen() {
     }
 
     setLoadingQuote(true);
+    setQuote(null);
+
     quoteTimeoutRef.current = setTimeout(async () => {
       try {
         const q = await getJupiterQuote(fromToken, toToken, parseFloat(fromAmount));
@@ -192,19 +218,25 @@ export default function SwapScreen() {
           setToAmount(q.outputAmountUI.toFixed(6));
         }
       } catch (err) {
-        if (isMounted.current) { setQuote(null); setToAmount(''); }
+        if (isMounted.current) {
+          setQuote(null);
+          setToAmount('');
+        }
       } finally {
         if (isMounted.current) setLoadingQuote(false);
       }
-    }, 600);
+    }, 800);
+
   }, [fromAmount, fromToken, toToken]);
 
   const handleMaxAmount = () => {
     const balance = balances[fromToken] || 0;
     let maxVal = balance;
+    
     if (fromToken === 'SOL') {
-      maxVal = Math.max(0, balance - SERVICE_FEE_SOL - networkFee - 0.00001);
+      maxVal = Math.max(0, balance - SERVICE_FEE_SOL - networkFee - 0.002); 
     }
+    
     setFromAmount(maxVal > 0 ? maxVal.toFixed(6) : '0');
   };
 
@@ -217,30 +249,73 @@ export default function SwapScreen() {
   };
 
   const handleSwap = async () => {
-    if (!quote) return;
+    const amountVal = parseFloat(fromAmount);
+
+    if (!amountVal || amountVal <= 0) {
+      Alert.alert(t('error'), t('swap_amount_must_be_positive'));
+      return;
+    }
+
+    if (!quote) {
+      Alert.alert(t('error'), t('swap_wait_for_price') || 'Please wait for price quote');
+      return;
+    }
+
+    const currentBal = balances[fromToken] || 0;
+    if (amountVal > currentBal) {
+      Alert.alert(t('error'), t('swap_insufficient_balance'));
+      return;
+    }
+
+    const solBal = balances.SOL || 0;
+    const requiredGas = networkFee + SERVICE_FEE_SOL;
+    
+    if (fromToken === 'SOL') {
+       if (amountVal + requiredGas > solBal) {
+         Alert.alert(t('error'), t('swap_insufficient_sol_gas'));
+         return;
+       }
+    } else {
+       if (solBal < requiredGas) {
+         Alert.alert(t('error'), t('swap_insufficient_sol_gas'));
+         return;
+       }
+    }
+
     setLoading(true);
     try {
       const walletPublicKey = await SecureStore.getItemAsync('wallet_public_key');
+      
       const result = await executeRealSwap({
         quoteResponse: quote,
         walletPublicKey,
         fromToken,
         toToken,
-        amount: parseFloat(fromAmount),
+        amount: amountVal,
         networkFee,
         serviceFee: SERVICE_FEE_SOL
       });
 
       if (result.success) {
-        Alert.alert(t('swap_successful'), `Swapped ${fromAmount} ${fromToken} to ${toToken}`, [{
-          text: 'OK', onPress: () => {
-            setFromAmount(''); setToAmount(''); setQuote(null); loadData(); navigation.goBack();
-          }
-        }]);
+        Alert.alert(
+          t('swap_successful'),
+          `${t('swap_swapped')} ${fromAmount} ${fromToken} -> ${toAmount} ${toToken}`,
+          [{ 
+            text: 'OK', 
+            onPress: () => {
+              setFromAmount('');
+              setToAmount('');
+              setQuote(null);
+              loadData();
+              navigation.goBack();
+            }
+          }]
+        );
       } else {
-        throw new Error(result.error);
+        throw new Error(result.error || 'Swap Failed');
       }
     } catch (e) {
+      console.error("Swap Exec Error:", e);
       Alert.alert(t('error'), e.message || t('swap_failed'));
     } finally {
       setLoading(false);
@@ -253,10 +328,12 @@ export default function SwapScreen() {
       style={[styles.tokenItem, { borderColor: colors.border }]}
       onPress={() => {
         if (isFrom) {
-          setFromToken(token.symbol);
+          if (token.symbol === toToken) handleSwitchTokens();
+          else setFromToken(token.symbol);
           setShowFromModal(false);
         } else {
-          setToToken(token.symbol);
+          if (token.symbol === fromToken) handleSwitchTokens();
+          else setToToken(token.symbol);
           setShowToModal(false);
         }
       }}
@@ -274,19 +351,14 @@ export default function SwapScreen() {
 
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.background }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        
-        {/* Header */}
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()}><Ionicons name="arrow-back" size={24} color={colors.text} /></TouchableOpacity>
           <Text style={[styles.title, { color: colors.text }]}>{t('swap_title')}</Text>
           <View style={{width: 24}}/>
         </View>
 
-        {/* Swap Card */}
         <View style={[styles.card, { backgroundColor: colors.card }]}>
-          
-          {/* FROM */}
           <View style={styles.section}>
             <View style={{flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8}}>
               <Text style={{color: colors.textSecondary}}>{t('swap_pay')}</Text>
@@ -312,14 +384,12 @@ export default function SwapScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* Switcher */}
           <View style={{alignItems: 'center', marginVertical: -10, zIndex: 10}}>
             <TouchableOpacity style={[styles.switchBtn, { backgroundColor: colors.primary }]} onPress={handleSwitchTokens}>
               <Ionicons name="swap-vertical" size={20} color="#FFF" />
             </TouchableOpacity>
           </View>
 
-          {/* TO */}
           <View style={styles.section}>
             <View style={{flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8}}>
               <Text style={{color: colors.textSecondary}}>{t('swap_receive')}</Text>
@@ -332,34 +402,49 @@ export default function SwapScreen() {
                 <Ionicons name="chevron-down" color={colors.textSecondary} size={16} />
               </TouchableOpacity>
               <View style={{flex: 1, alignItems: 'flex-end'}}>
-                {loadingQuote ? <ActivityIndicator size="small" color={colors.primary} /> : 
+                {loadingQuote ? 
+                  <ActivityIndicator size="small" color={colors.primary} /> : 
                   <Text style={{color: colors.text, fontSize: 18, fontWeight: 'bold'}}>{toAmount || '0.0'}</Text>
                 }
               </View>
             </View>
           </View>
 
-          {/* Info */}
           {quote && (
             <View style={[styles.infoBox, { backgroundColor: colors.primary + '15' }]}>
-              <Text style={{color: colors.text, fontSize: 12}}>Rate: 1 {fromToken} ≈ {quote.rate.toFixed(4)} {toToken}</Text>
-              <Text style={{color: colors.text, fontSize: 12}}>Fee: ~{(networkFee + SERVICE_FEE_SOL).toFixed(5)} SOL</Text>
+              <View style={styles.infoRow}>
+                <Text style={{color: colors.textSecondary, fontSize: 12}}>{t('swap_rate')}</Text>
+                <Text style={{color: colors.text, fontSize: 12, fontWeight: 'bold'}}>1 {fromToken} ≈ {quote.rate.toFixed(6)} {toToken}</Text>
+              </View>
+              <View style={styles.infoRow}>
+                <Text style={{color: colors.textSecondary, fontSize: 12}}>{t('swap_est_fee')}</Text>
+                <Text style={{color: colors.text, fontSize: 12, fontWeight: 'bold'}}>~{(networkFee + SERVICE_FEE_SOL).toFixed(5)} SOL</Text>
+              </View>
             </View>
           )}
 
-          {/* Button */}
           <TouchableOpacity 
-            style={[styles.btn, { backgroundColor: (!quote || loading) ? colors.border : colors.primary }]}
+            style={[
+              styles.btn, 
+              { backgroundColor: (!quote || loading) ? colors.border : colors.primary }
+            ]}
             disabled={!quote || loading}
             onPress={handleSwap}
           >
-            {loading ? <ActivityIndicator color="#FFF" /> : <Text style={styles.btnText}>{t('swap_now')}</Text>}
+            {loading ? 
+              <ActivityIndicator color="#FFF" /> : 
+              <Text style={styles.btnText}>
+                {!fromAmount ? t('swap_enter_amount') : 
+                 loadingQuote ? t('swap_fetching_quote') :
+                 !quote ? t('swap_no_route') : 
+                 t('swap_now')}
+              </Text>
+            }
           </TouchableOpacity>
 
         </View>
       </ScrollView>
 
-      {/* Modals */}
       <Modal visible={showFromModal} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
@@ -400,7 +485,8 @@ const styles = StyleSheet.create({
   input: { flex: 1, fontSize: 20, fontWeight: 'bold', textAlign: 'right' },
   switchBtn: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center', borderWidth: 3, borderColor: '#1A1A2E' },
   infoBox: { padding: 12, borderRadius: 8, marginBottom: 16, gap: 4 },
-  btn: { height: 50, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+  infoRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
+  btn: { height: 50, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginTop: 8 },
   btnText: { color: '#FFF', fontWeight: 'bold', fontSize: 16 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modalContent: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, maxHeight: '60%' },

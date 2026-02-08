@@ -25,9 +25,9 @@ const SUPPORTED_ASSETS = [
 export default function WalletScreen() {
   const navigation = useNavigation();
   const { t } = useTranslation();
-  const theme = useAppStore(state => state.theme);
+  const theme = useAppStore(state => state.theme); // ✅ تعريف theme أولاً
   const primaryColor = useAppStore(state => state.primaryColor || '#6C63FF');
-  const isDark = theme === 'dark';
+  const isDark = theme === 'dark'; // ✅ الآن يمكن استخدام theme
 
   const colors = {
     background: isDark ? '#0A0A0F' : '#F2F3F7',
@@ -177,9 +177,7 @@ export default function WalletScreen() {
             <TouchableOpacity onPress={copyAddress} style={[styles.iconBtn, { backgroundColor: isDark ? '#2A2A3E' : '#F2F2F7' }]}>
               <Ionicons name="copy-outline" size={20} color={primaryColor} />
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => navigation.navigate('Settings')} style={[styles.iconBtn, { backgroundColor: isDark ? '#2A2A3E' : '#F2F2F7' }]}>
-              <Ionicons name="settings-outline" size={20} color={colors.text} />
-            </TouchableOpacity>
+            {/* ✅ تم إزالة أيقونة الإعدادات المكررة */}
           </View>
         </View>
 
