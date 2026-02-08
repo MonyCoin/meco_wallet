@@ -28,7 +28,7 @@ const TOKEN_LIST = [
     mint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
   },
   {
-    id: 'meco-token', symbol: 'MECO', name: 'MECO Token', decimals: 9, swapAvailable: true,
+    id: 'MonyCoin', symbol: 'MECO', name: 'MonyCoin', decimals: 9, swapAvailable: true,
     image: 'https://raw.githubusercontent.com/MonyCoin/meco-token/refs/heads/main/meco-logo.png',
     mint: '7hBNyFfwYTv65z3ZudMAyKBw3BLMKxyKXsr5xM51Za4i',
   },

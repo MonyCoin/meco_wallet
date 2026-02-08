@@ -40,9 +40,9 @@ const BASE_SWAP_TOKENS = [
   },
   {
     symbol: 'MECO',
-    name: 'MECO Token',
+    name: 'MonyCoin',
     mint: '7hBNyFfwYTv65z3ZudMAyKBw3BLMKxyKXsr5xM51Za4i',
-    icon: 'rocket-outline',
+    icon: 'rocket-r',
     decimals: 9, 
     image: 'https://raw.githubusercontent.com/MonyCoin/meco-token/refs/heads/main/meco-logo.png'
   },
