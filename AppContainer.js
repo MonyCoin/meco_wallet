@@ -9,7 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as SecureStore from 'expo-secure-store';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { ActivityIndicator, View, I18nManager, Platform } from 'react-native';
-// ✅ استدعاء هوك المناطق الآمنة
+// ✅ الإبقاء على إصلاح المناطق الآمنة (التصميم)
 import { useSafeAreaInsets } from 'react-native-safe-area-context'; 
 import { useAppStore } from './store';
 import { useTranslation } from 'react-i18next';
@@ -23,7 +23,7 @@ import WalletScreen from './screens/WalletScreen';
 import SettingsScreen from './screens/SettingsScreen';
 import ReceiveScreen from './screens/ReceiveScreen';
 import SendScreen from './screens/SendScreen';
-import SwapScreen from './screens/SwapScreen';
+// ❌ تم حذف SwapScreen نهائياً
 import BackupScreen from './screens/BackupScreen';
 import TransactionHistoryScreen from './screens/TransactionHistoryScreen';
 import MarketScreen from './screens/MarketScreen';
@@ -37,8 +37,6 @@ function BottomTabs() {
   const primaryColor = useAppStore(state => state.primaryColor);
   const theme = useAppStore(state => state.theme);
   const isDark = theme === 'dark';
-  
-  // ✅ الحل الجذري: حساب المسافة الآمنة السفلية للجهاز
   const insets = useSafeAreaInsets();
 
   return (
@@ -58,30 +56,22 @@ function BottomTabs() {
           tabBarIcon: ({ color, size }) => (
             <Ionicons name={icons[route.name]} size={size} color={color} />
           ),
-          // ✅ ضبط الستايل ديناميكياً بناءً على أبعاد الجهاز الحقيقية
           tabBarStyle: {
             backgroundColor: isDark ? '#1A1A2E' : '#FFFFFF',
             borderTopWidth: 0,
-            elevation: 10, // ظل للأندرويد
-            shadowColor: '#000', // ظل للـ iOS
+            elevation: 10,
+            shadowColor: '#000',
             shadowOpacity: 0.1,
             shadowRadius: 10,
-            
-            // الارتفاع = ارتفاع ثابت (60) + المسافة الآمنة للجهاز
-            height: 60 + insets.bottom, 
-            
-            // المسافة الداخلية السفلية = المسافة الآمنة (لرفع الأيقونات فوق خط الهوم)
+            height: 60 + (insets.bottom > 0 ? insets.bottom : 10), 
             paddingBottom: insets.bottom > 0 ? insets.bottom : 10, 
-            
             paddingTop: 10,
-            position: 'absolute', // لجعل الخلفية شفافة أو مدمجة (اختياري، يمكن حذفه لثبات أكثر)
-            bottom: 0,
-            left: 0,
-            right: 0,
+            position: 'absolute',
+            bottom: 0, left: 0, right: 0,
           },
           tabBarLabelStyle: {
             fontSize: 12,
-            marginBottom: insets.bottom > 0 ? 0 : 5, // ضبط النص إذا لم يكن هناك نوتش
+            marginBottom: insets.bottom > 0 ? 0 : 5,
             fontWeight: '600',
           }
         };
@@ -99,7 +89,6 @@ export default function AppContainer() {
   const language = useAppStore(state => state.language);
   const primaryColor = useAppStore(state => state.primaryColor);
   const [initialRoute, setInitialRoute] = useState(null);
-  
   const { t } = useTranslation();
 
   useEffect(() => {
@@ -112,23 +101,19 @@ export default function AppContainer() {
   useEffect(() => {
     const init = async () => {
       try {
-        console.log('🔄 بدء التهيئة...');
         const initialized = await SecureStore.getItemAsync('wallet_initialized');
-        
         if (initialized === 'true') {
           const loadWallet = useAppStore.getState().loadWallet;
           const ok = await loadWallet();
           if (ok) {
             const hasHardware = await LocalAuthentication.hasHardwareAsync();
             const hasBiometrics = await LocalAuthentication.isEnrolledAsync();
-            
             if (hasHardware && hasBiometrics) {
               const result = await LocalAuthentication.authenticateAsync({
                 promptMessage: 'تأكيد الهوية للدخول',
                 cancelLabel: 'إلغاء',
                 disableDeviceFallback: true,
               });
-              
               if (!result.success) {
                 setInitialRoute('Home');
                 return;
@@ -140,7 +125,6 @@ export default function AppContainer() {
         }
         setInitialRoute('Home');
       } catch (err) {
-        console.warn('⚠️ Auth error:', err.message);
         setInitialRoute('Home');
       }
     };
@@ -149,12 +133,7 @@ export default function AppContainer() {
 
   if (!initialRoute) {
     return (
-      <View style={{
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        backgroundColor: theme === 'dark' ? '#000' : '#fff',
-      }}>
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme === 'dark' ? '#000' : '#fff' }}>
         <ActivityIndicator size="large" color={primaryColor} />
       </View>
     );
@@ -171,7 +150,9 @@ export default function AppContainer() {
         
         <Stack.Screen name="Send" component={SendScreen} options={{ title: 'إرسال' }} />
         <Stack.Screen name="Receive" component={ReceiveScreen} options={{ title: 'استقبال' }} />
-        <Stack.Screen name="Swap" component={SwapScreen} options={{ title: 'تبادل' }} />
+        
+        {/* ❌ تم حذف SwapScreen */}
+        
         <Stack.Screen name="Presale" component={PresaleScreen} options={{ title: t('presale') + ' 🚀' }} />
         <Stack.Screen name="Backup" component={BackupScreen} options={{ title: 'نسخ احتياطي' }} />
         <Stack.Screen name="TransactionHistory" component={TransactionHistoryScreen} options={{ title: 'السجل' }} />

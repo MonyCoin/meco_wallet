@@ -10,7 +10,6 @@ import { Ionicons } from '@expo/vector-icons';
 
 const { width } = Dimensions.get('window');
 
-// قائمة العملات (تم ضبط MECO لتكون 9 decimals)
 const TOKEN_LIST = [
   {
     id: 'solana', symbol: 'SOL', name: 'Solana', decimals: 9, swapAvailable: true,
@@ -32,7 +31,6 @@ const TOKEN_LIST = [
     image: 'https://raw.githubusercontent.com/MonyCoin/meco-token/refs/heads/main/meco-logo.png',
     mint: '7hBNyFfwYTv65z3ZudMAyKBw3BLMKxyKXsr5xM51Za4i',
   },
-  // عملات أخرى للمتابعة فقط
   { id: 'bitcoin', symbol: 'BTC', name: 'Bitcoin', decimals: 8, swapAvailable: false, image: 'https://assets.coingecko.com/coins/images/1/large/bitcoin.png' },
   { id: 'ethereum', symbol: 'ETH', name: 'Ethereum', decimals: 18, swapAvailable: false, image: 'https://assets.coingecko.com/coins/images/279/large/ethereum.png' },
   { id: 'binancecoin', symbol: 'BNB', name: 'Binance Coin', decimals: 18, swapAvailable: false, image: 'https://assets.coingecko.com/coins/images/825/large/bnb-icon2_2x.png' },
@@ -60,7 +58,6 @@ export default function MarketScreen() {
 
   const fetchMarketData = async () => {
     try {
-      // 1. استخدام CoinGecko لجلب البيانات الحقيقية
       const ids = TOKEN_LIST.map(t => t.id).join(',');
       const url = `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${ids}&order=market_cap_desc&sparkline=false&price_change_percentage=24h`;
       
@@ -82,13 +79,12 @@ export default function MarketScreen() {
         };
       });
 
-      // إضافة MECO يدوياً إذا لم تأتِ من API (لأنها جديدة)
       if (!formattedData.find(t => t.symbol === 'MECO')) {
         const mecoInfo = TOKEN_LIST.find(t => t.symbol === 'MECO');
         formattedData.push({
           ...mecoInfo,
-          current_price: 0.00613, // السعر الحالي
-          price_change_percentage_24h: 2.5, // تغيير افتراضي
+          current_price: 0.00613,
+          price_change_percentage_24h: 2.5,
           rank: 999
         });
       }
@@ -97,7 +93,6 @@ export default function MarketScreen() {
 
     } catch (error) {
       console.warn('Market fetch error, using fallback');
-      // بيانات احتياطية في حال فشل النت
       setTokens(TOKEN_LIST.map((t, i) => ({
         ...t,
         current_price: t.symbol === 'MECO' ? 0.00613 : 0,
@@ -122,15 +117,14 @@ export default function MarketScreen() {
   };
 
   const handleTokenPress = (token) => {
-    if (token.swapAvailable) {
-      // ✅ الانتقال الصحيح: نرسل العملة المختارة إلى شاشة Swap
-      navigation.navigate('Swap', { selectedToken: token });
-    } else {
-      Alert.alert(t('market_unavailable'), t('market_prices_note'));
-    }
+    // ✅ إزالة التوجيه إلى Swap وعرض تنبيه معلومات فقط
+    Alert.alert(
+      token.name,
+      `${t('current_prices')}: $${token.current_price}\n` +
+      `${t('market_prices_note')}`
+    );
   };
 
-  // فلترة القائمة حسب التبويب
   const filteredTokens = tokens.filter(t => {
     if (activeTab === 'solana') return t.swapAvailable;
     if (activeTab === 'gainers') return t.price_change_percentage_24h > 0;
@@ -185,7 +179,6 @@ export default function MarketScreen() {
 
         {renderTabs()}
 
-        {/* Tokens List */}
         <View style={styles.listContainer}>
           {filteredTokens.map((token, index) => {
             const isUp = token.price_change_percentage_24h >= 0;

@@ -25,9 +25,9 @@ const SUPPORTED_ASSETS = [
 export default function WalletScreen() {
   const navigation = useNavigation();
   const { t } = useTranslation();
-  const theme = useAppStore(state => state.theme); // ✅ تعريف theme أولاً
+  const theme = useAppStore(state => state.theme);
   const primaryColor = useAppStore(state => state.primaryColor || '#6C63FF');
-  const isDark = theme === 'dark'; // ✅ الآن يمكن استخدام theme
+  const isDark = theme === 'dark';
 
   const colors = {
     background: isDark ? '#0A0A0F' : '#F2F3F7',
@@ -173,11 +173,13 @@ export default function WalletScreen() {
             <Text style={[styles.walletName, { color: colors.text }]}>{walletName}</Text>
             <Ionicons name="pencil" size={14} color={colors.textSecondary} style={{marginLeft: 6}} />
           </TouchableOpacity>
+          
           <View style={styles.headerIcons}>
             <TouchableOpacity onPress={copyAddress} style={[styles.iconBtn, { backgroundColor: isDark ? '#2A2A3E' : '#F2F2F7' }]}>
               <Ionicons name="copy-outline" size={20} color={primaryColor} />
             </TouchableOpacity>
-            {/* ✅ تم إزالة أيقونة الإعدادات المكررة */}
+            
+            {/* ❌ تم حذف أيقونة الإعدادات من هنا لأنها موجودة في الشريط السفلي */}
           </View>
         </View>
 
@@ -192,11 +194,10 @@ export default function WalletScreen() {
           )}
         </View>
 
+        {/* أزرار الإجراءات (بدون Swap) */}
         <View style={styles.actionsRow}>
           <ActionButton icon="arrow-up" label={t('send')} onPress={() => navigation.navigate('Send')} colors={colors} primary={primaryColor} />
           <ActionButton icon="arrow-down" label={t('receive')} onPress={() => navigation.navigate('Receive')} colors={colors} primary={primaryColor} />
-          <ActionButton icon="swap-horizontal" label={t('swap_title')} onPress={() => navigation.navigate('Swap')} colors={colors} primary={primaryColor} />
-          {/* ✅ تم تحديث التسمية هنا لتستخدم الترجمة */}
           <ActionButton icon="rocket" label={t('presale')} onPress={() => navigation.navigate('Presale')} colors={colors} primary={primaryColor} />
         </View>
       </Animated.View>
