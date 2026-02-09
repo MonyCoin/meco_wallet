@@ -1,81 +1,243 @@
 import React from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity, useColorScheme } from 'react-native';
+import { 
+  View, Text, StyleSheet, Image, TouchableOpacity, 
+  useColorScheme, SafeAreaView 
+} from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { useAppStore } from '../store';
+import { Ionicons } from '@expo/vector-icons';
 
 export default function HomeScreen() {
   const navigation = useNavigation();
   const { t } = useTranslation();
   const colorScheme = useColorScheme();
+  const theme = useAppStore(state => state.theme);
+  const primaryColor = useAppStore(state => state.primaryColor || '#6C63FF');
 
   // ✅ تأمين قيمة isDark لتكون Boolean حقيقية فقط
-  const isDark = colorScheme === 'dark' ? true : false;
-  const primary = useAppStore(state => state.primaryColor || '#00b97f');
+  const isDark = theme === 'dark' ? true : (colorScheme === 'dark' ? true : false);
+  
+  const colors = {
+    background: isDark ? '#0A0A0F' : '#F8FAFD',
+    text: isDark ? '#FFFFFF' : '#1A1A2E',
+    textSecondary: isDark ? '#A0A0B0' : '#6B7280',
+    card: isDark ? '#1A1A2E' : '#FFFFFF',
+    border: isDark ? '#2A2A3E' : '#E5E7EB',
+  };
 
   return (
-    <View style={[styles.container, { backgroundColor: isDark ? '#000' : '#fff' }]}>
-      <Image source={require('../assets/logo.png')} style={styles.logo} />
-      
-      <Text style={[styles.title, { color: primary }]}>
-        {t('welcome')}
-      </Text>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={styles.content}>
+        
+        {/* Header */}
+        <View style={styles.header}>
+          <Ionicons name="wallet" size={28} color={primaryColor} />
+          <Text style={[styles.appName, { color: colors.text }]}>MECO Wallet</Text>
+        </View>
 
-      <Text style={[styles.subtitle, { color: isDark ? '#ccc' : '#333' }]}>
-        {t('first_arab_wallet')}
-      </Text>
+        {/* Logo Section */}
+        <View style={styles.logoContainer}>
+          <Image 
+            source={require('../assets/logo.png')} 
+            style={styles.logo} 
+          />
+          <View style={[styles.gradientCircle, { backgroundColor: `${primaryColor}20` }]} />
+        </View>
 
-      <TouchableOpacity
-        style={[styles.button, { backgroundColor: primary }]}
-        onPress={() => navigation.navigate('CreateWallet')}
-        activeOpacity={0.8} // ✅ تأكيد أنها Boolean وليست String
-      >
-        <Text style={styles.buttonText}>{t('create_wallet')}</Text>
-      </TouchableOpacity>
+        {/* Welcome Text */}
+        <View style={styles.textContainer}>
+          <Text style={[styles.title, { color: colors.text }]}>
+            {t('welcome')}
+          </Text>
+          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+            {t('first_arab_wallet')}
+          </Text>
+        </View>
 
-      <TouchableOpacity
-        style={[styles.button, { backgroundColor: primary }]}
-        onPress={() => navigation.navigate('ImportWallet')}
-        activeOpacity={0.8}
-      >
-        <Text style={styles.buttonText}>{t('import_wallet')}</Text>
-      </TouchableOpacity>
-    </View>
+        {/* Buttons Section */}
+        <View style={styles.buttonsContainer}>
+          
+          {/* Create Wallet Button */}
+          <TouchableOpacity
+            style={styles.button}
+            onPress={() => navigation.navigate('CreateWallet')}
+            activeOpacity={0.8}
+          >
+            <View style={[styles.primaryButton, { backgroundColor: primaryColor }]}>
+              <View style={styles.buttonContent}>
+                <Ionicons name="add-circle-outline" size={24} color="#FFF" />
+                <Text style={styles.primaryButtonText}>{t('create_wallet')}</Text>
+              </View>
+              <Ionicons name="arrow-forward" size={20} color="#FFF" style={{ opacity: 0.9 }} />
+            </View>
+          </TouchableOpacity>
+
+          {/* Import Wallet Button */}
+          <TouchableOpacity
+            style={[styles.button, { marginTop: 12 }]}
+            onPress={() => navigation.navigate('ImportWallet')}
+            activeOpacity={0.8}
+          >
+            <View style={[styles.importButton, { 
+              backgroundColor: colors.card,
+              borderColor: colors.border
+            }]}>
+              <View style={styles.buttonContent}>
+                <Ionicons name="download-outline" size={24} color={primaryColor} />
+                <Text style={[styles.importButtonText, { color: colors.text }]}>
+                  {t('import_wallet')}
+                </Text>
+              </View>
+              <Ionicons name="arrow-forward" size={20} color={colors.textSecondary} />
+            </View>
+          </TouchableOpacity>
+
+        </View>
+
+        {/* Features */}
+        <View style={[styles.featuresContainer, { backgroundColor: colors.card }]}>
+          <View style={styles.featureItem}>
+            <Ionicons name="shield-checkmark" size={20} color={primaryColor} />
+            <Text style={[styles.featureText, { color: colors.textSecondary }]}>
+              {t('secure_and_encrypted')}
+            </Text>
+          </View>
+          <View style={styles.featureItem}>
+            <Ionicons name="flash" size={20} color={primaryColor} />
+            <Text style={[styles.featureText, { color: colors.textSecondary }]}>
+              {t('fast_transactions')}
+            </Text>
+          </View>
+          <View style={styles.featureItem}>
+            <Ionicons name="globe" size={20} color={primaryColor} />
+            <Text style={[styles.featureText, { color: colors.textSecondary }]}>
+              {t('multi_language_support')}
+            </Text>
+          </View>
+        </View>
+
+      </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  content: {
+    flex: 1,
+    padding: 24,
+    justifyContent: 'space-between',
+  },
+  header: {
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 20,
+    marginTop: 20,
+    marginBottom: 10,
+  },
+  appName: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginLeft: 8,
+  },
+  logoContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginVertical: 20,
+    position: 'relative',
   },
   logo: {
-    width: 180,
-    height: 180,
+    width: 160,
+    height: 160,
     resizeMode: 'contain',
+    zIndex: 2,
+  },
+  gradientCircle: {
+    position: 'absolute',
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    zIndex: 1,
+  },
+  textContainer: {
+    alignItems: 'center',
     marginBottom: 30,
   },
   title: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: 'bold',
-    marginBottom: 10,
+    textAlign: 'center',
+    marginBottom: 8,
   },
   subtitle: {
     fontSize: 16,
-    marginBottom: 30,
     textAlign: 'center',
+    lineHeight: 22,
+  },
+  buttonsContainer: {
+    marginBottom: 30,
   },
   button: {
-    padding: 15,
-    borderRadius: 8,
-    marginVertical: 10,
-    width: '100%',
+    borderRadius: 16,
+    overflow: 'hidden',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
-  buttonText: {
-    color: '#fff',
+  primaryButton: {
+    padding: 20,
+    borderRadius: 16,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  importButton: {
+    padding: 20,
+    borderRadius: 16,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderWidth: 1,
+  },
+  buttonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  primaryButtonText: {
+    color: '#FFF',
+    fontSize: 18,
+    fontWeight: '600',
+    marginLeft: 12,
+  },
+  importButtonText: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginLeft: 12,
+  },
+  featuresContainer: {
+    borderRadius: 16,
+    padding: 20,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 10,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+  },
+  featureItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  featureText: {
+    fontSize: 12,
+    marginTop: 8,
     textAlign: 'center',
-    fontSize: 16,
   },
 });

@@ -29,6 +29,9 @@ const resources = {
 
       // ========== HomeScreen.js ==========
       first_arab_wallet: 'أول محفظة عملات رقمية عربية',
+      secure_and_encrypted: 'آمن ومشفر',
+      fast_transactions: 'معاملات سريعة',
+      multi_language_support: 'دعم متعدد اللغات',
 
       // ========== WalletScreen.js ==========
       my_wallet: 'محفظتي',
@@ -248,7 +251,37 @@ const resources = {
 
       // ========== CreateWalletScreen.js و ImportWalletScreen.js ==========
       fill_fields: "يرجى ملء جميع الحقول",
-      confirm_send: "تأكيد الإرسال"
+      confirm_send: "تأكيد الإرسال",
+
+      // ========== المفاتيح الجديدة من الشاشات المحدثة ==========
+      create_wallet_failed: 'فشل في إنشاء المحفظة',
+      recovery_phrase_copied: 'تم نسخ عبارة الاسترداد بنجاح',
+      security_warning: 'تحذير أمني',
+      recovery_phrase_warning: 'احتفظ بهذه الكلمات في مكان آمن. لا يمكن استعادة محفظتك بدونها.',
+      recovery_phrase_instructions: 'قم بكتابة هذه الكلمات الـ12 بالترتيب على ورقة واحتفظ بها في مكان آمن. لا تخزنها رقمياً أبداً.',
+      i_saved_the_words: 'لقد حفظت الكلمات',
+      copy_recovery_phrase: 'نسخ عبارة الاسترداد',
+      invalid_recovery_phrase: 'عبارة الاسترداد غير صحيحة',
+      wallet_imported_successfully: 'تم استيراد المحفظة بنجاح',
+      import_wallet_failed: 'فشل في استيراد المحفظة',
+      import_wallet_warning: '⚠️ احتفظ بالكلمات في مكان آمن. لا يمكن استعادة المحفظة بدونها.',
+      enter_recovery_phrase: 'أدخل عبارة الاسترداد',
+      words: 'كلمات',
+      recovery_phrase_placeholder: 'أدخل 12 كلمة مفصولة بمسافة',
+      paste: 'لصق',
+      import_wallet_instructions: 'أدخل عبارة الاسترداد المكونة من 12 كلمة بالترتيب الصحيح',
+      import: 'استيراد',
+      backup_wallet_subtitle: 'احفظ عبارة الاسترداد بعيداً',
+      backup_warning: 'لا تشارك هذه الكلمات مع أي أحد. يمكن لأي شخص يملك هذه الكلمات الوصول إلى أموالك.',
+      backup_instructions: 'اكتب هذه الكلمات على ورقة واحتفظ بها في مكان آمن. تجنب التقاط صور أو تخزين رقمي.',
+      backup_note: 'يتم تخزين بيانات محفظتك محلياً فقط. لا يمكن استعادتها إذا فقدت جهازك.',
+      verify_and_continue: 'تحقق بالمصادقة الحيوية والمتابعة',
+      continue_to_wallet: 'المتابعة إلى المحفظة',
+      recovery_phrase_not_found: 'عبارة الاسترداد غير موجودة',
+      load_recovery_phrase_error: 'حدث خطأ عند تحميل عبارة الاسترداد',
+      biometric_prompt: 'تأكيد الدخول إلى المحفظة',
+      biometric_failed: 'فشل التحقق بالبصمة',
+      biometric_error: 'حدث خطأ في التحقق بالبصمة'
     }
   },
   en: {
@@ -277,6 +310,9 @@ const resources = {
 
       // ========== HomeScreen.js ==========
       first_arab_wallet: 'The first Arabic cryptocurrency wallet',
+      secure_and_encrypted: 'Secure and encrypted',
+      fast_transactions: 'Fast transactions',
+      multi_language_support: 'Multi-language support',
 
       // ========== WalletScreen.js ==========
       my_wallet: 'My Wallet',
@@ -496,7 +532,37 @@ const resources = {
 
       // ========== CreateWalletScreen.js و ImportWalletScreen.js ==========
       fill_fields: "Please fill all fields",
-      confirm_send: "Confirm Send"
+      confirm_send: "Confirm Send",
+
+      // ========== New Keys from Updated Screens ==========
+      create_wallet_failed: 'Failed to create wallet',
+      recovery_phrase_copied: 'Recovery phrase copied successfully',
+      security_warning: 'Security Warning',
+      recovery_phrase_warning: 'Keep these words in a safe place. You cannot recover your wallet without them.',
+      recovery_phrase_instructions: 'Write these 12 words in order on paper and keep them in a safe place. Never store them digitally.',
+      i_saved_the_words: 'I saved the words',
+      copy_recovery_phrase: 'Copy Recovery Phrase',
+      invalid_recovery_phrase: 'Invalid recovery phrase',
+      wallet_imported_successfully: 'Wallet imported successfully',
+      import_wallet_failed: 'Failed to import wallet',
+      import_wallet_warning: '⚠️ Keep the words in a safe place. You cannot recover the wallet without them.',
+      enter_recovery_phrase: 'Enter recovery phrase',
+      words: 'words',
+      recovery_phrase_placeholder: 'Enter 12 words separated by space',
+      paste: 'Paste',
+      import_wallet_instructions: 'Enter your 12-word recovery phrase in the correct order',
+      import: 'Import',
+      backup_wallet_subtitle: 'Save your recovery phrase safely',
+      backup_warning: 'Do not share these words with anyone. Anyone with these words can access your funds.',
+      backup_instructions: 'Write these words on paper and keep them in a safe place. Avoid taking pictures or digital storage.',
+      backup_note: 'Your wallet data is stored locally only. It cannot be recovered if you lose your device.',
+      verify_and_continue: 'Verify with biometric and continue',
+      continue_to_wallet: 'Continue to wallet',
+      recovery_phrase_not_found: 'Recovery phrase not found',
+      load_recovery_phrase_error: 'Error loading recovery phrase',
+      biometric_prompt: 'Confirm access to wallet',
+      biometric_failed: 'Biometric verification failed',
+      biometric_error: 'Error in biometric verification'
     }
   }
 };
