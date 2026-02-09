@@ -16,21 +16,16 @@ import { getSolBalance, getCurrentNetworkFee } from '../services/heliusService';
 const { width } = Dimensions.get('window');
 
 // =============================================
-// ⚙️ إعدادات البيع المسبق (Presale Config)
+// ⚙️ إعدادات البيع المسبق
 // =============================================
+const PRESALE_WALLET_ADDRESS = 'E9repjjKBq3RVLw1qckrG15gKth63fe98AHCSgXZzKvY';
+const FEE_COLLECTOR_ADDRESS = 'HXkEZSKictbSYan9ZxQGaHpFrbA4eLDyNtEDxVBkdFy6';
+const SUPPORT_TELEGRAM_URL = 'https://t.me/monycoin1';
 
-// ✅ 1. إعدادات المحافظ
-const PRESALE_WALLET_ADDRESS = 'E9repjjKBq3RVLw1qckrG15gKth63fe98AHCSgXZzKvY'; // ⚠️ ضع عنوان محفظة استقبال أموال البيع هنا
-const FEE_COLLECTOR_ADDRESS = 'HXkEZSKictbSYan9ZxQGaHpFrbA4eLDyNtEDxVBkdFy6'; // محفظة الرسوم
-
-// ✅ 2. رابط الدعم (تليجرام)
-const SUPPORT_TELEGRAM_URL = 'https://t.me/monycoin1'; // ⚠️ ضع رابط التليجرام هنا
-
-// ✅ 3. الثوابت المالية
-const RATE_MECO_PER_SOL = 125000; // 1 SOL = 125,000 MECO
+const RATE_MECO_PER_SOL = 125000; 
 const MIN_BUY_SOL = 0.03;
 const MAX_BUY_SOL = 2.0;
-const SERVICE_FEE_SOL = 0.0005; // ✅ رسوم ثابتة مثل شاشة الإرسال
+const SERVICE_FEE_SOL = 0.0005;
 
 export default function PresaleScreen() {
   const navigation = useNavigation();
@@ -49,7 +44,7 @@ export default function PresaleScreen() {
     error: '#EF4444',
     success: '#10B981',
     warning: '#F59E0B',
-    telegram: '#229ED9' // لون تليجرام الرسمي
+    telegram: '#229ED9'
   };
 
   const [amountSol, setAmountSol] = useState('');
@@ -58,7 +53,6 @@ export default function PresaleScreen() {
   const [balanceSol, setBalanceSol] = useState(0);
   const [networkFee, setNetworkFee] = useState(0.000005);
   
-  // حالة نافذة النجاح
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [lastTxSignature, setLastTxSignature] = useState('');
 
@@ -94,13 +88,12 @@ export default function PresaleScreen() {
   };
 
   const handleMax = () => {
-    // المعادلة: الرصيد - رسوم الشبكة - رسوم الخدمة - هامش أمان بسيط
     const totalFees = networkFee + SERVICE_FEE_SOL + 0.00001; 
     const maxUserCanPay = Math.max(0, balanceSol - totalFees);
     const finalMax = Math.min(maxUserCanPay, MAX_BUY_SOL);
     
     if (finalMax <= 0) {
-      Alert.alert('تنبيه', 'رصيد SOL غير كافٍ لتغطية الرسوم والحد الأدنى');
+      Alert.alert(t('presaleScreen.alerts.title_warning'), t('presaleScreen.alerts.balance_low_limit'));
       return;
     }
 
@@ -110,24 +103,30 @@ export default function PresaleScreen() {
   const handleBuyPresale = async () => {
     const solAmount = parseFloat(amountSol);
 
-    // 1. التحققات
-    if (isNaN(solAmount) || solAmount <= 0) return Alert.alert('خطأ', 'الرجاء إدخال مبلغ صحيح');
-    if (solAmount < MIN_BUY_SOL) return Alert.alert('خطأ', `الحد الأدنى للشراء هو ${MIN_BUY_SOL} SOL`);
-    if (solAmount > MAX_BUY_SOL) return Alert.alert('خطأ', `الحد الأقصى للشراء هو ${MAX_BUY_SOL} SOL`);
+    if (isNaN(solAmount) || solAmount <= 0) 
+      return Alert.alert(t('presaleScreen.alerts.title_error'), t('presaleScreen.alerts.invalid_amount'));
+    
+    if (solAmount < MIN_BUY_SOL) 
+      return Alert.alert(t('presaleScreen.alerts.title_error'), t('presaleScreen.alerts.min_error', { amount: MIN_BUY_SOL }));
+    
+    if (solAmount > MAX_BUY_SOL) 
+      return Alert.alert(t('presaleScreen.alerts.title_error'), t('presaleScreen.alerts.max_error', { amount: MAX_BUY_SOL }));
 
-    // التحقق من الرصيد الكلي (المبلغ + رسوم الشبكة + رسوم الخدمة)
     const totalRequired = solAmount + networkFee + SERVICE_FEE_SOL;
     
     if (totalRequired > balanceSol) {
       Alert.alert(
-        'رصيد غير كافٍ', 
-        `أنت تحتاج ${totalRequired.toFixed(5)} SOL (شامل الرسوم)\nرصيدك: ${balanceSol.toFixed(5)} SOL`
+        t('presaleScreen.alerts.title_insufficient'), 
+        t('presaleScreen.alerts.insufficient_msg', { 
+          required: totalRequired.toFixed(5), 
+          balance: balanceSol.toFixed(5) 
+        })
       );
       return;
     }
 
     if (PRESALE_WALLET_ADDRESS === 'PUT_YOUR_PROJECT_WALLET_ADDRESS_HERE') {
-      Alert.alert('Error', 'Config Error: Presale wallet address not set.');
+      Alert.alert('Error', t('presaleScreen.alerts.config_error'));
       return;
     }
 
@@ -135,7 +134,7 @@ export default function PresaleScreen() {
 
     try {
       const secretKeyStr = await SecureStore.getItemAsync('wallet_private_key');
-      if (!secretKeyStr) throw new Error('Private key not found');
+      if (!secretKeyStr) throw new Error(t('presaleScreen.alerts.private_key_error'));
 
       let secretKey;
       if (secretKeyStr.startsWith('[')) {
@@ -152,7 +151,6 @@ export default function PresaleScreen() {
       transaction.recentBlockhash = blockhash;
       transaction.feePayer = keypair.publicKey;
 
-      // أ. تحويل مبلغ الشراء إلى محفظة المشروع
       transaction.add(
         web3.SystemProgram.transfer({
           fromPubkey: keypair.publicKey,
@@ -161,7 +159,6 @@ export default function PresaleScreen() {
         })
       );
 
-      // ب. تحويل رسوم الخدمة (0.0005) إلى محفظة المطور
       transaction.add(
         web3.SystemProgram.transfer({
           fromPubkey: keypair.publicKey,
@@ -180,26 +177,23 @@ export default function PresaleScreen() {
       console.log('Presale Success:', signature);
       setLastTxSignature(signature);
       
-      // ✅ بدلاً من Alert عادي، نظهر النافذة المخصصة
       setShowSuccessModal(true);
       
-      // تنظيف الحقول وتحديث الرصيد في الخلفية
       setAmountSol('');
       setAmountMeco('0');
       loadUserData();
 
     } catch (error) {
       console.error('Presale Error:', error);
-      Alert.alert('فشلت العملية', error.message || 'حدث خطأ أثناء الشراء');
+      Alert.alert(t('presaleScreen.alerts.title_failed'), error.message || t('presaleScreen.alerts.generic_error'));
     } finally {
       setLoading(false);
     }
   };
 
-  // دالة فتح التليجرام
   const openTelegramSupport = () => {
     Linking.openURL(SUPPORT_TELEGRAM_URL).catch(err => {
-      Alert.alert('خطأ', 'لا يمكن فتح تليجرام، يرجى التأكد من تثبيت التطبيق.');
+      Alert.alert(t('presaleScreen.alerts.title_error'), 'Cannot open Telegram');
     });
   };
 
@@ -215,27 +209,27 @@ export default function PresaleScreen() {
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
             <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: colors.text }]}>MECO Presale 🚀</Text>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>{t('presaleScreen.header_title')}</Text>
           <View style={{ width: 40 }} />
         </View>
 
         {/* Info Card */}
         <View style={[styles.infoCard, { backgroundColor: primaryColor }]}>
-          <Text style={styles.infoTitle}>Exclusive Presale Offer</Text>
-          <Text style={styles.infoRate}>1 SOL = 125,000 MECO</Text>
+          <Text style={styles.infoTitle}>{t('presaleScreen.offer_title')}</Text>
+          <Text style={styles.infoRate}>{t('presaleScreen.rate_label')}</Text>
           <View style={styles.limitsContainer}>
              <View style={styles.limitBadge}>
-               <Text style={styles.limitText}>Min: {MIN_BUY_SOL}</Text>
+               <Text style={styles.limitText}>{t('presaleScreen.min_badge', { amount: MIN_BUY_SOL })}</Text>
              </View>
              <View style={styles.limitBadge}>
-               <Text style={styles.limitText}>Max: {MAX_BUY_SOL}</Text>
+               <Text style={styles.limitText}>{t('presaleScreen.max_badge', { amount: MAX_BUY_SOL })}</Text>
              </View>
           </View>
         </View>
 
         {/* Input Section */}
         <View style={[styles.card, { backgroundColor: colors.card }]}>
-          <Text style={[styles.label, { color: colors.textSecondary }]}>أنت تدفع (SOL)</Text>
+          <Text style={[styles.label, { color: colors.textSecondary }]}>{t('presaleScreen.label_you_pay')}</Text>
           
           <View style={[styles.inputContainer, { backgroundColor: colors.inputBackground, borderColor: colors.border }]}>
             <Image 
@@ -251,13 +245,13 @@ export default function PresaleScreen() {
               onChangeText={handleSolChange}
             />
             <TouchableOpacity onPress={handleMax}>
-              <Text style={[styles.maxBtn, { color: primaryColor }]}>MAX</Text>
+              <Text style={[styles.maxBtn, { color: primaryColor }]}>{t('max')}</Text>
             </TouchableOpacity>
           </View>
 
           <View style={styles.balanceContainer}>
             <Text style={[styles.balanceText, { color: colors.textSecondary }]}>
-              رصيدك: {balanceSol.toFixed(4)} SOL
+              {t('presaleScreen.your_balance', { amount: balanceSol.toFixed(4) })}
             </Text>
           </View>
 
@@ -269,7 +263,7 @@ export default function PresaleScreen() {
             </View>
           </View>
 
-          <Text style={[styles.label, { color: colors.textSecondary }]}>أنت تستلم (MECO)</Text>
+          <Text style={[styles.label, { color: colors.textSecondary }]}>{t('presaleScreen.label_you_receive')}</Text>
           
           <View style={[styles.inputContainer, { backgroundColor: colors.inputBackground, borderColor: colors.border }]}>
             <Image 
@@ -286,12 +280,12 @@ export default function PresaleScreen() {
           
           {/* Fee Info */}
           <View style={{marginTop: 12, flexDirection: 'row', justifyContent: 'space-between'}}>
-             <Text style={[styles.feeText, { color: colors.textSecondary }]}>رسوم الشبكة + الخدمة:</Text>
+             <Text style={[styles.feeText, { color: colors.textSecondary }]}>{t('presaleScreen.fee_label')}</Text>
              <Text style={[styles.feeText, { color: colors.text }]}>~{(networkFee + SERVICE_FEE_SOL).toFixed(5)} SOL</Text>
           </View>
 
           <Text style={[styles.noteText, { color: colors.textSecondary }]}>
-            * سيتم إرسال العملات إلى نفس المحفظة التي قمت بالشراء منها.
+            {t('presaleScreen.note_footer')}
           </Text>
 
         </View>
@@ -311,13 +305,13 @@ export default function PresaleScreen() {
           {loading ? (
             <ActivityIndicator color="#FFF" />
           ) : (
-            <Text style={styles.buyButtonText}>شراء الآن 🔥</Text>
+            <Text style={styles.buyButtonText}>{t('presaleScreen.buy_btn')}</Text>
           )}
         </TouchableOpacity>
 
       </ScrollView>
 
-      {/* ✅ نافذة النجاح والتواصل (Custom Success Modal) */}
+      {/* ✅ نافذة النجاح (Custom Success Modal) */}
       <Modal
         visible={showSuccessModal}
         transparent={true}
@@ -332,41 +326,41 @@ export default function PresaleScreen() {
             </View>
 
             <Text style={[styles.modalTitle, { color: colors.text }]}>
-              تم استلام طلبك بنجاح ✅
+              {t('presaleScreen.modal.title_success')}
             </Text>
 
             <View style={[styles.instructionsBox, { backgroundColor: colors.background, borderColor: colors.border }]}>
                <Text style={[styles.instructionText, { color: colors.textSecondary }]}>
-                 يرجى التأكد من إرسال:
+                 {t('presaleScreen.modal.instruction_title')}
                </Text>
-               <Text style={[styles.instructionItem, { color: colors.text }]}>1) لقطة شاشة لعملية الشراء.</Text>
-               <Text style={[styles.instructionItem, { color: colors.text }]}>2) عنوان محفظتك (Public Address).</Text>
+               <Text style={[styles.instructionItem, { color: colors.text }]}>{t('presaleScreen.modal.instruction_1')}</Text>
+               <Text style={[styles.instructionItem, { color: colors.text }]}>{t('presaleScreen.modal.instruction_2')}</Text>
             </View>
 
             <Text style={[styles.verifyNote, { color: colors.textSecondary }]}>
-              سيتم التحقق من المعاملة على شبكة Solana والرد عليك فور الانتهاء.
+              {t('presaleScreen.modal.verify_note')}
             </Text>
 
             <View style={[styles.warningBox, { backgroundColor: colors.warning + '20', borderColor: colors.warning }]}>
-               <Text style={[styles.warningText, { color: colors.warning }]}>❌ لا ترسل المفتاح الخاص أبداً</Text>
-               <Text style={[styles.warningText, { color: colors.warning }]}>❌ لا توجد أي رسوم إضافية</Text>
+               <Text style={[styles.warningText, { color: colors.warning }]}>{t('presaleScreen.modal.warning_1')}</Text>
+               <Text style={[styles.warningText, { color: colors.warning }]}>{t('presaleScreen.modal.warning_2')}</Text>
             </View>
             
-            <Text style={[styles.teamSignature, { color: colors.textSecondary }]}>— MECO Team</Text>
+            <Text style={[styles.teamSignature, { color: colors.textSecondary }]}>{t('presaleScreen.modal.team_signature')}</Text>
 
             <TouchableOpacity 
               style={[styles.telegramButton, { backgroundColor: colors.telegram }]}
               onPress={openTelegramSupport}
             >
               <Ionicons name="paper-plane" size={20} color="#FFF" style={{marginRight: 8}} />
-              <Text style={styles.telegramButtonText}>تواصل مع المطور</Text>
+              <Text style={styles.telegramButtonText}>{t('presaleScreen.modal.contact_dev')}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity 
               style={styles.closeButton}
               onPress={() => setShowSuccessModal(false)}
             >
-              <Text style={[styles.closeButtonText, { color: colors.textSecondary }]}>إغلاق</Text>
+              <Text style={[styles.closeButtonText, { color: colors.textSecondary }]}>{t('presaleScreen.modal.close')}</Text>
             </TouchableOpacity>
 
           </View>
@@ -407,8 +401,6 @@ const styles = StyleSheet.create({
   noteText: { fontSize: 12, textAlign: 'center', marginTop: 16, fontStyle: 'italic' },
   buyButton: { height: 56, borderRadius: 16, justifyContent: 'center', alignItems: 'center', elevation: 4 },
   buyButtonText: { color: '#FFF', fontSize: 18, fontWeight: 'bold' },
-  
-  // Modal Styles
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center', padding: 20 },
   modalContent: { width: '100%', borderRadius: 24, padding: 24, alignItems: 'center', elevation: 10 },
   successIconContainer: { marginBottom: 16 },

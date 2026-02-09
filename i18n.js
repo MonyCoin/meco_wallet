@@ -326,7 +326,6 @@ const resources = {
       share_message_with_address: "عنوان محفظتي على سولانا: {{address}}\n\nيمكنك إرسال أي عملة رقمية إليها.",
 
       // ========== مفاتيح TransactionHistoryScreen الجديدة ==========
-      swap_transaction: "تبادل",
       send_transaction: "إرسال",
       receive_transaction: "استلام",
       onchain_transaction: "معاملة سلسلة",
@@ -411,6 +410,47 @@ const resources = {
           invalidKeyLength: "طول المفتاح الخاص غير صحيح",
           keyRetrievalFailed: "❌ فشل استرجاع المفتاح:",
           balanceLoadFailed: "❌ فشل تحميل الأرصدة:"
+        }
+      },
+
+      // ========== مفاتيح PresaleScreen الجديدة من الكود ==========
+      presaleScreen: {
+        header_title: "البيع المسبق MECO 🚀",
+        offer_title: "عرض حصري للبيع المسبق",
+        rate_label: "1 SOL = 125,000 MECO",
+        min_badge: "الحد الأدنى: {{amount}} SOL",
+        max_badge: "الحد الأقصى: {{amount}} SOL",
+        label_you_pay: "المبلغ الذي تدفعه",
+        label_you_receive: "المبلغ الذي تستلمه",
+        your_balance: "رصيدك: {{amount}} SOL",
+        fee_label: "رسوم المعاملة",
+        note_footer: "* سيتم إرسال عملات MECO إلى محفظتك مباشرة بعد الشراء",
+        buy_btn: "شراء الآن 🔥",
+        alerts: {
+          title_warning: "تنبيه",
+          balance_low_limit: "رصيدك منخفض جداً. يجب أن يكون لديك SOL كافي للرسوم",
+          title_error: "خطأ",
+          invalid_amount: "الرجاء إدخال مبلغ صحيح",
+          min_error: "الحد الأدنى للشراء هو {{amount}} SOL",
+          max_error: "الحد الأقصى للشراء هو {{amount}} SOL",
+          title_insufficient: "رصيد غير كافٍ",
+          insufficient_msg: "تحتاج {{required}} SOL، رصيدك الحالي: {{balance}} SOL",
+          config_error: "خطأ في إعدادات المطور: لم يتم تعيين محفظة البيع المسبق",
+          private_key_error: "لم يتم العثور على المفتاح الخاص",
+          title_failed: "فشلت العملية",
+          generic_error: "حدث خطأ غير متوقع أثناء المعاملة"
+        },
+        modal: {
+          title_success: "🎉 تم الشراء بنجاح!",
+          instruction_title: "معلومات مهمة:",
+          instruction_1: "سيتم توزيع عملات MECO بعد انتهاء فترة البيع المسبق",
+          instruction_2: "يرجى الحفاظ على رسالة التحقق من المعاملة",
+          verify_note: "يمكنك التحقق من المعاملة على Solscan باستخدام توقيع المعاملة",
+          warning_1: "⚠️ لا يمكن استرداد SOL بعد الشراء",
+          warning_2: "⚠️ المعاملات على شبكة Solana غير قابلة للاسترداد",
+          team_signature: "فريق MECO",
+          contact_dev: "اتصل بالمطور على تلغرام",
+          close: "إغلاق"
         }
       }
     }
@@ -738,7 +778,6 @@ const resources = {
       share_message_with_address: "My Solana wallet address: {{address}}\n\nYou can send any cryptocurrency to it.",
 
       // ========== New TransactionHistoryScreen Keys ==========
-      swap_transaction: "Swap",
       send_transaction: "Send",
       receive_transaction: "Receive",
       onchain_transaction: "On-chain",
@@ -823,6 +862,47 @@ const resources = {
           invalidKeyLength: "Private key length is incorrect",
           keyRetrievalFailed: "❌ Failed to retrieve key:",
           balanceLoadFailed: "❌ Failed to load balances:"
+        }
+      },
+
+      // ========== مفاتيح PresaleScreen الجديدة من الكود ==========
+      presaleScreen: {
+        header_title: "MECO Presale 🚀",
+        offer_title: "Exclusive Presale Offer",
+        rate_label: "1 SOL = 125,000 MECO",
+        min_badge: "Min: {{amount}} SOL",
+        max_badge: "Max: {{amount}} SOL",
+        label_you_pay: "You Pay",
+        label_you_receive: "You Receive",
+        your_balance: "Your Balance: {{amount}} SOL",
+        fee_label: "Transaction Fee",
+        note_footer: "* MECO tokens will be sent to your wallet directly after purchase",
+        buy_btn: "Buy Now 🔥",
+        alerts: {
+          title_warning: "Warning",
+          balance_low_limit: "Your balance is too low. You must have enough SOL for fees",
+          title_error: "Error",
+          invalid_amount: "Please enter a valid amount",
+          min_error: "Minimum purchase is {{amount}} SOL",
+          max_error: "Maximum purchase is {{amount}} SOL",
+          title_insufficient: "Insufficient Balance",
+          insufficient_msg: "You need {{required}} SOL, your current balance: {{balance}} SOL",
+          config_error: "Developer config error: Presale wallet not set",
+          private_key_error: "Private key not found",
+          title_failed: "Transaction Failed",
+          generic_error: "An unexpected error occurred during the transaction"
+        },
+        modal: {
+          title_success: "🎉 Purchase Successful!",
+          instruction_title: "Important Information:",
+          instruction_1: "MECO tokens will be distributed after the presale period ends",
+          instruction_2: "Please keep your transaction verification message",
+          verify_note: "You can verify the transaction on Solscan using the transaction signature",
+          warning_1: "⚠️ SOL cannot be refunded after purchase",
+          warning_2: "⚠️ Transactions on Solana network are irreversible",
+          team_signature: "MECO Team",
+          contact_dev: "Contact Developer on Telegram",
+          close: "Close"
         }
       }
     }

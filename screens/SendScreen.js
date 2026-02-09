@@ -48,7 +48,7 @@ const BASE_TOKENS = [
   },
   {
     symbol: 'MECO',
-    name: 'MECO Token',
+    name: 'MonyCoin',
     mint: '7hBNyFfwYTv65z3ZudMAyKBw3BLMKxyKXsr5xM51Za4i',
     icon: 'rocket-outline',
     decimals: 9, // ✅ تم تعديلها احتياطياً لـ 9، وسيتم التحقق منها برمجياً أيضاً
