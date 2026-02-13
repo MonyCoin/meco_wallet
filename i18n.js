@@ -59,7 +59,7 @@ const resources = {
       market_stablecoins: "العملات المستقرة",
       market_top_gainers: "الأعلى ارتفاعاً",
       market_last_update: "آخر تحديث",
-      market_prices_note: "الرموز المميزة باللون البرتقالي غير متاحة للتبادل المباشر على Solana. البيانات مقدمة من CoinGecko API.",
+      market_prices_note: "يتم تحديث الاسعار بشكل مستمر",
       market_unavailable: "غير متاح",
       market_balance: "رصيد",
 
@@ -281,7 +281,24 @@ const resources = {
       load_recovery_phrase_error: 'حدث خطأ عند تحميل عبارة الاسترداد',
       biometric_prompt: 'تأكيد الدخول إلى المحفظة',
       biometric_failed: 'فشل التحقق بالبصمة',
-      biometric_error: 'حدث خطأ في التحقق بالبصمة'
+      biometric_error: 'حدث خطأ في التحقق بالبصمة',
+
+      // ========== Meco World ========== 🌍
+      meco_world: 'عالم ميكو',
+      mecoWorld: {
+        tab_title: "عالم ميكو",
+        banner_title: "مؤسسة MonyCoin للتطوير",
+        banner_desc: "نحن نبني مجتمعاً رقمياً مستداماً. اكتشف مشاريعنا ورؤيتنا للمستقبل.",
+        visit_website: "زيارة الموقع الرسمي",
+        community: "انضم للمجتمع",
+        desc_twitter: "تابع آخر الأخبار والتحديثات",
+        desc_telegram: "تواصل مع المجتمع والدعم الفني",
+        desc_github: "استكشف الكود المصدري المفتوح",
+        desc_website: "الموقع الرسمي للمشروع",
+        transparency: "الشفافية والثقة",
+        solscan_title: "محفظة البيع المسبق",
+        solscan_desc: "تتبع جميع المعاملات بشفافية تامة على البلوكتشين."
+      }
     }
   },
   en: {
@@ -340,7 +357,7 @@ const resources = {
       market_stablecoins: "Stablecoins",
       market_top_gainers: "Top Gainers",
       market_last_update: "Last update",
-      market_prices_note: "Tokens marked in orange are not available for direct swapping on Solana. Data provided by CoinGecko API.",
+      market_prices_note: "Prices are updated continuously",
       market_unavailable: "Unavailable",
       market_balance: "Balance",
 
@@ -562,7 +579,24 @@ const resources = {
       load_recovery_phrase_error: 'Error loading recovery phrase',
       biometric_prompt: 'Confirm access to wallet',
       biometric_failed: 'Biometric verification failed',
-      biometric_error: 'Error in biometric verification'
+      biometric_error: 'Error in biometric verification',
+
+      // ========== Meco World ========== 🌍
+      meco_world: 'Meco World',
+      mecoWorld: {
+        tab_title: "Meco World",
+        banner_title: "MonyCoin Foundation",
+        banner_desc: "Building a sustainable digital community. Discover our vision for the future.",
+        visit_website: "Visit Official Website",
+        community: "Join Community",
+        desc_twitter: "Follow latest news & updates",
+        desc_telegram: "Chat with community & support",
+        desc_github: "Explore our open source code",
+        desc_website: "Official project website",
+        transparency: "Transparency & Trust",
+        solscan_title: "Presale Wallet",
+        solscan_desc: "Track all transactions transparently on the blockchain."
+      }
     }
   }
 };
@@ -574,7 +608,7 @@ const initI18n = () => {
     .init({
       compatibilityJSON: 'v3',
       resources,
-      lng: 'ar', // اللغة العربية الافتراضية
+      lng: 'ar',
       fallbackLng: 'en',
       interpolation: {
         escapeValue: false,
@@ -586,10 +620,8 @@ const initI18n = () => {
     });
 };
 
-// تهيئة مباشرة
 initI18n();
 
-// تصدير الدوال المساعدة
 export const changeLanguage = (lng) => {
   i18n.changeLanguage(lng);
   SecureStore.setItemAsync('app_language', lng);

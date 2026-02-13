@@ -28,6 +28,8 @@ import BackupScreen from './screens/BackupScreen';
 import TransactionHistoryScreen from './screens/TransactionHistoryScreen';
 import MarketScreen from './screens/MarketScreen';
 import PresaleScreen from './screens/PresaleScreen';
+// ✅ إضافة شاشة MecoWorld
+import MecoWorldScreen from './screens/MecoWorldScreen';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -43,19 +45,33 @@ function BottomTabs() {
     <Tab.Navigator
       initialRouteName="Wallet"
       screenOptions={({ route }) => {
+        // ✅ تعريف الأيقونات لكل تبويب
         const icons = {
-          Settings: 'settings-outline',
           Wallet: 'wallet-outline',
           Market: 'stats-chart-outline',
+          MecoWorld: 'globe-outline',
+          Settings: 'settings-outline',
         };
 
         return {
           headerShown: false,
           tabBarActiveTintColor: primaryColor,
           tabBarInactiveTintColor: 'gray',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name={icons[route.name]} size={size} color={color} />
-          ),
+          tabBarIcon: ({ color, size, focused }) => {
+            let iconName;
+            
+            if (route.name === 'Wallet') {
+              iconName = focused ? 'wallet' : 'wallet-outline';
+            } else if (route.name === 'Market') {
+              iconName = focused ? 'stats-chart' : 'stats-chart-outline';
+            } else if (route.name === 'MecoWorld') {
+              iconName = focused ? 'globe' : 'globe-outline';
+            } else if (route.name === 'Settings') {
+              iconName = focused ? 'settings' : 'settings-outline';
+            }
+            
+            return <Ionicons name={iconName} size={size} color={color} />;
+          },
           tabBarStyle: {
             backgroundColor: isDark ? '#1A1A2E' : '#FFFFFF',
             borderTopWidth: 0,
@@ -77,9 +93,27 @@ function BottomTabs() {
         };
       }}
     >
-      <Tab.Screen name="Wallet" component={WalletScreen} options={{ tabBarLabel: t('wallet') }} />
-      <Tab.Screen name="Market" component={MarketScreen} options={{ tabBarLabel: t('market') }} />
-      <Tab.Screen name="Settings" component={SettingsScreen} options={{ tabBarLabel: t('user_settings') }} />
+      <Tab.Screen 
+        name="Wallet" 
+        component={WalletScreen} 
+        options={{ tabBarLabel: t('wallet') }} 
+      />
+      <Tab.Screen 
+        name="Market" 
+        component={MarketScreen} 
+        options={{ tabBarLabel: t('market') }} 
+      />
+      {/* ✅ إضافة تبويب MecoWorld */}
+      <Tab.Screen 
+        name="MecoWorld" 
+        component={MecoWorldScreen} 
+        options={{ tabBarLabel: t('meco_world') || 'Meco World' }} 
+      />
+      <Tab.Screen 
+        name="Settings" 
+        component={SettingsScreen} 
+        options={{ tabBarLabel: t('user_settings') }} 
+      />
     </Tab.Navigator>
   );
 }
@@ -156,6 +190,9 @@ export default function AppContainer() {
         <Stack.Screen name="Presale" component={PresaleScreen} options={{ title: t('presale') + ' 🚀' }} />
         <Stack.Screen name="Backup" component={BackupScreen} options={{ title: 'نسخ احتياطي' }} />
         <Stack.Screen name="TransactionHistory" component={TransactionHistoryScreen} options={{ title: 'السجل' }} />
+        
+        {/* ✅ إضافة شاشة MecoWorld كـ Stack Screen (اختياري) */}
+        <Stack.Screen name="MecoWorld" component={MecoWorldScreen} options={{ title: t('meco_world') || 'Meco World' }} />
       </Stack.Navigator>
     </NavigationContainer>
   );

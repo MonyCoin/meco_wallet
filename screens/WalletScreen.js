@@ -11,6 +11,7 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { useAppStore } from '../store';
 import { Ionicons } from '@expo/vector-icons';
+// تأكد من أن heliusService يحتوي على getTokenMarketPrice
 import { getSolBalance, getTokenAccounts, getTokenMarketPrice } from '../services/heliusService';
 
 const { width } = Dimensions.get('window');
@@ -75,8 +76,10 @@ export default function WalletScreen() {
         return;
       }
 
+      // 1. جلب رصيد SOL
       const solBal = await getSolBalance(true);
       
+      // 2. جلب حسابات التوكنات
       let tokenAccounts = [];
       try {
         if (getTokenAccounts) tokenAccounts = await getTokenAccounts();
@@ -84,8 +87,11 @@ export default function WalletScreen() {
 
       let calculatedTotalUSD = 0;
       
+      // 3. معالجة كل أصل (Asset) لحساب كميته وسعره
       const updatedAssets = await Promise.all(SUPPORTED_ASSETS.map(async (asset) => {
         let amount = 0;
+        
+        // أ) تحديد الكمية
         if (asset.symbol === 'SOL') {
           amount = solBal;
         } else {
@@ -93,19 +99,23 @@ export default function WalletScreen() {
           if (tokenData) amount = tokenData.amount;
         }
 
+        // ب) جلب السعر (بما في ذلك سعر SOL)
         let price = 0;
         try {
           if (getTokenMarketPrice) {
+            // ✅ هذا السطر يضمن جلب سعر SOL أيضاً
             price = await getTokenMarketPrice(asset.symbol);
           }
         } catch (e) { console.warn(`Price fetch error for ${asset.symbol}`, e); }
 
+        // ج) حساب القيمة بالدولار
         const valueUSD = amount * price;
         calculatedTotalUSD += valueUSD;
 
         return { ...asset, amount, price, valueUSD };
       }));
 
+      // ترتيب الأصول: الأعلى قيمة أولاً
       updatedAssets.sort((a, b) => b.valueUSD - a.valueUSD);
 
       setAssets(updatedAssets);
@@ -156,8 +166,9 @@ export default function WalletScreen() {
         <Text style={[styles.assetBalance, { color: colors.text }]}>
           {item.amount > 0 ? item.amount.toFixed(4) : '0'}
         </Text>
+        {/* ✅ هنا سيظهر السعر بالدولار لكل عملة بما فيها SOL */}
         <Text style={[styles.assetValue, { color: colors.textSecondary }]}>
-          ${item.valueUSD.toFixed(2)}
+          ${item.valueUSD.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
         </Text>
       </View>
     </TouchableOpacity>
@@ -178,8 +189,7 @@ export default function WalletScreen() {
             <TouchableOpacity onPress={copyAddress} style={[styles.iconBtn, { backgroundColor: isDark ? '#2A2A3E' : '#F2F2F7' }]}>
               <Ionicons name="copy-outline" size={20} color={primaryColor} />
             </TouchableOpacity>
-            
-            {/* ❌ تم حذف أيقونة الإعدادات من هنا لأنها موجودة في الشريط السفلي */}
+            {/* ✅ تم حذف أيقونة الإعدادات من هنا */}
           </View>
         </View>
 
@@ -189,15 +199,16 @@ export default function WalletScreen() {
             <ActivityIndicator color={primaryColor} style={{marginTop: 10}} />
           ) : (
             <Text style={[styles.balanceAmount, { color: colors.text }]}>
+              {/* ✅ عرض الرصيد الإجمالي الصحيح */}
               ${totalBalanceUSD.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </Text>
           )}
         </View>
 
-        {/* أزرار الإجراءات (بدون Swap) */}
         <View style={styles.actionsRow}>
           <ActionButton icon="arrow-up" label={t('send')} onPress={() => navigation.navigate('Send')} colors={colors} primary={primaryColor} />
           <ActionButton icon="arrow-down" label={t('receive')} onPress={() => navigation.navigate('Receive')} colors={colors} primary={primaryColor} />
+          {/* تم حذف Swap */}
           <ActionButton icon="rocket" label={t('presale')} onPress={() => navigation.navigate('Presale')} colors={colors} primary={primaryColor} />
         </View>
       </Animated.View>
