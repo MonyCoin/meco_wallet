@@ -117,12 +117,8 @@ export default function MarketScreen() {
   };
 
   const handleTokenPress = (token) => {
-    // ✅ إزالة التوجيه إلى Swap وعرض تنبيه معلومات فقط
-    Alert.alert(
-      token.name,
-      `${t('current_prices')}: $${token.current_price}\n` +
-      `${t('market_prices_note')}`
-    );
+    // ✅ التنقل إلى شاشة تفاصيل العملة مع تمرير بيانات العملة
+    navigation.navigate('TokenDetails', { token });
   };
 
   const filteredTokens = tokens.filter(t => {

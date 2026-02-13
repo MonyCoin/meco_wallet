@@ -28,8 +28,9 @@ import BackupScreen from './screens/BackupScreen';
 import TransactionHistoryScreen from './screens/TransactionHistoryScreen';
 import MarketScreen from './screens/MarketScreen';
 import PresaleScreen from './screens/PresaleScreen';
-// ✅ إضافة شاشة MecoWorld
 import MecoWorldScreen from './screens/MecoWorldScreen';
+// ✅ إضافة شاشة تفاصيل العملة
+import TokenDetailsScreen from './screens/TokenDetailsScreen';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -185,13 +186,19 @@ export default function AppContainer() {
         <Stack.Screen name="Send" component={SendScreen} options={{ title: 'إرسال' }} />
         <Stack.Screen name="Receive" component={ReceiveScreen} options={{ title: 'استقبال' }} />
         
-        {/* ❌ تم حذف SwapScreen */}
+        {/* ✅ شاشة تفاصيل العملة - ستفتح عند الضغط على أي عملة من Market */}
+        <Stack.Screen 
+          name="TokenDetails" 
+          component={TokenDetailsScreen} 
+          options={{ 
+            title: t('token_details') || 'تفاصيل العملة',
+            headerBackTitle: t('back') || 'رجوع'
+          }} 
+        />
         
         <Stack.Screen name="Presale" component={PresaleScreen} options={{ title: t('presale') + ' 🚀' }} />
         <Stack.Screen name="Backup" component={BackupScreen} options={{ title: 'نسخ احتياطي' }} />
         <Stack.Screen name="TransactionHistory" component={TransactionHistoryScreen} options={{ title: 'السجل' }} />
-        
-        {/* ✅ إضافة شاشة MecoWorld كـ Stack Screen (اختياري) */}
         <Stack.Screen name="MecoWorld" component={MecoWorldScreen} options={{ title: t('meco_world') || 'Meco World' }} />
       </Stack.Navigator>
     </NavigationContainer>
