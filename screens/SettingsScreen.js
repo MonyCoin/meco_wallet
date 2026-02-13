@@ -426,7 +426,7 @@ export default function SettingsScreen() {
               
               {/* ✅ تم تعديل النص الثابت هنا */}
               <Text style={[styles.appVersion, { color: colors.textSecondary }]}>
-                {t('version')} 1.0.3
+                {t('version')} 1.1.2
               </Text>
               
               <Text style={[styles.appDescription, { color: colors.textSecondary }]}>
