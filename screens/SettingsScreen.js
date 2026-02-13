@@ -241,7 +241,13 @@ export default function SettingsScreen() {
             icon={<Ionicons name="list-outline" size={22} color={primaryColor} />}
             title={t('transaction_history')}
             subtitle={t('view_all_transactions')}
-            onPress={() => navigation.navigate('TransactionHistory')}
+            onPress={() => {
+              try {
+                navigation.navigate('TransactionHistory');
+              } catch (error) {
+                console.error('Navigation error:', error);
+              }
+            }}
             rightComponent={<Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />}
           />
           
@@ -335,10 +341,10 @@ export default function SettingsScreen() {
           />
         </View>
 
-        {/* App Version */}
+        {/* App Version - ✅ تم تعديل النص الثابت */}
         <View style={styles.versionContainer}>
           <Text style={[styles.versionText, { color: colors.textSecondary }]}>
-            MECO Wallet v1.0.3
+            MECO Wallet {t('version')} 1.0.3
           </Text>
         </View>
       </Animated.View>
@@ -417,7 +423,11 @@ export default function SettingsScreen() {
               </View>
               
               <Text style={[styles.appName, { color: colors.text }]}>MECO Wallet</Text>
-              <Text style={[styles.appVersion, { color: colors.textSecondary }]}>Version 1.0.3</Text>
+              
+              {/* ✅ تم تعديل النص الثابت هنا */}
+              <Text style={[styles.appVersion, { color: colors.textSecondary }]}>
+                {t('version')} 1.0.3
+              </Text>
               
               <Text style={[styles.appDescription, { color: colors.textSecondary }]}>
                 {t('secure_crypto_wallet_description')}
