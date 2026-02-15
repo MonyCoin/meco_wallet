@@ -44,6 +44,7 @@
     "expo-secure-store": "~15.0.7",
     "expo-splash-screen": "~31.0.13",
     "expo-web-browser": "~15.0.8",
+    "fastestsmallesttextencoderdecoder": "^1.0.22",
     "https-browserify": "^1.0.0",
     "i18next": "^25.7.4",
     "path-browserify": "^1.0.1",
@@ -74,7 +75,8 @@
   "devDependencies": {
     "@babel/core": "^7.28.0",
     "@react-native-community/cli": "^20.1.0",
-    "depcheck": "^1.4.7"
+    "depcheck": "^1.4.7",
+    "typescript": "^5.9.3"
   },
   "expo": {
     "doctor": {
