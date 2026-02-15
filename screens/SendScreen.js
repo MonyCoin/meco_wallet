@@ -8,7 +8,7 @@ import {
 import { useAppStore } from '../store';
 import { useTranslation } from 'react-i18next';
 import * as SecureStore from 'expo-secure-store';
-import { useRoute } from '@react-navigation/native';
+import { useRoute, useNavigation } from '@react-navigation/native'; // ✅ إضافة useNavigation
 import { 
   getSolBalance, 
   getTokenBalance, 
@@ -93,6 +93,7 @@ async function getKeypair(t) {
 export default function SendScreen() {
   const { t } = useTranslation();
   const route = useRoute();
+  const navigation = useNavigation(); // ✅ إضافة navigation
   const theme = useAppStore(state => state.theme);
   const primaryColor = useAppStore(state => state.primaryColor);
   const isDark = theme === 'dark';
@@ -438,17 +439,29 @@ export default function SendScreen() {
 
           <View style={styles.inputSection}>
             <Text style={[styles.inputLabel, { color: colors.text }]}>{t('sendScreen.inputs.recipient')}</Text>
+            {/* ✅ إضافة زر QR بجانب حقل العنوان مع الحفاظ على المنطق */}
             <View style={[styles.inputContainer, { backgroundColor: colors.inputBackground, borderColor: state.recipientExists === false ? colors.error : colors.border }]}>
               <TextInput
-                style={[styles.input, { color: colors.text }]}
+                style={[styles.input, { flex: 1 }]}
                 placeholder={t('sendScreen.inputs.recipientPlaceholder')}
                 placeholderTextColor={colors.textSecondary}
                 value={state.recipient}
                 onChangeText={(text) => setState(prev => ({ ...prev, recipient: text }))}
               />
-              <TouchableOpacity onPress={state.recipient ? () => setState(prev => ({ ...prev, recipient: '' })) : handlePasteAddress}>
-                <Ionicons name={state.recipient ? "close-circle" : "clipboard-outline"} size={20} color={state.recipient ? colors.textSecondary : primaryColor} />
-              </TouchableOpacity>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <TouchableOpacity onPress={handlePasteAddress}>
+                  <Ionicons name="clipboard-outline" size={20} color={primaryColor} />
+                </TouchableOpacity>
+                {/* ✅ زر QR الجديد */}
+                <TouchableOpacity onPress={() => navigation.navigate('QRScanner')}>
+                  <Ionicons name="qr-code-outline" size={22} color={primaryColor} />
+                </TouchableOpacity>
+                {state.recipient !== '' && (
+                  <TouchableOpacity onPress={() => setState(prev => ({ ...prev, recipient: '' }))}>
+                    <Ionicons name="close-circle" size={20} color={colors.textSecondary} />
+                  </TouchableOpacity>
+                )}
+              </View>
             </View>
           </View>
 
@@ -512,17 +525,27 @@ const styles = StyleSheet.create({
   tokenSelectorContent: { flexDirection: 'row', justifyContent: 'space-between', flex: 1, alignItems: 'center' },
   tokenInfo: { flexDirection: 'row', alignItems: 'center' },
   tokenIcon: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
+  tokenName: { fontSize: 16, fontWeight: '600' },
   inputSection: { marginBottom: 16 },
+  inputLabel: { fontSize: 14, fontWeight: '600', marginBottom: 8 },
   inputContainer: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: 12, paddingHorizontal: 16, height: 56 },
-  input: { flex: 1, fontSize: 16, height: '100%' },
-  amountHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
+  input: { fontSize: 16, height: '100%', flex: 1 },
+  amountHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  maxButton: { fontSize: 14, fontWeight: '600' },
+  currencyLabel: { fontSize: 16, fontWeight: '500', marginLeft: 8 },
   simpleFeeRow: { flexDirection: 'row', justifyContent: 'space-between', padding: 16, borderRadius: 12, marginBottom: 24 },
-  sendButton: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: 18, borderRadius: 16 },
-  sendButtonText: { color: '#FFF', fontSize: 18, fontWeight: '600', marginLeft: 8 },
+  simpleFeeText: { fontSize: 14 },
+  simpleFeeAmount: { fontSize: 14, fontWeight: '600' },
+  sendButton: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: 18, borderRadius: 16, gap: 8 },
+  sendButtonText: { color: '#FFF', fontSize: 18, fontWeight: '600' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modalContent: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, maxHeight: '70%' },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 },
-  tokenItem: { flexDirection: 'row', padding: 16, borderRadius: 12, marginBottom: 8, borderWidth: 1 },
-  tokenItemContent: { flexDirection: 'row', alignItems: 'center', flex: 1 },
-  tokenDetails: { marginLeft: 12, flex: 1 },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+  modalTitle: { fontSize: 18, fontWeight: '600' },
+  tokenList: { paddingBottom: 20 },
+  tokenItem: { borderRadius: 12, padding: 12, marginBottom: 8, borderWidth: 1 },
+  tokenItemContent: { flexDirection: 'row', alignItems: 'center' },
+  tokenDetails: { flex: 1, marginLeft: 12 },
+  tokenItemName: { fontSize: 16, fontWeight: '500' },
+  tokenBalance: { fontSize: 12, marginTop: 2 },
 });

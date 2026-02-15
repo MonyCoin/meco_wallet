@@ -21,6 +21,9 @@
     "@scure/bip39": "^1.6.0",
     "@solana/spl-token": "^0.4.6",
     "@solana/web3.js": "^1.87.6",
+    "@walletconnect/core": "^2.23.5",
+    "@walletconnect/utils": "^2.23.5",
+    "@walletconnect/web3wallet": "^1.16.1",
     "axios": "^1.13.2",
     "bs58": "^6.0.0",
     "buffer": "^6.0.3",
@@ -60,7 +63,9 @@
     "url": "^0.11.4",
     "util": "^0.12.5",
     "vm-browserify": "^1.1.2",
-    "zustand": "^5.0.6"
+    "zustand": "^5.0.6",
+    "expo-camera": "~17.0.10",
+    "expo-image-picker": "~17.0.10"
   },
   "devDependencies": {
     "@babel/core": "^7.28.0",

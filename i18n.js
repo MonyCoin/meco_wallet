@@ -332,6 +332,21 @@ const resources = {
       biometric_failed: 'فشل التحقق بالبصمة',
       biometric_error: 'حدث خطأ في التحقق بالبصمة',
 
+      // ========== QRScannerScreen.js (الشاشة الجديدة) ========== 📸
+      qr_scanner: {
+        title: 'مسح QR',
+        requesting: 'جاري طلب إذن الكاميرا...',
+        no_permission: 'لا يوجد إذن للوصول إلى الكاميرا',
+        grant: 'منح الإذن',
+        instructions: 'ضع رمز QR داخل الإطار للمسح',
+        success: 'تم المسح بنجاح',
+        address_found: 'تم العثور على عنوان المحفظة',
+        use_address: 'استخدام هذا العنوان',
+        invalid: 'رمز غير صالح',
+        invalid_address: 'هذا الرمز لا يحتوي على عنوان محفظة صالح',
+        rescan: 'مسح مرة أخرى',
+      },
+
       // ========== Meco World ========== 🌍
       meco_world: 'عالم ميكو',
       mecoWorld: {
@@ -678,6 +693,21 @@ const resources = {
       biometric_prompt: 'Confirm access to wallet',
       biometric_failed: 'Biometric verification failed',
       biometric_error: 'Error in biometric verification',
+
+      // ========== QRScannerScreen.js (New Screen) ========== 📸
+      qr_scanner: {
+        title: 'QR Scanner',
+        requesting: 'Requesting camera permission...',
+        no_permission: 'No access to camera',
+        grant: 'Grant Permission',
+        instructions: 'Place QR code inside the frame to scan',
+        success: 'Scan successful',
+        address_found: 'Wallet address found',
+        use_address: 'Use this address',
+        invalid: 'Invalid QR',
+        invalid_address: 'This QR does not contain a valid wallet address',
+        rescan: 'Scan again',
+      },
 
       // ========== Meco World ========== 🌍
       meco_world: 'Meco World',

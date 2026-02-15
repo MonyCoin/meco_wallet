@@ -15,6 +15,9 @@ import { useAppStore } from './store';
 import { useTranslation } from 'react-i18next';
 import i18n from './i18n';
 
+// ✅ استيراد خدمة WalletConnect
+import { initWalletConnect } from './services/walletConnectService';
+
 // Screens
 import HomeScreen from './screens/HomeScreen';
 import CreateWalletScreen from './screens/CreateWalletScreen';
@@ -31,6 +34,8 @@ import PresaleScreen from './screens/PresaleScreen';
 import MecoWorldScreen from './screens/MecoWorldScreen';
 // ✅ إضافة شاشة تفاصيل العملة
 import TokenDetailsScreen from './screens/TokenDetailsScreen';
+// ✅ إضافة شاشة ماسح QR
+import QRScannerScreen from './screens/QRScannerScreen';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -154,12 +159,17 @@ export default function AppContainer() {
                 return;
               }
             }
+            
+            // ✅ تشغيل خدمة WalletConnect بعد تهيئة المحفظة بنجاح
+            initWalletConnect();
+            
             setInitialRoute('BottomTabs');
             return;
           }
         }
         setInitialRoute('Home');
       } catch (err) {
+        console.warn('Init error:', err);
         setInitialRoute('Home');
       }
     };
@@ -186,13 +196,24 @@ export default function AppContainer() {
         <Stack.Screen name="Send" component={SendScreen} options={{ title: 'إرسال' }} />
         <Stack.Screen name="Receive" component={ReceiveScreen} options={{ title: 'استقبال' }} />
         
-        {/* ✅ شاشة تفاصيل العملة - ستفتح عند الضغط على أي عملة من Market */}
+        {/* ✅ شاشة تفاصيل العملة */}
         <Stack.Screen 
           name="TokenDetails" 
           component={TokenDetailsScreen} 
           options={{ 
             title: t('token_details') || 'تفاصيل العملة',
             headerBackTitle: t('back') || 'رجوع'
+          }} 
+        />
+        
+        {/* ✅ شاشة ماسح QR */}
+        <Stack.Screen 
+          name="QRScanner" 
+          component={QRScannerScreen} 
+          options={{ 
+            title: t('qr_scanner.title') || 'مسح QR',
+            headerBackTitle: t('back') || 'رجوع',
+            headerShown: false // نخفي الهيدر لأن الشاشة لها هيدر خاص
           }} 
         />
         
