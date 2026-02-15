@@ -9,13 +9,14 @@ import { Ionicons } from '@expo/vector-icons';
 
 const { width } = Dimensions.get('window');
 
-// 🔗 الروابط الخاصة بالمشروع
+// 🔗 الروابط الخاصة بالمشروع (تم تحديث الرابط الرئيسي)
 const LINKS = {
   twitter: 'https://x.com/MoniCoinMECO',
   telegram: 'https://t.me/MECO_Community',
   github: 'https://monycoin.github.io/meco-token/',
   website: 'https://monycoin1.blogspot.com/',
-  // رابط Solscan لمحفظة البيع المسبق
+  // ✅ رابط Jupiter المباشر لعملة MECO
+  jupiterMeco: 'https://jup.ag/tokens/7hBNyFfwYTv65z3ZudMAyKBw3BLMKxyKXsr5xM51Za4i',
   presaleScan: 'https://solscan.io/account/E9repjjKBq3RVLw1qckrG15gKth63fe98AHCSgXZzKvY'
 };
 
@@ -61,19 +62,24 @@ export default function MecoWorldScreen() {
       showsVerticalScrollIndicator={false}
     >
       
-      {/* 1. البطاقة الإعلانية (Banner) */}
+      {/* 1. البطاقة الإعلانية (Banner) - محدثة */}
       <View style={[styles.banner, { backgroundColor: colors.banner }]}>
         <View style={styles.bannerContent}>
           <Text style={styles.bannerTitle}>{t('mecoWorld.banner_title')}</Text>
           <Text style={styles.bannerSubtitle}>{t('mecoWorld.banner_desc')}</Text>
+          
+          {/* ✅ الزر الجديد: يفتح Jupiter */}
           <TouchableOpacity 
             style={styles.bannerButton}
-            onPress={() => openLink(LINKS.website)}
+            onPress={() => openLink(LINKS.jupiterMeco)}
           >
-            <Text style={[styles.bannerBtnText, { color: primaryColor }]}>{t('mecoWorld.visit_website')}</Text>
+            <Text style={[styles.bannerBtnText, { color: primaryColor }]}>
+              {t('mecoWorld.buy_on_jupiter') || "شراء ومبادلة MECO"} 
+            </Text>
+            <Ionicons name="open-outline" size={16} color={primaryColor} style={{marginLeft: 5}} />
           </TouchableOpacity>
         </View>
-        <Ionicons name="globe-outline" size={80} color="rgba(255,255,255,0.2)" style={styles.bannerIcon} />
+        <Ionicons name="rocket-outline" size={80} color="rgba(255,255,255,0.2)" style={styles.bannerIcon} />
       </View>
 
       <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('mecoWorld.community')}</Text>
@@ -138,7 +144,7 @@ export default function MecoWorldScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  content: { padding: 20, paddingTop: 50 }, // Padding top لعدم التصاق المحتوى بالهيدر
+  content: { padding: 20, paddingTop: 50 }, 
   
   // Banner
   banner: {
@@ -156,7 +162,15 @@ const styles = StyleSheet.create({
   bannerContent: { zIndex: 2 },
   bannerTitle: { fontSize: 22, fontWeight: 'bold', color: '#FFF', marginBottom: 8 },
   bannerSubtitle: { fontSize: 14, color: 'rgba(255,255,255,0.9)', marginBottom: 16, lineHeight: 20 },
-  bannerButton: { backgroundColor: '#FFF', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 25, alignSelf: 'flex-start' },
+  bannerButton: { 
+    backgroundColor: '#FFF', 
+    paddingHorizontal: 20, 
+    paddingVertical: 12, 
+    borderRadius: 25, 
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center'
+  },
   bannerBtnText: { fontWeight: 'bold', fontSize: 14 },
   bannerIcon: { position: 'absolute', right: -20, bottom: -20, zIndex: 1 },
 

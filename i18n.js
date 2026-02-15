@@ -332,7 +332,7 @@ const resources = {
       biometric_failed: 'فشل التحقق بالبصمة',
       biometric_error: 'حدث خطأ في التحقق بالبصمة',
 
-      // ========== QRScannerScreen.js (الشاشة الجديدة) ========== 📸
+      // ========== QRScannerScreen.js ==========
       qr_scanner: {
         title: 'مسح QR',
         requesting: 'جاري طلب إذن الكاميرا...',
@@ -347,13 +347,13 @@ const resources = {
         rescan: 'مسح مرة أخرى',
       },
 
-      // ========== Meco World ========== 🌍
+      // ========== Meco World ========== 🌍 (تم التحديث)
       meco_world: 'عالم ميكو',
       mecoWorld: {
         tab_title: "عالم ميكو",
         banner_title: "مؤسسة MonyCoin للتطوير",
-        banner_desc: "نحن نبني مجتمعاً رقمياً مستداماً. اكتشف مشاريعنا ورؤيتنا للمستقبل.",
-        visit_website: "زيارة الموقع الرسمي",
+        banner_desc: "تعرف على سعر MECO الحالي، وقم بالشراء والمبادلة فوراً عبر Jupiter.", // ✅ النص الجديد
+        buy_on_jupiter: "شراء ومبادلة MECO 🪐", // ✅ الزر الجديد
         community: "انضم للمجتمع",
         desc_twitter: "تابع آخر الأخبار والتحديثات",
         desc_telegram: "تواصل مع المجتمع والدعم الفني",
@@ -694,7 +694,7 @@ const resources = {
       biometric_failed: 'Biometric verification failed',
       biometric_error: 'Error in biometric verification',
 
-      // ========== QRScannerScreen.js (New Screen) ========== 📸
+      // ========== QRScannerScreen.js ==========
       qr_scanner: {
         title: 'QR Scanner',
         requesting: 'Requesting camera permission...',
@@ -709,13 +709,13 @@ const resources = {
         rescan: 'Scan again',
       },
 
-      // ========== Meco World ========== 🌍
+      // ========== Meco World ========== 🌍 (Updated)
       meco_world: 'Meco World',
       mecoWorld: {
         tab_title: "Meco World",
         banner_title: "MonyCoin Foundation",
-        banner_desc: "Building a sustainable digital community. Discover our vision for the future.",
-        visit_website: "Visit Official Website",
+        banner_desc: "Track MECO price, buy and swap instantly via Jupiter.", // ✅ New Text
+        buy_on_jupiter: "Buy & Swap MECO 🪐", // ✅ New Button
         community: "Join Community",
         desc_twitter: "Follow latest news & updates",
         desc_telegram: "Chat with community & support",
