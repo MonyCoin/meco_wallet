@@ -20,6 +20,11 @@ import { clearMarketOverviewCache } from '../services/marketOverviewService';
 
 const { width } = Dimensions.get('window');
 
+// ✅ روابط رسمية حية — بتفتح فى المتصفح مباشرة، مش نص متضمّن جوه التطبيق،
+// عشان المستخدم يشوف دايمًا آخر نسخة رسمية من غير ما يحتاج تحديث للتطبيق
+const PRIVACY_POLICY_URL = 'https://monycoin.github.io/meco_web/privacy.html';
+const TERMS_OF_USE_URL   = 'https://monycoin.github.io/meco_web/terms.html';
+
 export default function SettingsScreen() {
   const { t, i18n } = useTranslation();
   const navigation  = useNavigation();
@@ -292,6 +297,24 @@ export default function SettingsScreen() {
               subtitle={t('check_for_updates_desc','التأكد من استخدامك لأحدث إصدار')}
               onPress={checkingUpdate ? null : checkForUpdates}
               rightComponent={checkingUpdate ? <ActivityIndicator size="small" color={primaryColor} /> : <Chevron />}
+            />
+          </View>
+        </View>
+
+        {/* ✅ Legal Section — جديد: سياسة الخصوصية وشروط الاستخدام، روابط حية خارجية */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color:C.textSecondary }]}>{t('legal_section_title', 'الشروط والخصوصية').toUpperCase()}</Text>
+          <View style={[styles.groupContainer, { backgroundColor: C.card, borderColor: C.border }]}>
+            <SettingItem
+              icon={<Ionicons name="shield-checkmark-outline" size={20} color={primaryColor} />}
+              title={t('privacy_policy_title', 'سياسة الخصوصية')}
+              onPress={() => Linking.openURL(PRIVACY_POLICY_URL)} rightComponent={<Chevron />}
+            />
+            <View style={[styles.innerDivider, { backgroundColor: C.border }]} />
+            <SettingItem
+              icon={<Ionicons name="document-text-outline" size={20} color={primaryColor} />}
+              title={t('terms_of_use_title', 'شروط الاستخدام')}
+              onPress={() => Linking.openURL(TERMS_OF_USE_URL)} rightComponent={<Chevron />}
             />
           </View>
         </View>

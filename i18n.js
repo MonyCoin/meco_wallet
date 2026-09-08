@@ -1390,6 +1390,31 @@ i18n.addResourceBundle('en', 'translation', {
   },
 }, true, true);
 
+i18n.addResourceBundle('ar', 'translation', {
+  notif_sent_title: 'تم الإرسال',
+  notif_received_title: 'تم الاستلام',
+  notif_swap_title: 'تم التبادل',
+}, true, true);
+
+i18n.addResourceBundle('en', 'translation', {
+  notif_sent_title: 'Sent Successfully',
+  notif_received_title: 'Received',
+  notif_swap_title: 'Swap Completed',
+}, true, true);
+
+// ✅ قسم الشروط وسياسة الخصوصية فى الإعدادات — جديد
+i18n.addResourceBundle('ar', 'translation', {
+  legal_section_title: 'الشروط والخصوصية',
+  privacy_policy_title: 'سياسة الخصوصية',
+  terms_of_use_title: 'شروط الاستخدام',
+}, true, true);
+
+i18n.addResourceBundle('en', 'translation', {
+  legal_section_title: 'Legal',
+  privacy_policy_title: 'Privacy Policy',
+  terms_of_use_title: 'Terms of Use',
+}, true, true);
+
 export const changeLanguage = (lng) => {
   i18n.changeLanguage(lng);
   SecureStore.setItemAsync('app_language', lng);
