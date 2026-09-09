@@ -77,9 +77,9 @@
 
 [![Download APK](https://img.shields.io/badge/📲_تحميل_تطبيق_ميكو-6C63FF?style=for-the-badge&logo=android&logoColor=white)](https://monycoin.github.io/meco_web/)
 
-**الإصدار الحالي:** `v1.17.0`  
-**تاريخ التحديث:** أغسطس 2026  
-**حجم التطبيق:** ~85 MB
+**الإصدار الحالي:** `v1.18.0`  
+**تاريخ التحديث:**  سبتمبر 2026  
+**حجم التطبيق:** ~115  MB
 
 </div>
 
