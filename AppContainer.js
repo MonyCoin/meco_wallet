@@ -38,7 +38,8 @@ import StakingScreen            from './screens/StakingScreen';
 import TradingScreen            from './screens/TradingScreen';
 import PortfolioScreen          from './screens/PortfolioScreen';
 import DappBrowserScreen        from './screens/DappBrowserScreen';
-import NotificationsScreen      from './screens/NotificationsScreen';  // ✅ جديد
+import NotificationsScreen      from './screens/NotificationsScreen';
+import { checkBalanceChanges }  from './services/balanceMonitorService';   // ✅ جديد
 
 // منع الشاشة الترحيبية الأصلية من الاختفاء تلقائياً لتفادي الوميض الأبيض
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -236,6 +237,18 @@ export default function AppContainer() {
         }
       };
       hideSplash();
+    }
+  }, [initialRoute]);
+
+  // ✅ فحص الرصيد عند فتح التطبيق — بعد استقرار التطبيق بـ 3 ثواني
+  useEffect(() => {
+    if (initialRoute === 'BottomTabs') {
+      const timer = setTimeout(() => {
+        const accounts = useAppStore.getState().accounts;
+        checkBalanceChanges(accounts).catch(() => {});
+      }, 3000);
+
+      return () => clearTimeout(timer);
     }
   }, [initialRoute]);
 

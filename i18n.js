@@ -1349,9 +1349,7 @@ const initI18n = () => {
 
 initI18n();
 
-// ✅ مفاتيح بطاقة توقيع WalletConnect (كانت ناقصة، ده سبب ظهور نصوص إنجليزية/مفاتيح خام فى وضع العربي)
-// مضافة بـ addResourceBundle بدل ما تتحط جوه resources فوق، عشان تبقى إضافة مؤكدة ومعزولة
-// من غير أي خطر إننا نلمس أو نكسر حاجة من الكتلة الكبيرة اللي فوق دي
+// ✅ مفاتيح بطاقة توقيع WalletConnect
 i18n.addResourceBundle('ar', 'translation', {
   walletConnect: {
     instruction_count: 'عدد التعليمات',
@@ -1390,19 +1388,7 @@ i18n.addResourceBundle('en', 'translation', {
   },
 }, true, true);
 
-i18n.addResourceBundle('ar', 'translation', {
-  notif_sent_title: 'تم الإرسال',
-  notif_received_title: 'تم الاستلام',
-  notif_swap_title: 'تم التبادل',
-}, true, true);
-
-i18n.addResourceBundle('en', 'translation', {
-  notif_sent_title: 'Sent Successfully',
-  notif_received_title: 'Received',
-  notif_swap_title: 'Swap Completed',
-}, true, true);
-
-// ✅ قسم الشروط وسياسة الخصوصية فى الإعدادات — جديد
+// ✅ قسم الشروط وسياسة الخصوصية فى الإعدادات
 i18n.addResourceBundle('ar', 'translation', {
   legal_section_title: 'الشروط والخصوصية',
   privacy_policy_title: 'سياسة الخصوصية',
@@ -1415,7 +1401,7 @@ i18n.addResourceBundle('en', 'translation', {
   terms_of_use_title: 'Terms of Use',
 }, true, true);
 
-// ✅ قسم الإشعارات بالكامل — جديد
+// ✅ قسم الإشعارات بالكامل
 i18n.addResourceBundle('ar', 'translation', {
   notifications: 'الإشعارات',
   mark_all_read: 'تعليم الكل كمقروء',
@@ -1431,6 +1417,8 @@ i18n.addResourceBundle('ar', 'translation', {
 
   notif_receive_title: 'تم الاستلام',
   notif_receive_message: 'استلمت {{amount}} {{symbol}}',
+  notif_receive_combined_title: 'تم استلام أموال',
+  notif_receive_combined_message: 'استلمت {{summary}}',
 
   notif_swap_title: 'تم التبادل بنجاح',
   notif_swap_message: 'بادلت {{fromAmount}} {{fromSymbol}} بـ {{toAmount}} {{toSymbol}}',
@@ -1461,6 +1449,8 @@ i18n.addResourceBundle('en', 'translation', {
 
   notif_receive_title: 'Received',
   notif_receive_message: 'You received {{amount}} {{symbol}}',
+  notif_receive_combined_title: 'Funds Received',
+  notif_receive_combined_message: 'You received {{summary}}',
 
   notif_swap_title: 'Swap Completed',
   notif_swap_message: 'You swapped {{fromAmount}} {{fromSymbol}} for {{toAmount}} {{toSymbol}}',
