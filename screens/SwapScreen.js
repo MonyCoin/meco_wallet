@@ -9,18 +9,18 @@ import { useNavigation, useFocusEffect, useRoute } from '@react-navigation/nativ
 import { useTranslation } from 'react-i18next';
 import { useAppStore } from '../store';
 import { Ionicons } from '@expo/vector-icons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context'; // ✅ استيراد للهوامش الآمنة
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Clipboard from 'expo-clipboard';
 import * as SwapAPI from '../services/swapService';
 import NetInfo from '@react-native-community/netinfo';
 import { CORE_TOKENS, getSolPriceUsd } from '../services/jupiterMarketService';
 import { getSolBalance, getTokenBalance } from '../services/heliusService';
+import { addNotification, NOTIF_TYPES } from '../services/notificationsService';   // ✅ جديد
 
 const { height, width } = Dimensions.get('window');
 
-// ── ثوابت ──────────────────────────────────────────────────────────────────
-const SOL_FEE_RESERVE  = 0.001;  // الحد الأدنى لرسوم الشبكة
-const PLATFORM_FEE_SOL = 0.0005; // رسوم المنصة الثابتة — نفس القيمة المطبّقة في Send/Staking/Trading
+const SOL_FEE_RESERVE  = 0.001;
+const PLATFORM_FEE_SOL = 0.0005;
 
 const ERROR_TYPE = {
   NETWORK: 'network',
@@ -36,26 +36,22 @@ export default function SwapScreen() {
   const theme        = useAppStore(state => state.theme);
   const primaryColor = useAppStore(state => state.primaryColor || '#6C63FF');
   const isDark       = theme === 'dark';
-  const insets       = useSafeAreaInsets(); // مسافات الأمان للهاتف
+  const insets       = useSafeAreaInsets();
 
-  // ── Animations ────────────────────────────────────────────────────────────
   const fadeAnim       = useRef(new Animated.Value(0)).current;
   const slideAnim      = useRef(new Animated.Value(20)).current;
   const swapRotateAnim = useRef(new Animated.Value(0)).current;
 
-  // ── Active account ────────────────────────────────────────────────────────
   const activeAccount = useAppStore(state => {
     const accounts    = state.accounts;
     const activeIndex = state.activeAccountIndex;
     return accounts.length > 0 ? accounts[activeIndex] : null;
   });
 
-  // ── Initial tokens ────────────────────────────────────────────────────────
   const initialSymbol    = route.params?.fromToken || 'SOL';
   const initialFromToken = CORE_TOKENS.find(tk => tk.symbol === initialSymbol) || CORE_TOKENS[0];
   const initialToToken   = CORE_TOKENS.find(tk => tk.symbol === 'USDC')        || CORE_TOKENS[3];
 
-  // ── State ─────────────────────────────────────────────────────────────────
   const [fromToken,        setFromToken]        = useState(initialFromToken);
   const [toToken,          setToToken]          = useState(initialToToken);
   const [fromAmount,       setFromAmount]       = useState('');
@@ -73,7 +69,6 @@ export default function SwapScreen() {
   const [isOffline,        setIsOffline]        = useState(false);
   const [solPriceUsd,      setSolPriceUsd]      = useState(0);
 
-  // ── Colours ───────────────────────────────────────────────────────────────
   const colors = {
     background:    isDark ? '#07070F' : '#F4F5F9',
     card:          isDark ? '#111122' : '#FFFFFF',
@@ -86,7 +81,6 @@ export default function SwapScreen() {
     warning:       '#F59E0B',
   };
 
-  // ── Entry animation ───────────────────────────────────────────────────────
   useEffect(() => {
     Animated.parallel([
       Animated.timing(fadeAnim,  { toValue: 1, duration: 600, useNativeDriver: true }),
@@ -94,18 +88,15 @@ export default function SwapScreen() {
     ]).start();
   }, []);
 
-  // ── Network listener ──────────────────────────────────────────────────────
   useEffect(() => {
     const unsub = NetInfo.addEventListener(state => setIsOffline(!state.isConnected));
     return () => unsub();
   }, []);
 
-  // ── سعر SOL لعرض القيمة التقديرية بالدولار لرسوم المنصة ──────────────────
   useEffect(() => {
     getSolPriceUsd().then(p => setSolPriceUsd(p || 0)).catch(() => {});
   }, []);
 
-  // ── Load balances on focus (مع cache) ────────────────────────────────────
   useFocusEffect(
     useCallback(() => {
       if (activeAccount?.publicKey && !balancesCached) {
@@ -144,7 +135,6 @@ export default function SwapScreen() {
     }
   };
 
-  // ── Fetch quote ───────────────────────────────────────────────────────────
   const fetchSwapRate = async () => {
     if (!fromAmount || parseFloat(fromAmount) <= 0) {
       setToAmount('');
@@ -200,7 +190,6 @@ export default function SwapScreen() {
     return () => clearTimeout(timer);
   }, [fromAmount, fromToken, toToken]);
 
-  // ── Execute swap ──────────────────────────────────────────────────────────
   const handleSwap = async () => {
     if (!fromAmount || parseFloat(fromAmount) <= 0) {
       Alert.alert(t('error'), t('swap_enter_amount'));
@@ -257,6 +246,26 @@ export default function SwapScreen() {
               );
 
               if (result.success) {
+                // ✅ إرسال إشعار محلي بعد نجاح المبادلة
+                await addNotification({
+                  type:       NOTIF_TYPES.SWAP,
+                  titleKey:   'notif_swap_title',
+                  messageKey: 'notif_swap_message',
+                  params:     {
+                    fromAmount: fromAmount,
+                    fromSymbol: fromToken.symbol,
+                    toAmount:   result.outputAmount.toFixed(6),
+                    toSymbol:   toToken.symbol,
+                  },
+                  data: {
+                    signature:  result.signature || result.txid,
+                    fromToken:  fromToken.symbol,
+                    toToken:    toToken.symbol,
+                    fromAmount: parseFloat(fromAmount),
+                    toAmount:   result.outputAmount,
+                  },
+                });
+
                 Alert.alert(
                   t('swap_completed'),
                   `${fromAmount} ${fromToken.symbol} → ${result.outputAmount.toFixed(6)} ${toToken.symbol}`,
@@ -330,7 +339,6 @@ export default function SwapScreen() {
     outputRange: ['0deg', '180deg'],
   });
 
-  // منتقي العملات الأنيق كـ Bottom Sheet سفلية فاخرة
   const renderTokenModal = (visible, onClose, onSelect, selectedToken) => (
     <Modal visible={visible} transparent animationType="slide">
       <View style={styles.modalOverlay}>
@@ -393,7 +401,6 @@ export default function SwapScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background, paddingTop: Platform.OS === 'ios' ? 0 : insets.top }]}>
       <Animated.View style={[styles.mainContent, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
         
-        {/* شريط الرأس المطور المانع للتداخل */}
         <View style={styles.headerSection}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={[styles.backButton, { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1 }]}>
             <Ionicons name="arrow-back" size={18} color={colors.text} />
@@ -406,7 +413,6 @@ export default function SwapScreen() {
 
         <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 80 }]} showsVerticalScrollIndicator={false}>
 
-          {/* معلومات الحساب النشط المدمجة كسطر هادئ تحت الهيدر */}
           {activeAccount && (
             <View style={[styles.accountBar, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <View style={[styles.accountIconWrapper, { backgroundColor: primaryColor + '12' }]}>
@@ -428,10 +434,8 @@ export default function SwapScreen() {
             </View>
           )}
 
-          {/* ── كبسولة التبادل المسطحة الموحدة (Phantom/Solflare Style) ── */}
           <View style={[styles.unifiedSwapContainer, { backgroundColor: colors.card, borderColor: colors.border }]}>
             
-            {/* جهة الإرسال (From) */}
             <View style={styles.swapInputRow}>
               <View style={styles.swapInputLeft}>
                 <Text style={[styles.rowLabel, { color: colors.textSecondary }]}>{t('swap_from')}</Text>
@@ -463,7 +467,6 @@ export default function SwapScreen() {
               </View>
             </View>
 
-            {/* الفاصل الذكي المتضمن زر التبديل التفاعلي بالمنتصف */}
             <View style={[styles.swapDivider, { backgroundColor: colors.border }]}>
               <TouchableOpacity
                 onPress={swapTokens}
@@ -476,7 +479,6 @@ export default function SwapScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* جهة الاستقبال (To) */}
             <View style={styles.swapInputRow}>
               <View style={styles.swapInputLeft}>
                 <Text style={[styles.rowLabel, { color: colors.textSecondary }]}>{t('swap_to')}</Text>
@@ -501,7 +503,6 @@ export default function SwapScreen() {
 
           </View>
 
-          {/* مؤشر التحميل المؤقت للأسعار */}
           {quoteLoading && (
             <View style={[styles.loadingCard, { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1 }]}>
               <ActivityIndicator size="small" color={primaryColor} />
@@ -509,7 +510,6 @@ export default function SwapScreen() {
             </View>
           )}
 
-          {/* تفاصيل وحسابات الصفقة المنسقة */}
           {rate && !quoteLoading && (
             <Animated.View style={[styles.rateCard, { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1 }]}>
               <View style={styles.rateRow}>
@@ -558,7 +558,6 @@ export default function SwapScreen() {
 
           {renderError()}
 
-          {/* زر التأكيد المسطح بملء العرض */}
           <TouchableOpacity
             style={[
               styles.executeButton,
@@ -592,22 +591,17 @@ export default function SwapScreen() {
   );
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// STYLES
-// ══════════════════════════════════════════════════════════════════════════════
 const styles = StyleSheet.create({
   container:     { flex: 1 },
   mainContent:   { flex: 1 },
   scrollContent: { padding: 20, paddingBottom: 40 },
 
-  // Header
   headerSection: { flexDirection: 'row', alignItems: 'center', marginBottom: 16, paddingHorizontal: 4 },
   backButton:    { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
   headerTitle:   { flex: 1, alignItems: 'flex-start' },
   title:         { fontSize: 24, fontWeight: '800', letterSpacing: -0.5 },
   subtitle:      { fontSize: 13, marginTop: 2 },
 
-  // Account card
   accountBar: {
     flexDirection: 'row', alignItems: 'center',
     borderRadius: 14, padding: 10, marginBottom: 16, borderWidth: 1, gap: 10
@@ -617,11 +611,9 @@ const styles = StyleSheet.create({
   accountAddress:     { fontSize: 12, fontWeight: '500' },
   copyBtn:            { padding: 6 },
 
-  // Offline
   offlineBanner: { flexDirection: 'row', alignItems: 'center', padding: 10, borderRadius: 12, marginBottom: 16, gap: 8, borderWidth: 1 },
   offlineText:   { fontSize: 12, fontWeight: '700' },
 
-  // Unified Swap Container (Phantom/Solflare Style)
   unifiedSwapContainer: { borderRadius: 20, borderWidth: 1, overflow: 'hidden' },
   swapInputRow: { padding: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   swapInputLeft: { flex: 1, alignItems: 'flex-start' },
@@ -636,15 +628,12 @@ const styles = StyleSheet.create({
   tokenSelectorTxt: { fontSize: 13, fontWeight: '700' },
   copyPill: { width: 32, height: 32, borderRadius: 8, justifyContent: 'center', alignItems: 'center', borderWidth: 1 },
 
-  // Floating Swap Divider
   swapDivider: { height: 1, position: 'relative', alignItems: 'center', justifyContent: 'center', zIndex: 10 },
   swapButtonCircle: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, justifyContent: 'center', alignItems: 'center', position: 'absolute' },
 
-  // Loading
   loadingCard: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 12, borderRadius: 16, marginTop: 14, gap: 8, borderWidth: 1 },
   loadingText: { fontSize: 13, fontWeight: '600' },
 
-  // Rate card
   rateCard: { borderRadius: 16, padding: 14, marginTop: 14 },
   rateRow:            { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
   rateLabelWrapper:   { flexDirection: 'row', alignItems: 'center', gap: 6 },
@@ -652,12 +641,10 @@ const styles = StyleSheet.create({
   rateValue:          { fontSize: 12, fontWeight: '700' },
   rateValueHighlight: { fontSize: 14, fontWeight: '800' },
 
-  // Error
-  errorCard:   { flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 14, marginTop: 14, gap: 8, borderWidth: 1 },
-  errorText:   { flex: 1, fontSize: 12, fontWeight: '600' },
-  retryButton: { padding: 4 },
+  errCard:    { flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 14, marginTop: 14, gap: 8, borderWidth: 1 },
+  errTxt:     { flex: 1, fontSize: 12, fontWeight: '600' },
+  retryBtn:   { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
 
-  // Execute button
   executeButton: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     padding: 16, borderRadius: 16, marginTop: 16, gap: 8,
@@ -665,7 +652,6 @@ const styles = StyleSheet.create({
   },
   executeButtonText: { color: '#FFF', fontSize: 16, fontWeight: '700' },
 
-  // Modal (Bottom Sheet style)
   modalOverlay:  { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modalContent:  { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingTop: 12, maxHeight: height * 0.75 },
   modalHandle:   { width: 36, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 16, backgroundColor: '#E5E5EA' },

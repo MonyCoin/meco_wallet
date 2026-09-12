@@ -38,6 +38,7 @@ import StakingScreen            from './screens/StakingScreen';
 import TradingScreen            from './screens/TradingScreen';
 import PortfolioScreen          from './screens/PortfolioScreen';
 import DappBrowserScreen        from './screens/DappBrowserScreen';
+import NotificationsScreen      from './screens/NotificationsScreen';  // ✅ جديد
 
 // منع الشاشة الترحيبية الأصلية من الاختفاء تلقائياً لتفادي الوميض الأبيض
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -268,6 +269,7 @@ export default function AppContainer() {
           <Stack.Screen name="Trading"            component={TradingScreen}            options={{ headerShown:false }} />
           <Stack.Screen name="Settings"           component={SettingsScreen}           options={{ headerShown:false }} />
           <Stack.Screen name="Portfolio"          component={PortfolioScreen}          options={{ headerShown:false }} />
+          <Stack.Screen name="Notifications"      component={NotificationsScreen}      options={{ headerShown:false }} />
 
           <Stack.Screen 
             name="DappBrowser" 

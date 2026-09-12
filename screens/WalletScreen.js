@@ -6,16 +6,17 @@ import {
   FlatList, Image, ActivityIndicator, Platform, KeyboardAvoidingView
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { useAppStore } from '../store';
 import { Ionicons } from '@expo/vector-icons';
 import { GestureHandlerRootView, Swipeable } from 'react-native-gesture-handler';
-import { useSafeAreaInsets } from 'react-native-safe-area-context'; // حساب مسافات الأمان بدقة
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getSolBalance, getTokenAccounts, getTokenBalance } from '../services/heliusService';
 import { CORE_TOKENS, getJupiterMarketData, getCustomTokens } from '../services/jupiterMarketService';
 import * as LocalAuthentication from 'expo-local-authentication';
+import { getUnreadCount } from '../services/notificationsService';   // ✅ جديد
 
 const { width, height } = Dimensions.get('window');
 
@@ -34,7 +35,7 @@ export default function WalletScreen() {
   const theme        = useAppStore(state => state.theme);
   const primaryColor = useAppStore(state => state.primaryColor || '#6C63FF');
   const isDark       = theme === 'dark';
-  const insets       = useSafeAreaInsets(); // جلب أبعاد الحواف الآمنة
+  const insets       = useSafeAreaInsets();
 
   const accounts           = useAppStore(state => state.accounts);
   const activeAccountIndex = useAppStore(state => state.activeAccountIndex);
@@ -72,12 +73,24 @@ export default function WalletScreen() {
   const [menuVisible,           setMenuVisible]           = useState(false);
   const [emojiPickerVisible,    setEmojiPickerVisible]    = useState(false);
   const [accountEmojis,         setAccountEmojis]         = useState({});
+  const [unreadCount,           setUnreadCount]           = useState(0);  // ✅ جديد
 
   const fadeAnim  = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(20)).current;
   const scaleAnim = useRef(new Animated.Value(0.95)).current;
   const swipeableRefs        = useRef({});
   const accountSwipeableRefs = useRef({});
+
+  // ✅ تحميل عدد الإشعارات غير المقروءة عند كل زيارة للشاشة
+  useFocusEffect(useCallback(() => {
+    let isActive = true;
+    const load = async () => {
+      const count = await getUnreadCount();
+      if (isActive) setUnreadCount(count);
+    };
+    load();
+    return () => { isActive = false; };
+  }, []));
 
   useEffect(() => {
     AsyncStorage.getItem(EMOJIS_STORAGE_KEY)
@@ -298,6 +311,11 @@ export default function WalletScreen() {
   const activeAccount = accounts[activeAccountIndex];
   const activeEmoji   = activeAccount ? accountEmojis[activeAccount.publicKey] : null;
 
+  // ✅ الانتقال إلى شاشة الإشعارات
+  const handleOpenNotifications = () => {
+    navigation.navigate('Notifications');
+  };
+
   const renderLeftActions = (progress, dragX, asset) => {
     const trans = dragX.interpolate({ inputRange: [0,50,100], outputRange: [-80,-40,0], extrapolate: 'clamp' });
     return (
@@ -480,7 +498,6 @@ export default function WalletScreen() {
           transform: [{ translateY: slideAnim }], 
           borderColor: colors.border, 
           borderWidth: 1, 
-          // تم إغلاق البطاقة بتدوير الحواف الأربعة بالكامل وإلغاء التداخل مع أشرطة الهاتف
           borderRadius: 24,
           marginHorizontal: 20,
           paddingTop: 18
@@ -514,12 +531,29 @@ export default function WalletScreen() {
               </View>
             </View>
 
-            <TouchableOpacity
-              onPress={() => setMenuVisible(true)}
-              style={[styles.dotsButton, { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1 }]}
-            >
-              <Ionicons name="ellipsis-vertical" size={18} color={colors.text} />
-            </TouchableOpacity>
+            {/* ✅ أيقونة الجرس مع Badge + زر القائمة (النقاط الثلاث) */}
+            <View style={styles.topBarActions}>
+              <TouchableOpacity
+                onPress={handleOpenNotifications}
+                style={[styles.bellButton, { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1 }]}
+              >
+                <Ionicons name="notifications-outline" size={18} color={colors.text} />
+                {unreadCount > 0 && (
+                  <View style={[styles.bellBadge, { backgroundColor: primaryColor }]}>
+                    <Text style={styles.bellBadgeTxt}>
+                      {unreadCount > 99 ? '99+' : unreadCount}
+                    </Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={() => setMenuVisible(true)}
+                style={[styles.dotsButton, { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1 }]}
+              >
+                <Ionicons name="ellipsis-vertical" size={18} color={colors.text} />
+              </TouchableOpacity>
+            </View>
           </View>
 
           <View style={styles.balanceSection}>
@@ -759,7 +793,7 @@ const styles = StyleSheet.create({
   container:    { flex:1 },
   headerCard:   { borderBottomLeftRadius:28, borderBottomRightRadius:28, paddingHorizontal:20, paddingBottom:20, elevation:4, shadowColor:'#000', shadowOffset:{width:0,height:4}, shadowOpacity:0.04, shadowRadius:10, zIndex:10, borderWidth: 1 },
   topBar:       { flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:18 },
-  walletInfoRow:{ flexDirection:'row', alignItems:'center', gap:10 },
+  walletInfoRow:{ flexDirection:'row', alignItems:'center', gap:10, flex: 1 },
   walletIconWrapper: { width:40, height:40, borderRadius:12, justifyContent:'center', alignItems:'center', borderWidth: 1 },
   walletIconEmoji:   { fontSize:22 },
   walletNameRow:{ flexDirection:'row', alignItems:'center', gap:4 },
@@ -767,12 +801,18 @@ const styles = StyleSheet.create({
   inlineCopyBtn:{ padding:4 },
   accountsCount:{ fontSize:11, fontWeight:'500', marginTop:2 },
   dotsButton:   { width:40, height:40, borderRadius:12, justifyContent:'center', alignItems:'center', borderWidth: 1 },
+
+  // ✅ أنماط الجرس الجديدة
+  topBarActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  bellButton:    { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center', position: 'relative' },
+  bellBadge:     { position: 'absolute', top: -3, right: -3, minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 5, justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: 'transparent' },
+  bellBadgeTxt:  { color: '#FFF', fontSize: 10, fontWeight: '800' },
+
   balanceSection:{ alignItems:'center' },
   balanceLabel: { fontSize:13, fontWeight:'500', marginBottom:6 },
   balanceAmount:{ fontSize:36, fontWeight:'800', letterSpacing:-0.5 },
   loadingBalance:{ height:40, justifyContent:'center' },
   
-  // شريط الأزرار الأربعة العائمة الدائرية بقطر كامل وتنسيق رائع
   actionsGrid:  { flexDirection:'row', justifyContent:'space-around', width: '100%', paddingHorizontal: 4, marginTop: 16, marginBottom: 12 },
   actionBtn:    { alignItems:'center', gap:6, flex: 1 },
   actionCircle: { width:48, height:48, borderRadius:24, justifyContent:'center', alignItems:'center', shadowColor:'#000', shadowOffset:{width:0,height:2}, shadowOpacity:0.05, shadowRadius:6, elevation:2 },

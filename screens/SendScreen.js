@@ -9,7 +9,7 @@ import {
 import { useAppStore } from '../store';
 import { useTranslation } from 'react-i18next';
 import { useRoute, useNavigation, useFocusEffect } from '@react-navigation/native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context'; // ✅ استيراد للتحكم بالهوامش الآمنة
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   getSolBalance, getTokenBalance, validateSolanaAddress,
   getCurrentNetworkFee, getLatestBlockhash, clearBalanceCache, heliusRpcRequest
@@ -21,6 +21,7 @@ import bs58 from 'bs58';
 import * as splToken from '@solana/spl-token';
 import * as Clipboard from 'expo-clipboard';
 import { CORE_TOKENS, getSolPriceUsd } from '../services/jupiterMarketService';
+import { addNotification, NOTIF_TYPES } from '../services/notificationsService';   // ✅ جديد
 
 const FEE_COLLECTOR_ADDRESS = 'BkaJsFAJKPQZgreBFLrY2pPUi44fTJzXhmeBc8LeuF5W';
 const SERVICE_FEE_SOL       = 0.0005;
@@ -46,7 +47,7 @@ export default function SendScreen() {
   const primaryColor = useAppStore(state => state.primaryColor || '#6C63FF');
   const isDark       = theme === 'dark';
   const isMounted    = useRef(true);
-  const insets       = useSafeAreaInsets(); // جلب مسافات الأمان للهاتف
+  const insets       = useSafeAreaInsets();
 
   const addressBook    = useAppStore(state => state.addressBook);
   const loadAddressBook= useAppStore(state => state.loadAddressBook);
@@ -337,6 +338,15 @@ export default function SendScreen() {
 
       const signature = await web3.sendAndConfirmTransaction(connection, transaction, [keypair], { commitment: 'confirmed' });
 
+      // ✅ إرسال إشعار محلي بعد نجاح الإرسال
+      await addNotification({
+        type:       NOTIF_TYPES.SEND,
+        titleKey:   'notif_send_title',
+        messageKey: 'notif_send_message',
+        params:     { amount: amount, symbol: token.symbol, recipient: `${recipient.slice(0,6)}...${recipient.slice(-4)}` },
+        data:       { signature, amount, symbol: token.symbol, recipient },
+      });
+
       await loadInitialBalance();
       clearBalanceCache();
 
@@ -428,7 +438,6 @@ export default function SendScreen() {
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.background }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       
-      {/* ── شريط الرأس المطور والمتناسق ── */}
       <View style={[styles.headerNew, { backgroundColor: colors.card, paddingTop: Platform.OS === 'ios' ? 0 : insets.top }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={[styles.backButton, { backgroundColor: colors.background, borderColor: colors.border, borderWidth: 1 }]}>
           <Ionicons name="arrow-back" size={18} color={colors.text} />
@@ -449,7 +458,6 @@ export default function SendScreen() {
       <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 80 }]}>
         <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
 
-          {/* ── حقل إدخال الرصيد والمبلغ المدمج (Phantom/Solflare Style) ── */}
           <View style={[styles.inputSection, { marginBottom: 20 }]}>
             <View style={styles.amountHeader}>
               <Text style={[styles.inputLabel, { color: colors.text }]}>{t('sendScreen.inputs.amount')}</Text>
@@ -469,7 +477,6 @@ export default function SendScreen() {
                 autoCorrect={false}
               />
               
-              {/* منتقي العملات التفاعلي مدمج بداخل مربع النص يميناً */}
               <TouchableOpacity style={[styles.tokenSelectorPill, { backgroundColor: colors.background, borderColor: colors.border }]} onPress={handleOpenTokenModal}>
                 <Image source={{ uri: currentToken.image }} style={styles.selectedTokenIcon} />
                 <Text style={[styles.tokenSymbolText, { color: colors.text }]}>{state.currency}</Text>
@@ -477,7 +484,6 @@ export default function SendScreen() {
               </TouchableOpacity>
             </View>
             
-            {/* الرصيد المتاح يظهر بدقة تحت حقل المبلغ مباشرة */}
             <Text style={[styles.balanceHintText, { color: colors.textSecondary }]}>
               {t('sendScreen.balance.available')}: {currentBalance.toFixed(6)} {state.currency}
             </Text>
@@ -487,7 +493,6 @@ export default function SendScreen() {
             </Text>
           </View>
 
-          {/* ── حقل إدخال العنوان والمستلم ── */}
           <View style={styles.inputSection}>
             <Text style={[styles.inputLabel, { color: colors.text }]}>{t('sendScreen.inputs.recipient')}</Text>
             <View style={[styles.inputContainerNew, { backgroundColor: colors.card, borderColor: state.recipientExists === false ? colors.error : colors.border }]}>
@@ -533,7 +538,6 @@ export default function SendScreen() {
             )}
           </View>
 
-          {/* ── زر الإرسال المطور بملء العرض ── */}
           <TouchableOpacity
             style={[styles.sendButtonNew, { backgroundColor: primaryColor, opacity: state.loading ? 0.7 : 1 }]}
             onPress={handleSend}
@@ -550,7 +554,6 @@ export default function SendScreen() {
         </Animated.View>
       </ScrollView>
 
-      {/* منتقي العملات (Bottom Sheet) */}
       <Modal visible={state.modalVisible} transparent animationType="slide" onRequestClose={() => setState(prev => ({ ...prev, modalVisible: false }))}>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContentNew, { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1 }]}>
@@ -574,7 +577,6 @@ export default function SendScreen() {
         </View>
       </Modal>
 
-      {/* دفتر العناوين الأنيق والمنظم (Bottom Sheet) */}
       <Modal visible={addressBookModalVisible} transparent animationType="slide" onRequestClose={() => setAddressBookModalVisible(false)}>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContentNew, { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1, maxHeight: '80%' }]}>
@@ -621,7 +623,6 @@ export default function SendScreen() {
         </View>
       </Modal>
 
-      {/* حوار حفظ العنوان */}
       <Modal visible={saveAddressModalVisible} transparent animationType="fade" onRequestClose={() => setSaveAddressModalVisible(false)}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalOverlayCenter}>
           <View style={[styles.saveDialogContent, { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1 }]}>

@@ -10,7 +10,7 @@ import { useAppStore } from '../store';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { WebView } from 'react-native-webview';
-import { useSafeAreaInsets } from 'react-native-safe-area-context'; // ✅ استيراد لحساب الهوامش الآمنة
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getFullChartData } from '../services/priceChartService';
 import { getJupiterMarketData, CORE_TOKENS } from '../services/jupiterMarketService';
 import { getSolBalance, getTokenBalance } from '../services/heliusService';
@@ -20,6 +20,7 @@ import {
   cancelLimitOrder,
   getOpenLimitOrders,
 } from '../services/tradingService';
+import { addNotification, NOTIF_TYPES } from '../services/notificationsService';   // ✅ جديد
 
 const { width, height } = Dimensions.get('window');
 const CHART_H = Math.round(height * 0.34);
@@ -38,13 +39,8 @@ const QUOTE_TOKENS = [
   { symbol:'SOL',  mint:'So11111111111111111111111111111111111111112',   decimals:9, image:'https://assets.coingecko.com/coins/images/4128/large/solana.png'  },
 ];
 
-// ✅ رسوم المنصة الثابتة لكل عملية تنفيذ (بالإضافة لرسوم شبكة سولانا القياسية)
-// ملاحظة: هذا الرقم يجب أن ينتقل لاحقًا لملف constants.js المشترك، لأن نفس
-// الرسم مطبّق كمان في Send وSwap وStaking — تكراره في 4 ملفات منفصلة يعرّضنا
-// لنفس مشكلة تضارب البيانات اللي واجهناها قبل كده مع عنوان MECO
 const PLATFORM_FEE_SOL = 0.0005;
 
-// دمج لون كروت التداول الخلفي لتنسيق شمعات الرسم البياني بشكل مدمج
 const buildChartHtml = (isDark, accent) => `
 <!DOCTYPE html><html><head>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
@@ -90,7 +86,6 @@ window.setChartData=function(cd,vd,dec){
 window.addEventListener('resize',()=>chart.resize(window.innerWidth,window.innerHeight));
 </script></body></html>`;
 
-// دالة التنسيق الاحترافي لعملات الميم والتخلص من كثرة الأصفار المشوهة
 const fmtPrice = (p) => {
   if (p === undefined || p === null || p === 0) return '$0.00';
   if (p >= 1) {
@@ -129,7 +124,7 @@ export default function TradingScreen() {
   const isDark             = theme === 'dark';
   const activeAccountIndex = useAppStore(s => s.activeAccountIndex);
   const walletPublicKey    = useAppStore(s => s.walletPublicKey);
-  const insets             = useSafeAreaInsets(); // حساب هوامش الأمان
+  const insets             = useSafeAreaInsets();
 
   const C = {
     bg:      isDark?'#07070F':'#F4F5F9',
@@ -291,6 +286,28 @@ export default function TradingScreen() {
                   walletPublicKey,
                   activeIndex: activeAccountIndex,
                 });
+
+                // ✅ إشعار محلي بعد نجاح تنفيذ أمر السوق
+                await addNotification({
+                  type:       NOTIF_TYPES.SWAP,
+                  titleKey:   'notif_trade_title',
+                  messageKey: 'notif_trade_message',
+                  params:     {
+                    side:     orderSide === 'buy' ? t('buy') : t('sell'),
+                    amount:   amt,
+                    inSymbol: inputToken.symbol,
+                    outSymbol: outputToken.symbol,
+                  },
+                  data: {
+                    signature: sig,
+                    side:      orderSide,
+                    inputMint: inputToken.mint,
+                    outputMint: outputToken.mint,
+                    amount:    amt,
+                    orderType: 'market',
+                  },
+                });
+
                 setOrderAmount('');
                 await fetchBalances();
                 Alert.alert(t('success'), `✅ ${t('trade_success')}\n${sig.slice(0,8)}...${sig.slice(-4)}`);
@@ -305,6 +322,31 @@ export default function TradingScreen() {
                     walletPublicKey,
                     activeIndex: activeAccountIndex,
                   });
+
+                  // ✅ إشعار محلي بعد وضع أمر محدد
+                  await addNotification({
+                    type:       NOTIF_TYPES.SWAP,
+                    titleKey:   'notif_limit_order_title',
+                    messageKey: 'notif_limit_order_message',
+                    params:     {
+                      side:      orderSide === 'buy' ? t('buy') : t('sell'),
+                      amount:    amt,
+                      inSymbol:  inputToken.symbol,
+                      outSymbol: outputToken.symbol,
+                      limitPrice: limitPrice,
+                      quoteSymbol: quoteToken.symbol,
+                    },
+                    data: {
+                      signature: sig,
+                      side:      orderSide,
+                      inputMint: inputToken.mint,
+                      outputMint: outputToken.mint,
+                      amount:    amt,
+                      limitPrice: parseFloat(limitPrice),
+                      orderType: 'limit',
+                    },
+                  });
+
                   setOrderAmount('');
                   await fetchBalances();
                   await fetchOpenOrders();
@@ -329,6 +371,28 @@ export default function TradingScreen() {
                                 walletPublicKey,
                                 activeIndex: activeAccountIndex,
                               });
+
+                              // ✅ إشعار محلي بعد التنفيذ بسعر السوق (بديل الأمر المحدد)
+                              await addNotification({
+                                type:       NOTIF_TYPES.SWAP,
+                                titleKey:   'notif_trade_title',
+                                messageKey: 'notif_trade_message',
+                                params:     {
+                                  side:      orderSide === 'buy' ? t('buy') : t('sell'),
+                                  amount:    amt,
+                                  inSymbol:  inputToken.symbol,
+                                  outSymbol: outputToken.symbol,
+                                },
+                                data: {
+                                  signature: mSig,
+                                  side:      orderSide,
+                                  inputMint: inputToken.mint,
+                                  outputMint: outputToken.mint,
+                                  amount:    amt,
+                                  orderType: 'market_fallback',
+                                },
+                              });
+
                               setOrderAmount('');
                               await fetchBalances();
                               Alert.alert(t('success'), `✅ ${t('trade_success')}\n${mSig.slice(0,8)}...${mSig.slice(-4)}`);
@@ -394,11 +458,8 @@ export default function TradingScreen() {
     return orderSide==='buy' ? (amt/lp).toFixed(6) : (amt*lp).toFixed(4);
   };
 
-  // ✅ رسوم المنصة — نحسب القيمة بالدولار حيًا من سعر SOL الحالي بدل رقم دولار
-  // ثابت هيتقادم مع تغيّر السعر (نفس درس الأسعار الجامدة)
   const getSolPrice = () => tokens.find(tk => tk.symbol === 'SOL')?.current_price || 0;
 
-  // نسخة قصيرة تصلح لسطر ملخص دائم فوق زر التنفيذ
   const getFeeAmountShort = () => {
     const solPrice = getSolPrice();
     return solPrice > 0
@@ -406,7 +467,6 @@ export default function TradingScreen() {
       : `${PLATFORM_FEE_SOL} SOL`;
   };
 
-  // نسخة كاملة كجملة توضيحية لرسائل التأكيد قبل التنفيذ
   const getFeeNotice = () => {
     const solPrice = getSolPrice();
     if (solPrice > 0) {
@@ -419,7 +479,6 @@ export default function TradingScreen() {
   return (
     <SafeAreaView style={[S.root,{backgroundColor:C.bg, paddingTop: Platform.OS === 'ios' ? 0 : insets.top}]}>
       
-      {/* ── شريط هيدر التداول المتناسق والآمن ── */}
       <View style={[S.header,{backgroundColor:C.card, borderBottomColor:C.border}]}>
         <TouchableOpacity onPress={()=>navigation.goBack()} style={[S.iconBtn,{backgroundColor:C.card2, borderColor: C.border, borderWidth: 1}]}>
           <Ionicons name="arrow-back" size={18} color={C.text}/>
@@ -434,7 +493,6 @@ export default function TradingScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* حشوة سفلية ديناميكية تمنع تداخل الحقول مع شريط الهواتف السفلي */}
       <ScrollView showsVerticalScrollIndicator={false} bounces={false} contentContainerStyle={{ paddingBottom: insets.bottom + 120 }}>
         <FlatList
           data={tokens} horizontal showsHorizontalScrollIndicator={false}
@@ -475,7 +533,6 @@ export default function TradingScreen() {
           </View>
         </View>
 
-        {/* ✅ حل مشكلة تكرار الرسم البياني: تحديث مفتاح الـ WebView ديناميكياً للعملة المحددة والفترة الزمنية لمنع الكاش */}
         <View style={[S.chartWrap,{height:CHART_H,backgroundColor:C.card}]}>
           {chartLoading&&<View style={[S.chartOverlay,{backgroundColor:C.card}]}><ActivityIndicator size="large" color={primaryColor}/></View>}
           <WebView 
@@ -661,7 +718,6 @@ export default function TradingScreen() {
 
       </ScrollView>
 
-      {/* منتقي العملات الأساسية (Bottom Sheet) */}
       <Modal visible={quoteModal} transparent animationType="slide" onRequestClose={()=>setQuoteModal(false)}>
         <TouchableOpacity style={S.modalOverlay} activeOpacity={1} onPress={()=>setQuoteModal(false)}>
           <View style={[S.modalBox,{backgroundColor:C.card}]}>

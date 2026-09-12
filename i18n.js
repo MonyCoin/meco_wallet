@@ -1415,6 +1415,67 @@ i18n.addResourceBundle('en', 'translation', {
   terms_of_use_title: 'Terms of Use',
 }, true, true);
 
+// ✅ قسم الإشعارات بالكامل — جديد
+i18n.addResourceBundle('ar', 'translation', {
+  notifications: 'الإشعارات',
+  mark_all_read: 'تعليم الكل كمقروء',
+  clear_all: 'مسح الكل',
+  clear_all_confirm: 'هل تريد مسح جميع الإشعارات؟',
+  delete_notification_confirm: 'هل تريد حذف هذا الإشعار؟',
+  no_notifications: 'لا توجد إشعارات',
+  no_notifications_hint: 'ستظهر هنا إشعارات عملياتك',
+  days_ago: 'منذ {{count}} يوم',
+
+  notif_send_title: 'تم الإرسال بنجاح',
+  notif_send_message: 'أرسلت {{amount}} {{symbol}} إلى {{recipient}}',
+
+  notif_receive_title: 'تم الاستلام',
+  notif_receive_message: 'استلمت {{amount}} {{symbol}}',
+
+  notif_swap_title: 'تم التبادل بنجاح',
+  notif_swap_message: 'بادلت {{fromAmount}} {{fromSymbol}} بـ {{toAmount}} {{toSymbol}}',
+
+  notif_trade_title: 'تم تنفيذ الأمر',
+  notif_trade_message: '{{side}} {{amount}} {{inSymbol}} ← {{outSymbol}}',
+  notif_limit_order_title: 'تم تسجيل أمر محدد',
+  notif_limit_order_message: '{{side}} {{amount}} {{inSymbol}} بسعر {{limitPrice}} {{quoteSymbol}}',
+
+  notif_stake_title: 'تم التخزين بنجاح',
+  notif_stake_message: 'خزّنت {{amount}} MECO في باقة {{planName}} بعائد {{apy}}%',
+  notif_unstake_title: 'طلب سحب التخزين',
+  notif_unstake_message: 'طلبت سحب {{amount}} MECO من التخزين',
+}, true, true);
+
+i18n.addResourceBundle('en', 'translation', {
+  notifications: 'Notifications',
+  mark_all_read: 'Mark All as Read',
+  clear_all: 'Clear All',
+  clear_all_confirm: 'Are you sure you want to clear all notifications?',
+  delete_notification_confirm: 'Do you want to delete this notification?',
+  no_notifications: 'No Notifications',
+  no_notifications_hint: 'Your transaction notifications will appear here',
+  days_ago: '{{count}} days ago',
+
+  notif_send_title: 'Sent Successfully',
+  notif_send_message: 'You sent {{amount}} {{symbol}} to {{recipient}}',
+
+  notif_receive_title: 'Received',
+  notif_receive_message: 'You received {{amount}} {{symbol}}',
+
+  notif_swap_title: 'Swap Completed',
+  notif_swap_message: 'You swapped {{fromAmount}} {{fromSymbol}} for {{toAmount}} {{toSymbol}}',
+
+  notif_trade_title: 'Order Executed',
+  notif_trade_message: '{{side}} {{amount}} {{inSymbol}} ← {{outSymbol}}',
+  notif_limit_order_title: 'Limit Order Placed',
+  notif_limit_order_message: '{{side}} {{amount}} {{inSymbol}} at {{limitPrice}} {{quoteSymbol}}',
+
+  notif_stake_title: 'Staked Successfully',
+  notif_stake_message: 'You staked {{amount}} MECO in {{planName}} plan with {{apy}}% APY',
+  notif_unstake_title: 'Unstake Request',
+  notif_unstake_message: 'You requested to unstake {{amount}} MECO',
+}, true, true);
+
 export const changeLanguage = (lng) => {
   i18n.changeLanguage(lng);
   SecureStore.setItemAsync('app_language', lng);

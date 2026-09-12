@@ -1,3 +1,4 @@
+// screens/StakingScreen.js
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, TextInput,
@@ -11,6 +12,7 @@ import * as Clipboard from 'expo-clipboard';
 import { checkBalance } from '../services/swapService';
 import { stakeMeco, unstakeMeco, getUserStakingData } from '../services/stakingService';
 import { getSolPriceUsd } from '../services/jupiterMarketService';
+import { addNotification, NOTIF_TYPES } from '../services/notificationsService';   // ✅ جديد
 
 const STAKING_PLANS = [
   { id: 'flex', nameKey: 'plan_flex', apy: 15, durationKey: 'plan_flex_duration' },
@@ -19,7 +21,6 @@ const STAKING_PLANS = [
 ];
 
 const STAKING_TREASURY_ADDRESS = 'FoNBts4U25jm1YbZ3siT5hHzCmfuvrkzsRRJ4MWQkMQs';
-// رسوم المنصة الثابتة — نفس القيمة المطبّقة في Send/Swap/Trading
 const PLATFORM_FEE_SOL = 0.0005;
 
 export default function StakingScreen() {
@@ -110,7 +111,6 @@ export default function StakingScreen() {
         { text: t('staking.confirm'), onPress: async () => {
             setLoading(true);
             try {
-              // ✅ جلب المفتاح الخاص بشكل مؤكد وآمن لحظة التنفيذ
               const privateKey = await useAppStore.getState().getPrivateKeyForAccount(activeAccount?.index);
               if (!privateKey) {
                 Alert.alert(t('staking.error'), t('staking.wallet_not_connected'));
@@ -118,15 +118,33 @@ export default function StakingScreen() {
               }
 
               const res = await stakeMeco(privateKey, val, selectedPlan.apy, selectedPlan.id);
-              if (res.success) { 
-                Alert.alert(t('staking.success'), t('staking.stake_success')); 
-                setAmount(''); 
-                loadData(); 
+              if (res.success) {
+                // ✅ إشعار محلي بعد نجاح التخزين
+                await addNotification({
+                  type:       NOTIF_TYPES.STAKING,
+                  titleKey:   'notif_stake_title',
+                  messageKey: 'notif_stake_message',
+                  params:     {
+                    amount:   val,
+                    planName: t(`staking.${selectedPlan.nameKey}`),
+                    apy:      selectedPlan.apy,
+                  },
+                  data: {
+                    amount:   val,
+                    planId:   selectedPlan.id,
+                    planName: selectedPlan.nameKey,
+                    apy:      selectedPlan.apy,
+                    txid:     res.txid || res.signature,
+                  },
+                });
+
+                Alert.alert(t('staking.success'), t('staking.stake_success'));
+                setAmount('');
+                loadData();
               } else {
                 Alert.alert(t('staking.failed'), res.errorKey ? t(res.errorKey) : res.error);
               }
             } catch (err) {
-              // ✅ إظهار الأخطاء غير المتوقعة للمستخدم
               Alert.alert(t('staking.error'), err.message || t('unexpected_error'));
             }
             finally { if (isMounted.current) setLoading(false); }
@@ -148,7 +166,6 @@ export default function StakingScreen() {
         { text: t('staking.confirm'), onPress: async () => {
             setLoading(true);
             try {
-              // ✅ جلب المفتاح الخاص بشكل مؤكد وآمن لحظة التنفيذ
               const privateKey = await useAppStore.getState().getPrivateKeyForAccount(activeAccount?.index);
               if (!privateKey) {
                 Alert.alert(t('staking.error'), t('staking.wallet_not_connected'));
@@ -156,15 +173,26 @@ export default function StakingScreen() {
               }
 
               const res = await unstakeMeco(privateKey, val);
-              if (res.success) { 
-                Alert.alert(t('staking.request_sent'), res.message); 
-                setAmount(''); 
-                loadData(); 
+              if (res.success) {
+                // ✅ إشعار محلي بعد نجاح طلب سحب التخزين
+                await addNotification({
+                  type:       NOTIF_TYPES.UNSTAKING,
+                  titleKey:   'notif_unstake_title',
+                  messageKey: 'notif_unstake_message',
+                  params:     { amount: val },
+                  data: {
+                    amount: val,
+                    txid:   res.txid || res.signature,
+                  },
+                });
+
+                Alert.alert(t('staking.request_sent'), res.message);
+                setAmount('');
+                loadData();
               } else {
                 Alert.alert(t('staking.failed'), res.errorKey ? t(res.errorKey) : res.error);
               }
             } catch (err) {
-              // ✅ إظهار الأخطاء غير المتوقعة للمستخدم
               Alert.alert(t('staking.error'), err.message || t('unexpected_error'));
             }
             finally { if (isMounted.current) setLoading(false); }
