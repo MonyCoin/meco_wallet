@@ -20,7 +20,7 @@ import {
   cancelLimitOrder,
   getOpenLimitOrders,
 } from '../services/tradingService';
-import { addNotification, NOTIF_TYPES } from '../services/notificationsService';   // ✅ جديد
+import { addNotification, NOTIF_TYPES } from '../services/notificationsService';
 
 const { width, height } = Dimensions.get('window');
 const CHART_H = Math.round(height * 0.34);
@@ -287,7 +287,6 @@ export default function TradingScreen() {
                   activeIndex: activeAccountIndex,
                 });
 
-                // ✅ إشعار محلي بعد نجاح تنفيذ أمر السوق
                 await addNotification({
                   type:       NOTIF_TYPES.SWAP,
                   titleKey:   'notif_trade_title',
@@ -323,7 +322,6 @@ export default function TradingScreen() {
                     activeIndex: activeAccountIndex,
                   });
 
-                  // ✅ إشعار محلي بعد وضع أمر محدد
                   await addNotification({
                     type:       NOTIF_TYPES.SWAP,
                     titleKey:   'notif_limit_order_title',
@@ -372,7 +370,6 @@ export default function TradingScreen() {
                                 activeIndex: activeAccountIndex,
                               });
 
-                              // ✅ إشعار محلي بعد التنفيذ بسعر السوق (بديل الأمر المحدد)
                               await addNotification({
                                 type:       NOTIF_TYPES.SWAP,
                                 titleKey:   'notif_trade_title',
@@ -805,8 +802,8 @@ const S = StyleSheet.create({
   cancelOrderTxt:{fontSize:11,fontWeight:'700'},
   statsCard:{marginHorizontal:16,marginBottom:12,borderRadius:18,padding:16},
   statsTitle:{fontSize:14,fontWeight:'800',marginBottom:12},
-  statsGrid:{flexDirection:'row',flexWrap:'wrap',gap:8},
-  statItem:{width:(width-32-32-8)/2,padding:12,borderRadius:12,borderWidth:1},
+  statsGrid:{flexDirection:'row',flexWrap:'wrap',justifyContent:'space-between',rowGap:10},
+  statItem:{width:'48.5%',padding:14,borderRadius:12,borderWidth:1},
   statL:{fontSize:11,marginBottom:4},statV:{fontSize:13,fontWeight:'700'},
   modalOverlay:{flex:1,backgroundColor:'rgba(0,0,0,0.5)',justifyContent:'flex-end'},
   modalBox:{borderTopLeftRadius:24,borderTopRightRadius:24,padding:20,paddingTop:12,paddingBottom: Platform.OS==='ios'?36:20},
