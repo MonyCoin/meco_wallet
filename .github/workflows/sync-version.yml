@@ -1,0 +1,44 @@
+name: Sync version.json to meco_wallet-app
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+jobs:
+  update-version-file:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout meco_wallet-app repo
+        uses: actions/checkout@v4
+        with:
+          repository: MonyCoin/meco_wallet-app
+          token: ${{ secrets.PAT_TOKEN }}
+          ref: main
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          TAG="${{ github.event.release.tag_name }}"
+          VERSION="${TAG#v}"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+
+      - name: Update version.json
+        run: |
+          cat > version.json <<EOF
+          {
+            "latestVersion": "${{ steps.version.outputs.version }}",
+            "buildNumber": "${{ github.run_number }}",
+            "releaseNotes": "تحديث تلقائي للإصدار ${{ steps.version.outputs.tag }}",
+            "downloadUrl": "https://github.com/MonyCoin/meco_wallet/releases/latest/download/MECO-wallet.apk"
+          }
+          EOF
+
+      - name: Commit and push changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add version.json
+          git diff --staged --quiet || git commit -m "chore: auto-sync version.json to ${{ steps.version.outputs.version }}"
+          git push
