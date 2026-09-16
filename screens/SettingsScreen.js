@@ -8,7 +8,7 @@ import { useTranslation } from 'react-i18next';
 import { useAppStore } from '../store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context'; // ✅ استيراد لحساب مسافات الأمان
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as LocalAuthentication from 'expo-local-authentication';
 import * as Linking from 'expo-linking';
 import { Ionicons, MaterialIcons, Feather } from '@expo/vector-icons';
@@ -20,15 +20,13 @@ import { clearMarketOverviewCache } from '../services/marketOverviewService';
 
 const { width } = Dimensions.get('window');
 
-// ✅ روابط رسمية حية — بتفتح فى المتصفح مباشرة، مش نص متضمّن جوه التطبيق،
-// عشان المستخدم يشوف دايمًا آخر نسخة رسمية من غير ما يحتاج تحديث للتطبيق
 const PRIVACY_POLICY_URL = 'https://monycoin.github.io/meco_web/privacy.html';
 const TERMS_OF_USE_URL   = 'https://monycoin.github.io/meco_web/terms.html';
 
 export default function SettingsScreen() {
   const { t, i18n } = useTranslation();
   const navigation  = useNavigation();
-  const insets      = useSafeAreaInsets(); // جلب مسافات الأمان
+  const insets      = useSafeAreaInsets();
 
   const theme          = useAppStore(s => s.theme);
   const toggleTheme    = useAppStore(s => s.toggleTheme);
@@ -79,7 +77,7 @@ export default function SettingsScreen() {
       const result     = await LocalAuthentication.authenticateAsync({
         promptMessage:         t(compatible && enrolled ? 'authenticate_to_view' : 'authenticate_with_passcode'),
         cancelLabel:           t('cancel'),
-        disableDeviceFallback: false, // يسمح برمز الهاتف كخيار احتياطي
+        disableDeviceFallback: false,
         fallbackLabel:         t('use_device_passcode'),
       });
       if (result.success) onSuccess();
@@ -97,15 +95,14 @@ export default function SettingsScreen() {
     });
   };
 
-  // ✅ التحديث المطور: تفعيل المصادقة بمطابقة البصمة أو رمز قفل الهاتف (PIN/Passcode) معاً دون قيود
   const handleBiometrics = async () => {
     try {
-      const result = await LocalAuthentication.authenticateAsync({ 
-        promptMessage: t('authenticate_to_continue'), 
+      const result = await LocalAuthentication.authenticateAsync({
+        promptMessage: t('authenticate_to_continue'),
         cancelLabel: t('cancel'),
-        disableDeviceFallback: false, // استخدام رمز مرور الهاتف (PIN/Passcode) كبديل فوري وبشكل آمن
+        disableDeviceFallback: false,
       });
-      
+
       if (result.success) {
         Alert.alert(t('success'), t('authentication_successful'), [{ text: t('ok') }]);
       } else {
@@ -116,13 +113,30 @@ export default function SettingsScreen() {
     }
   };
 
+  // ✅ مقارنة الإصدارات النصية (Semantic Versioning) بدلاً من buildNumber
+  const isNewerVersion = (remote, current) => {
+    const r = String(remote).split('.').map(n => parseInt(n, 10) || 0);
+    const c = String(current).split('.').map(n => parseInt(n, 10) || 0);
+    for (let i = 0; i < 3; i++) {
+      if ((r[i] || 0) > (c[i] || 0)) return true;
+      if ((r[i] || 0) < (c[i] || 0)) return false;
+    }
+    return false;
+  };
+
   const checkForUpdates = async () => {
     try {
       setCheckingUpdate(true);
-      const res  = await fetch('https://raw.githubusercontent.com/MonyCoin/meco_wallet-app/main/version.json');
+
+      // ✅ إضافة cache-buster لتفادي قراءة نسخة قديمة
+      const cacheBuster = Date.now();
+      const res  = await fetch(`https://raw.githubusercontent.com/MonyCoin/meco_wallet-app/main/version.json?t=${cacheBuster}`);
       const data = await res.json();
-      const currentBuild = Constants.expoConfig?.ios?.buildNumber || Constants.expoConfig?.android?.versionCode || 8;
-      if (data.buildNumber > currentBuild) {
+
+      // ✅ قراءة الإصدار الحقيقي من app.json
+      const currentVersion = Constants.expoConfig?.version || '0.0.0';
+
+      if (isNewerVersion(data.latestVersion, currentVersion)) {
         Alert.alert(
           t('update_available', 'تحديث جديد متوفر! 🚀'),
           `${t('version','الإصدار')} ${data.latestVersion} متاح.\n\n${data.releaseNotes}`,
@@ -132,7 +146,10 @@ export default function SettingsScreen() {
           ]
         );
       } else {
-        Alert.alert(t('up_to_date','التطبيق مُحدّث ✅'), t('latest_version_installed','أنت تستخدم أحدث إصدار.'));
+        Alert.alert(
+          t('up_to_date','التطبيق مُحدّث ✅'),
+          `${t('latest_version_installed','أنت تستخدم أحدث إصدار.')}\n\n${t('version','الإصدار')}: ${currentVersion}`
+        );
       }
     } catch {
       Alert.alert(t('error'), t('check_update_failed','تعذر التحقق من التحديثات.'));
@@ -220,7 +237,6 @@ export default function SettingsScreen() {
     <ScrollView style={{ backgroundColor:C.background, flex:1 }} contentContainerStyle={{ paddingBottom: insets.bottom + 60 }} showsVerticalScrollIndicator={false}>
       <Animated.View style={[styles.container, { opacity:fadeAnim, transform:[{ translateY:slideAnim }] }]}>
 
-        {/* ── شريط الرأس المطور المانع للتداخل بدقة ── */}
         <View style={[styles.header, { paddingTop: Platform.OS === 'ios' ? 10 : insets.top + 10 }]}>
           <TouchableOpacity
             onPress={() => navigation.goBack()}
@@ -301,7 +317,7 @@ export default function SettingsScreen() {
           </View>
         </View>
 
-        {/* ✅ Legal Section — جديد: سياسة الخصوصية وشروط الاستخدام، روابط حية خارجية */}
+        {/* Legal Section */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color:C.textSecondary }]}>{t('legal_section_title', 'الشروط والخصوصية').toUpperCase()}</Text>
           <View style={[styles.groupContainer, { backgroundColor: C.card, borderColor: C.border }]}>
@@ -360,7 +376,7 @@ export default function SettingsScreen() {
 
       </Animated.View>
 
-      {/* منتقي الألوان (Color Picker) */}
+      {/* منتقي الألوان */}
       <Modal visible={colorModal} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <Animated.View style={[styles.modalBox, { backgroundColor:C.card, borderColor: C.border, borderWidth: 1, transform:[{ scale:fadeAnim }] }]}>
@@ -384,7 +400,7 @@ export default function SettingsScreen() {
         </View>
       </Modal>
 
-      {/* نافذة عبارات الحماية المحدثة (Safety Modal Sheet) */}
+      {/* نافذة عبارات الحماية */}
       <Modal visible={safetyModal} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <Animated.View style={[styles.safetyBox, { backgroundColor:C.card, borderColor: C.border, borderWidth: 1, transform:[{ translateY: fadeAnim.interpolate({ inputRange:[0,1], outputRange:[300,0] }) }] }]}>
@@ -427,11 +443,10 @@ const styles = StyleSheet.create({
   headerSub:    { fontSize:13, marginTop:2 },
   section:      { marginBottom:24 },
   sectionTitle: { fontSize:12, fontWeight:'600', marginBottom:10, letterSpacing:1 },
-  
-  // الحاويات المدمجة الحديثة للإعدادات (Solflare Style Grouping)
+
   groupContainer: { borderRadius:18, borderWidth:1, overflow:'hidden', elevation:1, shadowOffset:{width:0,height:2}, shadowOpacity:0.02, shadowRadius:4 },
   innerDivider: { height:1, marginHorizontal:16 },
-  
+
   item:         { flexDirection:'row', alignItems:'center', justifyContent:'space-between', padding:14, backgroundColor:'transparent' },
   itemLeft:     { flexDirection:'row', alignItems:'center', flex:1 },
   iconWrap:     { width:38, height:36, borderRadius:10, justifyContent:'center', alignItems:'center', marginRight:12 },
@@ -443,7 +458,7 @@ const styles = StyleSheet.create({
   colorDot:     { width:20, height:20, borderRadius:10, marginRight:6 },
   version:      { alignItems:'center', marginTop:16, padding:16 },
   versionTxt:   { fontSize:11, fontWeight: '600' },
-  
+
   modalOverlay: { flex:1, backgroundColor:'rgba(0,0,0,0.5)', justifyContent:'center', alignItems:'center', padding:20 },
   modalBox:     { width:'100%', borderRadius:20, padding:20, elevation:10 },
   safetyBox:    { width:'100%', borderRadius:20, padding:20, maxHeight:'80%' },
