@@ -10,7 +10,7 @@ import { useAppStore } from '../store';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { G, Path, Circle } from 'react-native-svg';
-import { useSafeAreaInsets } from 'react-native-safe-area-context'; // ✅ استيراد للتحكم بالهوامش الآمنة
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getSolBalance, getTokenAccounts } from '../services/heliusService';
 import { getJupiterMarketData, CORE_TOKENS, getCustomTokens } from '../services/jupiterMarketService';
 
@@ -20,14 +20,12 @@ const PIE_R     = 76;
 const PIE_CX    = PIE_SIZE / 2;
 const PIE_CY    = PIE_SIZE / 2;
 
-// ── ألوان الأصول ─────────────────────────────────────────────────────────────
 const ASSET_COLORS = [
   '#6C63FF','#10B981','#F59E0B','#EF4444','#3B82F6',
   '#8B5CF6','#EC4899','#14B8A6','#F97316','#84CC16',
   '#06B6D4','#A855F7','#64748B','#0EA5E9','#22C55E',
 ];
 
-// ── Pie Chart ─────────────────────────────────────────────────────────────────
 function PieChart({ slices, total, isDark }) {
   const bgStroke = isDark ? '#07070F' : '#F4F5F9';
 
@@ -68,7 +66,6 @@ function PieChart({ slices, total, isDark }) {
   );
 }
 
-// ── PortfolioScreen ───────────────────────────────────────────────────────────
 export default function PortfolioScreen() {
   const navigation   = useNavigation();
   const { t }        = useTranslation();
@@ -76,7 +73,7 @@ export default function PortfolioScreen() {
   const primaryColor = useAppStore(s => s.primaryColor || '#6C63FF');
   const isDark       = theme === 'dark';
   const walletPublicKey = useAppStore(s => s.walletPublicKey);
-  const insets       = useSafeAreaInsets(); // جلب مسافات الأمان
+  const insets       = useSafeAreaInsets();
 
   const C = {
     bg:      isDark ? '#07070F' : '#F4F5F9',
@@ -115,7 +112,6 @@ export default function PortfolioScreen() {
       let total = 0, weightedChange = 0;
       const allAssets = [];
 
-      // Core Tokens
       CORE_TOKENS.forEach((token, i) => {
         let amount = 0;
         if (token.symbol === 'SOL') {
@@ -134,7 +130,6 @@ export default function PortfolioScreen() {
         }
       });
 
-      // Custom Tokens
       customList.forEach((token, i) => {
         const found  = tokenAccounts.find(tk => tk.mint === token.mint);
         const amount = found?.amount || 0;
@@ -185,7 +180,6 @@ export default function PortfolioScreen() {
   return (
     <SafeAreaView style={[S.root, { backgroundColor: C.bg, paddingTop: Platform.OS === 'ios' ? 0 : insets.top }]}>
 
-      {/* شريط العنوان المطور والآمن من تداخل الـ Notch */}
        <View style={[S.header, { borderBottomColor: C.border }]}>
             <TouchableOpacity style={[S.backBtn, { backgroundColor: C.card, borderColor: C.border, borderWidth: 1 }]} onPress={() => navigation.goBack()}>
                  <Ionicons name="arrow-back" size={18} color={C.text} />
@@ -203,10 +197,9 @@ export default function PortfolioScreen() {
         <Animated.ScrollView
           style={{ opacity: fadeAnim }}
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={[S.scroll, { paddingBottom: insets.bottom + 100 }]} // حشوة سفلية آمنة تمنع الاختفاء
+          contentContainerStyle={[S.scroll, { paddingBottom: insets.bottom + 100 }]}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={primaryColor} colors={[primaryColor]} />}
         >
-          {/* إجمالي المحفظة المتناسق */}
           <View style={[S.totalCard, { backgroundColor: C.card, borderColor: C.border }]}>
             <Text style={[S.totalLabel, { color: C.muted }]}>{t('total_balance')}</Text>
             <Text style={[S.totalAmount, { color: C.text }]}>{fmtUSD(totalUSD)}</Text>
@@ -218,17 +211,14 @@ export default function PortfolioScreen() {
             </View>
           </View>
 
-          {/* الرسم الدائري الأنيق */}
           {pieSlices.length > 0 && (
             <View style={[S.pieCard, { backgroundColor: C.card, borderColor: C.border }]}>
               <Text style={[S.sectionTitle, { color: C.text }]}>{t('asset_distribution', 'توزيع الأصول')}</Text>
               <View style={S.pieRow}>
                 
-                {/* الحاوي الدائري */}
                 <View style={S.pieContainer}>
                   <PieChart slices={pieSlices} total={totalUSD} isDark={isDark} />
                   
-                  {/* قيم المنتصف المتفاعلة */}
                   <View style={S.pieCenter}>
                     <Text style={[S.pieCenterAmt, { color: C.text }]}>
                       {selected ? fmtUSD(selected.value) : fmtUSD(totalUSD)}
@@ -239,7 +229,6 @@ export default function PortfolioScreen() {
                   </View>
                 </View>
 
-                {/* دليل الألوان الجانبي */}
                 <View style={S.legend}>
                   {pieSlices.slice(0, 5).map((slice, i) => (
                     <TouchableOpacity
@@ -259,7 +248,6 @@ export default function PortfolioScreen() {
             </View>
           )}
 
-          {/* قائمة الأصول */}
           <View style={[S.assetsCard, { backgroundColor: C.card, borderColor: C.border }]}>
             <Text style={[S.sectionTitle, { color: C.text }]}>{t('wallet_your_assets')}</Text>
             {assets.map((asset, i) => {
@@ -310,7 +298,7 @@ export default function PortfolioScreen() {
             )}
           </View>
 
-          {/* ── ملخص الأرباح والخسائر المطور (مربعين فوق مربعين متناسق 100%) ── */}
+          {/* ── ملخص الأرباح والخسائر (شبكة 2×2 متناسقة) ── */}
           {totalUSD > 0 && (
             <View style={[S.pnlCard, { backgroundColor: C.card, borderColor: C.border }]}>
               <Text style={[S.sectionTitle, { color: C.text }]}>{t('pnl_summary', 'ملخص الأرباح والخسائر')}</Text>
@@ -389,10 +377,10 @@ const S = StyleSheet.create({
   empty:       { alignItems:'center', paddingVertical:30, gap:8 },
   emptyText:   { fontSize:14 },
   
-  // ضبط شبكة الأداء (2×2 Grid) لتبدو كمربعات متساوية الارتفاع والعرض والمسافات
+  // ✅ شبكة 2×2 متناسقة بدون مشاكل حساب البكسل
   pnlCard:     { borderRadius:18, padding:16, marginBottom:12, borderWidth:1, elevation:1, shadowOffset:{width:0,height:2}, shadowOpacity:0.02, shadowRadius:4 },
-  pnlGrid:     { flexDirection:'row', flexWrap:'wrap', gap:8 },
-  pnlItem:     { width:(width-40-32-8)/2, padding:12, borderRadius:14, borderWidth: 1 },
+  pnlGrid:     { flexDirection:'row', flexWrap:'wrap', justifyContent:'space-between', rowGap:10 },
+  pnlItem:     { width:'48.5%', padding:14, borderRadius:14, borderWidth: 1 },
   pnlItemLabel:{ fontSize:11, marginBottom:4, fontWeight: '600' },
   pnlItemValue:{ fontSize:15, fontWeight:'800' },
 });

@@ -39,10 +39,13 @@ import TradingScreen            from './screens/TradingScreen';
 import PortfolioScreen          from './screens/PortfolioScreen';
 import DappBrowserScreen        from './screens/DappBrowserScreen';
 import NotificationsScreen      from './screens/NotificationsScreen';
-import { checkBalanceChanges }  from './services/balanceMonitorService';   // ✅ جديد
+import { checkBalanceChanges }  from './services/balanceMonitorService';
 
 // منع الشاشة الترحيبية الأصلية من الاختفاء تلقائياً لتفادي الوميض الأبيض
 SplashScreen.preventAutoHideAsync().catch(() => {});
+
+// ✅ خلفية موحّدة تُستخدم في كل مراحل التحميل (لا وميض أبيض إطلاقاً)
+const SPLASH_BG = '#0A0A0F';
 
 const Stack = createStackNavigator();
 const Tab   = createBottomTabNavigator();
@@ -93,7 +96,6 @@ function BottomTabs() {
       <Tab.Screen name="Wallet"    component={WalletScreen}    options={{ tabBarLabel: t('wallet')              }} />
       <Tab.Screen name="Market"    component={MarketScreen}    options={{ tabBarLabel: t('market')              }} />
 
-      {/* ✅ تبويب التداول في المنتصف مرتفع */}
       <Tab.Screen
         name="Trading"
         component={TradingScreen}
@@ -119,8 +121,6 @@ function BottomTabs() {
       />
 
       <Tab.Screen name="AppPortal" component={AppPortalScreen} options={{ tabBarLabel: t('explore') || 'استكشف'      }} />
-
-      {/* ✅ Portfolio بدلاً من Settings */}
       <Tab.Screen name="Portfolio" component={PortfolioScreen} options={{ tabBarLabel: t('portfolio', 'محفظتي')     }} />
     </Tab.Navigator>
   );
@@ -131,7 +131,12 @@ export default function AppContainer() {
   const language     = useAppStore(state => state.language);
   const primaryColor = useAppStore(state => state.primaryColor);
   const [initialRoute, setInitialRoute] = useState(null);
+  const [navReady,     setNavReady]     = useState(false);
   const { t } = useTranslation();
+
+  // ✅ ألوان الخلفية الموحّدة حسب الثيم — تُستخدم في Stack Navigator
+  const isDark = theme === 'dark';
+  const stackBgColor = isDark ? '#07070F' : '#F4F5F9';
 
   useEffect(() => {
     const loadSettings = async () => {
@@ -226,19 +231,18 @@ export default function AppContainer() {
     init();
   }, []);
 
-  // مستمع لمراقبة جاهزية التطبيق وإخفاء الشاشة الترحيبية فور تحديد المسار النهائي
+  // ✅ إخفاء شاشة الإقلاع فقط بعد أن يكون المسار محدّداً + الواجهة الأولى مرسومة فعلاً
   useEffect(() => {
-    if (initialRoute) {
-      const hideSplash = async () => {
-        try {
-          await SplashScreen.hideAsync();
-        } catch (e) {
+    if (initialRoute && navReady) {
+      const timer = setTimeout(() => {
+        SplashScreen.hideAsync().catch((e) => {
           console.warn('Error hiding splash screen:', e);
-        }
-      };
-      hideSplash();
+        });
+      }, 50);
+
+      return () => clearTimeout(timer);
     }
-  }, [initialRoute]);
+  }, [initialRoute, navReady]);
 
   // ✅ فحص الرصيد عند فتح التطبيق — بعد استقرار التطبيق بـ 3 ثواني
   useEffect(() => {
@@ -254,18 +258,25 @@ export default function AppContainer() {
 
   if (!initialRoute) {
     return (
-      <View style={{ flex:1, justifyContent:'center', alignItems:'center', backgroundColor: theme==='dark'?'#0A0A0F':'#fff' }}>
+      <View style={{ flex:1, justifyContent:'center', alignItems:'center', backgroundColor: SPLASH_BG }}>
         <ActivityIndicator size="large" color={primaryColor} />
       </View>
     );
   }
 
-  const isDark = theme === 'dark';
-
   return (
-    <SafeAreaProvider>
-      <NavigationContainer theme={theme==='dark' ? DarkTheme : DefaultTheme}>
-        <Stack.Navigator initialRouteName={initialRoute}>
+    <SafeAreaProvider style={{ flex: 1, backgroundColor: SPLASH_BG }}>
+      <NavigationContainer
+        theme={theme==='dark' ? DarkTheme : DefaultTheme}
+        onReady={() => setNavReady(true)}
+      >
+        <Stack.Navigator
+          initialRouteName={initialRoute}
+          screenOptions={{
+            cardStyle:              { backgroundColor: stackBgColor },  // ✅ خلفية موحّدة
+            detachPreviousScreen:   false,                              // ✅ إبقاء الشاشة السابقة بالذاكرة
+          }}
+        >
           <Stack.Screen name="Home"               component={HomeScreen}               options={{ headerShown:false }} />
           <Stack.Screen name="CreateWallet"       component={CreateWalletScreen}       options={{ title: t('create_wallet') }} />
           <Stack.Screen name="ImportWallet"       component={ImportWalletScreen}       options={{ title: t('import_wallet') }} />
