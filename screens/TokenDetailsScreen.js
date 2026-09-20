@@ -111,8 +111,6 @@ export default function TokenDetailsScreen() {
   };
 
   const fetchCoinMeta = async (symbol) => {
-    // العملات الخارجية (isExternal) بتجيب coingeckoId جاهز من MarketScreen عبر التنقل،
-    // فبنفضّله على الخريطة المحلية اللي مقتصرة على عملات سولانا فقط
     const coinId = token.coingeckoId || COINGECKO_IDS[symbol];
     if (!coinId) {
       return {
@@ -306,12 +304,28 @@ export default function TokenDetailsScreen() {
               })}
             </View>
           )}
+
+          {/* ✅ زر تنبيه السعر — جديد */}
+          {!token.isExternal && (
+            <TouchableOpacity
+              style={[S.alertBtn, { backgroundColor: primaryColor + '12', borderColor: primaryColor + '30' }]}
+              onPress={() => navigation.navigate('PriceAlerts', { preselectedToken: token })}
+              activeOpacity={0.75}
+            >
+              <View style={[S.alertBtnIcon, { backgroundColor: primaryColor + '20' }]}>
+                <Ionicons name="notifications-outline" size={16} color={primaryColor} />
+              </View>
+              <Text style={[S.alertBtnTxt, { color: primaryColor }]}>
+                {t('alerts.token_btn', 'أبلغني عند سعر')}
+              </Text>
+              <Ionicons name="chevron-forward" size={14} color={primaryColor} />
+            </TouchableOpacity>
+          )}
         </View>
 
-        {/* ── أزرار العمليات (غير معروضة للعملات الخارجية — عرض بصري فقط) ── */}
+        {/* ── أزرار العمليات (غير معروضة للعملات الخارجية) ── */}
         {!token.isExternal && (
           <View style={S.actions}>
-            {/* إرسال */}
             <TouchableOpacity
               style={[S.actionBtn, { backgroundColor:C.primary }]}
               onPress={() => navigation.navigate('Send', { preselectedToken:token.symbol })}
@@ -320,7 +334,6 @@ export default function TokenDetailsScreen() {
               <Text style={S.actionTxt}>{t('send')}</Text>
             </TouchableOpacity>
 
-            {/* ✅ شراء — يفتح شاشة التداول بدلاً من Swap */}
             {token.swapAvailable !== false && (
               <TouchableOpacity
                 style={[S.actionBtn, { backgroundColor:C.success }]}
@@ -331,7 +344,6 @@ export default function TokenDetailsScreen() {
               </TouchableOpacity>
             )}
 
-            {/* مستكشف */}
             <TouchableOpacity
               style={[S.actionBtn, { backgroundColor: isDark?'#171730':'#ECECF4', borderColor:C.border, borderWidth:1 }]}
               onPress={openExp}
@@ -518,6 +530,31 @@ const S = StyleSheet.create({
   changeTxt:  { fontSize:12, fontWeight:'700' },
   sparkWrap:  { flexDirection:'row', alignItems:'flex-end', height:32, marginTop:14, gap:2 },
   sparkBar:   { flex:1, borderRadius:1 },
+
+  // ✅ أنماط زر التنبيه — جديد
+  alertBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginTop: 14,
+  },
+  alertBtnIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  alertBtnTxt: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+
   actions:    { flexDirection:'row', gap:8, marginBottom:12 },
   actionBtn:  { flex:1, flexDirection:'row', alignItems:'center', justifyContent:'center', paddingVertical:12, borderRadius:14, gap:6 },
   actionTxt:  { fontSize:12, fontWeight:'700', color:'#FFF' },

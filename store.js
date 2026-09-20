@@ -1,4 +1,4 @@
-// store.js - النسخة المحدثة بميزة دفتر العناوين (Address Book)
+// store.js - النسخة المحدثة بميزة دفتر العناوين المتقدم (Address Book Advanced)
 
 import { create } from 'zustand';
 import * as SecureStore from 'expo-secure-store';
@@ -55,13 +55,27 @@ export const useAppStore = create((set, get) => ({
   walletPrivateKey:   null,
   currentWallet:      null,
 
-  // ── Address Book ────────────────────────────────────────────────────────────
+  // ── Address Book (Advanced) ─────────────────────────────────────────────────
   addressBook: [],
 
   loadAddressBook: async () => {
     try {
       const stored = await AsyncStorage.getItem(ADDRESS_BOOK_KEY);
-      if (stored) set({ addressBook: JSON.parse(stored) });
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        // ✅ ترقية تلقائية للعناوين القديمة إلى البنية الجديدة دون فقدان أي بيانات
+        const upgraded = parsed.map(item => ({
+          id:         item.id        || Date.now().toString() + Math.random().toString(36).slice(2, 6),
+          name:       item.name,
+          address:    item.address,
+          category:   item.category  || 'other',
+          note:       item.note      || '',
+          useCount:   item.useCount  || 0,
+          createdAt:  item.createdAt || Date.now(),
+          updatedAt:  item.updatedAt || Date.now(),
+        }));
+        set({ addressBook: upgraded });
+      }
     } catch (e) {
       console.warn('Failed to load address book:', e.message);
     }
@@ -76,19 +90,68 @@ export const useAppStore = create((set, get) => ({
     }
   },
 
-  saveAddress: async (name, address) => {
+  // حفظ عنوان جديد أو تحديث موجود — متوافق مع الاستدعاء القديم (name, address)
+  saveAddress: async (name, address, category = 'other', note = '') => {
     const { addressBook, saveAddressBook } = get();
     const existingIndex = addressBook.findIndex(item => item.address === address);
     let newBook = [...addressBook];
+    const now = Date.now();
+
     if (existingIndex >= 0) {
-      newBook[existingIndex].name = name;
+      newBook[existingIndex] = {
+        ...newBook[existingIndex],
+        name,
+        category,
+        note,
+        updatedAt: now,
+      };
     } else {
-      newBook.push({ name, address, id: Date.now().toString() });
+      newBook.push({
+        id:         now.toString() + Math.random().toString(36).slice(2, 6),
+        name,
+        address,
+        category,
+        note,
+        useCount:   0,
+        createdAt:  now,
+        updatedAt:  now,
+      });
     }
     await saveAddressBook(newBook);
     return true;
   },
 
+  // ✅ جديد: تعديل عنوان موجود عبر الـ ID (بحقول كاملة)
+  updateAddress: async (id, updates) => {
+    const { addressBook, saveAddressBook } = get();
+    const updated = addressBook.map(item =>
+      item.id === id
+        ? { ...item, ...updates, updatedAt: Date.now() }
+        : item
+    );
+    await saveAddressBook(updated);
+    return true;
+  },
+
+  // ✅ جديد: زيادة عدد مرات الاستخدام عند إرسال فعلي
+  incrementAddressUse: async (address) => {
+    const { addressBook, saveAddressBook } = get();
+    const updated = addressBook.map(item =>
+      item.address === address
+        ? { ...item, useCount: (item.useCount || 0) + 1, updatedAt: Date.now() }
+        : item
+    );
+    await saveAddressBook(updated);
+  },
+
+  // ✅ جديد: حذف عنوان عبر الـ ID (أدق من الحذف بالعنوان)
+  deleteAddressById: async (id) => {
+    const { addressBook, saveAddressBook } = get();
+    await saveAddressBook(addressBook.filter(item => item.id !== id));
+    return true;
+  },
+
+  // إبقاء الدالة القديمة للتوافق مع أي استخدام سابق
   deleteAddress: async (address) => {
     const { addressBook, saveAddressBook } = get();
     await saveAddressBook(addressBook.filter(item => item.address !== address));
@@ -357,12 +420,8 @@ export const useAppStore = create((set, get) => ({
     if (index >= accounts.length) return { success: false, error: 'invalid_account' };
 
     try {
-      // ✅ حذف المفتاح المحدد
       await SecureStore.deleteItemAsync(`wallet_private_key_${index}`);
 
-      // ✅ إزاحة مفاتيح جميع الحسابات التي تلي المحذوف
-      // مثال: حذف index=1 من [0,1,2,3]
-      // key_2 → key_1, key_3 → key_2, حذف key_3
       for (let i = index + 1; i < accounts.length; i++) {
         const key = await SecureStore.getItemAsync(`wallet_private_key_${i}`);
         if (key) {
@@ -415,12 +474,10 @@ export const useAppStore = create((set, get) => ({
   logout: async () => {
     const { accounts } = get();
 
-    // ✅ حذف مفاتيح جميع الحسابات وليس فقط الحساب النشط
     for (let i = 0; i < accounts.length; i++) {
       await SecureStore.deleteItemAsync(`wallet_private_key_${i}`);
     }
 
-    // حذف المفاتيح القديمة (legacy)
     await SecureStore.deleteItemAsync(OLD_PRIVATE_KEY);
     await SecureStore.deleteItemAsync(OLD_PUBLIC_KEY);
     await SecureStore.deleteItemAsync(OLD_MNEMONIC);

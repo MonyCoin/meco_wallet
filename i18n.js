@@ -386,12 +386,9 @@ const resources = {
         already_saved: "هذا العنوان محفوظ بالفعل",
         address_saved: "تم حفظ العنوان بنجاح",
         save_to_address_book: "حفظ في دفتر العناوين",
-        saved: "محفوظ"
+        saved: "محفوظ",
+        edit_saved: "تعديل المحفوظ"
       },
-
-      // ========== AddressBook (مفاتيح عامة) ==========
-      address_book: "دفتر العناوين",
-      no_saved_addresses: "لا توجد عناوين محفوظة",
 
       // ========== ReceiveScreen ==========
       receive_crypto: "استلام عملة",
@@ -1048,12 +1045,9 @@ const resources = {
         already_saved: "This address is already saved",
         address_saved: "Address saved successfully",
         save_to_address_book: "Save to Address Book",
-        saved: "Saved"
+        saved: "Saved",
+        edit_saved: "Edit Saved"
       },
-
-      // ========== AddressBook (general keys) ==========
-      address_book: "Address Book",
-      no_saved_addresses: "No saved addresses",
 
       // ========== ReceiveScreen ==========
       receive_crypto: "Receive Crypto",
@@ -1172,6 +1166,7 @@ const resources = {
       loading_transactions: 'Loading transactions...',
       no_transaction_id: 'No transaction ID',
       cannot_open_link: 'Cannot open link',
+      unexpected_error: 'Unexpected error occurred',
       summary: 'Summary',
 
       // ========== BackupScreen ==========
@@ -1464,6 +1459,192 @@ i18n.addResourceBundle('en', 'translation', {
   notif_stake_message: 'You staked {{amount}} MECO in {{planName}} plan with {{apy}}% APY',
   notif_unstake_title: 'Unstake Request',
   notif_unstake_message: 'You requested to unstake {{amount}} MECO',
+}, true, true);
+
+// ═════════════════════════════════════════════════════════════════════════════
+// ✅ قسم تنبيهات الأسعار
+// ═════════════════════════════════════════════════════════════════════════════
+i18n.addResourceBundle('ar', 'translation', {
+  alerts: {
+    title:            'تنبيهات الأسعار',
+    subtitle:         'راقب الأسعار بذكاء',
+    count:            '{{count}} تنبيه',
+    add_title:        'إضافة تنبيه جديد',
+    added_success:    'تم إضافة تنبيه {{symbol}}',
+    delete_confirm:   'هل تريد حذف تنبيه {{symbol}}؟',
+    empty_title:      'لا توجد تنبيهات',
+    empty_hint:       'أضف تنبيهاً ليصلك إشعار عند وصول السعر للمستوى المطلوب',
+    field_token:      'العملة',
+    field_direction:  'اتجاه التنبيه',
+    field_price:      'السعر المستهدف (USD)',
+    select_token:     'اختر العملة',
+    choose_token:     'اختر العملة',
+    enter_valid_price:'أدخل سعراً صحيحاً',
+    above_label:      'يصل إلى',
+    below_label:      'ينزل إلى',
+    above_short:      'صعود',
+    below_short:      'هبوط',
+    triggered:        'تم',
+    disabled:         'معطّل',
+    target:           'المستهدف',
+    at_create:        'عند الإنشاء',
+    reactivate:       'إعادة',
+    pause:            'إيقاف',
+    activate:         'تشغيل',
+    save:             'حفظ التنبيه',
+    preview:          'سيصلك إشعار عندما يصل {{symbol}} إلى {{price}}',
+    menu_label:       'تنبيهات الأسعار',
+    token_btn:        'أبلغني عند سعر',
+  },
+  notif_price_alert_title:   'تنبيه سعر {{symbol}}',
+  notif_price_alert_message: 'وصل {{symbol}} إلى {{currentPrice}}',
+}, true, true);
+
+i18n.addResourceBundle('en', 'translation', {
+  alerts: {
+    title:            'Price Alerts',
+    subtitle:         'Monitor prices smartly',
+    count:            '{{count}} alert',
+    add_title:        'Add New Alert',
+    added_success:    '{{symbol}} alert added',
+    delete_confirm:   'Delete {{symbol}} alert?',
+    empty_title:      'No Alerts',
+    empty_hint:       'Add an alert to be notified when the price hits your target',
+    field_token:      'Token',
+    field_direction:  'Alert Direction',
+    field_price:      'Target Price (USD)',
+    select_token:     'Select Token',
+    choose_token:     'Choose Token',
+    enter_valid_price:'Enter a valid price',
+    above_label:      'Reaches',
+    below_label:      'Drops to',
+    above_short:      'Up',
+    below_short:      'Down',
+    triggered:        'Hit',
+    disabled:         'Disabled',
+    target:           'Target',
+    at_create:        'At Creation',
+    reactivate:       'Reset',
+    pause:            'Pause',
+    activate:         'Activate',
+    save:             'Save Alert',
+    preview:          'You will be notified when {{symbol}} reaches {{price}}',
+    menu_label:       'Price Alerts',
+    token_btn:        'Notify me at',
+  },
+  notif_price_alert_title:   'Price Alert: {{symbol}}',
+  notif_price_alert_message: '{{symbol}} reached {{currentPrice}}',
+}, true, true);
+
+// ═════════════════════════════════════════════════════════════════════════════
+// ✅ قسم دفتر العناوين المتقدم
+// ═════════════════════════════════════════════════════════════════════════════
+i18n.addResourceBundle('ar', 'translation', {
+  address_book: {
+    title:               'دفتر العناوين',
+    subtitle:            'إدارة عناوينك',
+    count:               '{{count}} عنوان',
+    section_title:       'جهات الاتصال',
+    manage_hint:         'إدارة عناوينك المحفوظة',
+    add_title:           'إضافة عنوان جديد',
+    edit_title:          'تعديل العنوان',
+    add_btn:             'إضافة',
+    delete_btn:          'حذف هذا العنوان',
+    delete_title:        'حذف العنوان',
+    delete_confirm:      'هل تريد حذف "{{name}}"؟',
+    search_placeholder:  'ابحث بالاسم أو العنوان...',
+    no_results:          'لا توجد نتائج',
+    no_results_hint:     'جرّب تعديل البحث أو التصنيف',
+    empty_title:         'دفتر العناوين فارغ',
+    empty_hint:          'احفظ العناوين المستخدمة كثيراً للوصول السريع',
+    updated_success:     'تم تحديث العنوان بنجاح',
+
+    categories: {
+      all:       'الكل',
+      family:    'عائلة',
+      work:      'عمل',
+      friends:   'أصدقاء',
+      platforms: 'منصات',
+      other:     'أخرى',
+    },
+
+    sorts: {
+      recent:    'الأحدث',
+      alpha:     'أبجدي',
+      most_used: 'الأكثر استخداماً',
+    },
+
+    fields: {
+      name:              'الاسم',
+      name_placeholder:  'مثل: أحمد، منصة Orca...',
+      address:           'عنوان Solana',
+      address_placeholder:'عنوان المحفظة...',
+      category:          'التصنيف',
+      note:              'ملاحظة (اختياري)',
+      note_placeholder:  'ملاحظة قصيرة...',
+    },
+
+    errors: {
+      name_required:    'الرجاء إدخال اسم',
+      address_required: 'الرجاء إدخال العنوان',
+      invalid_address:  'عنوان Solana غير صالح',
+      already_exists:   'هذا العنوان موجود بالفعل',
+    },
+  },
+}, true, true);
+
+i18n.addResourceBundle('en', 'translation', {
+  address_book: {
+    title:               'Address Book',
+    subtitle:            'Manage your addresses',
+    count:               '{{count}} address',
+    section_title:       'Contacts',
+    manage_hint:         'Manage your saved addresses',
+    add_title:           'Add New Address',
+    edit_title:          'Edit Address',
+    add_btn:             'Add',
+    delete_btn:          'Delete this address',
+    delete_title:        'Delete Address',
+    delete_confirm:      'Delete "{{name}}"?',
+    search_placeholder:  'Search by name or address...',
+    no_results:          'No results',
+    no_results_hint:     'Try adjusting your search or category',
+    empty_title:         'Address Book is Empty',
+    empty_hint:          'Save frequently used addresses for quick access',
+    updated_success:     'Address updated successfully',
+
+    categories: {
+      all:       'All',
+      family:    'Family',
+      work:      'Work',
+      friends:   'Friends',
+      platforms: 'Platforms',
+      other:     'Other',
+    },
+
+    sorts: {
+      recent:    'Recent',
+      alpha:     'A-Z',
+      most_used: 'Most Used',
+    },
+
+    fields: {
+      name:              'Name',
+      name_placeholder:  'e.g., Ahmed, Orca Platform...',
+      address:           'Solana Address',
+      address_placeholder:'Wallet address...',
+      category:          'Category',
+      note:              'Note (optional)',
+      note_placeholder:  'Short note...',
+    },
+
+    errors: {
+      name_required:    'Please enter a name',
+      address_required: 'Please enter an address',
+      invalid_address:  'Invalid Solana address',
+      already_exists:   'This address already exists',
+    },
+  },
 }, true, true);
 
 export const changeLanguage = (lng) => {

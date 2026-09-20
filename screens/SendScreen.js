@@ -21,10 +21,19 @@ import bs58 from 'bs58';
 import * as splToken from '@solana/spl-token';
 import * as Clipboard from 'expo-clipboard';
 import { CORE_TOKENS, getSolPriceUsd } from '../services/jupiterMarketService';
-import { addNotification, NOTIF_TYPES } from '../services/notificationsService';   // ✅ جديد
+import { addNotification, NOTIF_TYPES } from '../services/notificationsService';
 
 const FEE_COLLECTOR_ADDRESS = 'BkaJsFAJKPQZgreBFLrY2pPUi44fTJzXhmeBc8LeuF5W';
 const SERVICE_FEE_SOL       = 0.0005;
+
+// ─── تصنيفات دفتر العناوين (نفس المستخدمة في AddressBookScreen) ─────────────
+const AB_CATEGORIES = [
+  { id: 'family',    icon: 'people-outline',    color: '#EF4444' },
+  { id: 'work',      icon: 'briefcase-outline', color: '#3B82F6' },
+  { id: 'friends',   icon: 'heart-outline',     color: '#EC4899' },
+  { id: 'platforms', icon: 'business-outline',  color: '#10B981' },
+  { id: 'other',     icon: 'star-outline',      color: '#F59E0B' },
+];
 
 function getKeypairFromStore(storePrivateKey) {
   try {
@@ -49,10 +58,11 @@ export default function SendScreen() {
   const isMounted    = useRef(true);
   const insets       = useSafeAreaInsets();
 
-  const addressBook    = useAppStore(state => state.addressBook);
-  const loadAddressBook= useAppStore(state => state.loadAddressBook);
-  const saveAddress    = useAppStore(state => state.saveAddress);
-  const deleteAddress  = useAppStore(state => state.deleteAddress);
+  const addressBook        = useAppStore(state => state.addressBook);
+  const loadAddressBook    = useAppStore(state => state.loadAddressBook);
+  const saveAddress        = useAppStore(state => state.saveAddress);
+  const updateAddress      = useAppStore(state => state.updateAddress);
+  const deleteAddressById  = useAppStore(state => state.deleteAddressById);
 
   const activeAccount = useAppStore(state => {
     const accounts    = state.accounts;
@@ -86,17 +96,21 @@ export default function SendScreen() {
     recipientHasTokenAccount: true,
   });
 
-  const [addressBookModalVisible, setAddressBookModalVisible] = useState(false);
   const [saveAddressModalVisible, setSaveAddressModalVisible] = useState(false);
-  const [newAddressName,          setNewAddressName]          = useState('');
+  const [saveFormName,            setSaveFormName]            = useState('');
+  const [saveFormCategory,        setSaveFormCategory]        = useState('other');
+  const [saveFormNote,            setSaveFormNote]            = useState('');
   const [balances, setBalances]   = useState({ sol: 0, tokens: {}, lastUpdated: 0 });
   const [fadeAnim]                = useState(new Animated.Value(0));
   const validationTimeoutRef      = useRef(null);
   const tokenFetchInProgress      = useRef(false);
 
-  const isRecipientSaved = useMemo(() => {
-    return addressBook.some(item => item.address === state.recipient.trim());
+  // ✅ العنصر المحفوظ (إن كان العنوان الحالي في دفتر العناوين)
+  const savedItem = useMemo(() => {
+    return addressBook.find(item => item.address === state.recipient.trim());
   }, [state.recipient, addressBook]);
+
+  const isRecipientSaved = !!savedItem;
 
   useFocusEffect(
     useCallback(() => {
@@ -338,7 +352,6 @@ export default function SendScreen() {
 
       const signature = await web3.sendAndConfirmTransaction(connection, transaction, [keypair], { commitment: 'confirmed' });
 
-      // ✅ إرسال إشعار محلي بعد نجاح الإرسال
       await addNotification({
         type:       NOTIF_TYPES.SEND,
         titleKey:   'notif_send_title',
@@ -346,6 +359,11 @@ export default function SendScreen() {
         params:     { amount: amount, symbol: token.symbol, recipient: `${recipient.slice(0,6)}...${recipient.slice(-4)}` },
         data:       { signature, amount, symbol: token.symbol, recipient },
       });
+
+      try {
+        const { incrementAddressUse } = useAppStore.getState();
+        if (incrementAddressUse) await incrementAddressUse(recipient);
+      } catch (_) {}
 
       await loadInitialBalance();
       clearBalanceCache();
@@ -360,7 +378,7 @@ export default function SendScreen() {
     } catch (error) {
       const errorString = error.toString();
       if (errorString.includes('insufficient funds for rent') ||
-          errorString.includes('Transaction results in an account (0) with insufficient funds for rent')) {
+          errorString.includes('Transaction results in a account (0) with insufficient funds for rent')) {
         Alert.alert(t('sendScreen.alerts.error'), t('errors.rentError'));
         error.handled = true;
       }
@@ -384,24 +402,74 @@ export default function SendScreen() {
     if (text) setState(prev => ({ ...prev, recipient: text.trim() }));
   }, []);
 
+  // ✅ فتح نافذة الحفظ/التعديل
+  const handleOpenSaveModal = useCallback(() => {
+    if (savedItem) {
+      // وضع التعديل — نعبّئ الحقول الحالية
+      setSaveFormName(savedItem.name || '');
+      setSaveFormCategory(savedItem.category || 'other');
+      setSaveFormNote(savedItem.note || '');
+    } else {
+      // وضع الإضافة — نبدأ من الصفر
+      setSaveFormName('');
+      setSaveFormCategory('other');
+      setSaveFormNote('');
+    }
+    setSaveAddressModalVisible(true);
+  }, [savedItem]);
+
+  // ✅ حفظ/تحديث العنوان
   const handleSaveAddressConfirm = async () => {
-    if (!newAddressName.trim()) { Alert.alert(t('error'), t('enter_address_name')); return; }
-    await saveAddress(newAddressName.trim(), state.recipient.trim());
-    setSaveAddressModalVisible(false);
-    setNewAddressName('');
-    Alert.alert(t('success'), t('sendScreen.address_saved'));
+    if (!saveFormName.trim()) {
+      Alert.alert(t('error'), t('enter_address_name'));
+      return;
+    }
+
+    try {
+      if (savedItem) {
+        // تعديل عنوان موجود
+        await updateAddress(savedItem.id, {
+          name:     saveFormName.trim(),
+          category: saveFormCategory,
+          note:     saveFormNote.trim(),
+        });
+        Alert.alert(t('success'), t('address_book.updated_success'));
+      } else {
+        // إضافة عنوان جديد
+        await saveAddress(
+          saveFormName.trim(),
+          state.recipient.trim(),
+          saveFormCategory,
+          saveFormNote.trim()
+        );
+        Alert.alert(t('success'), t('sendScreen.address_saved'));
+      }
+      await loadAddressBook();
+      setSaveAddressModalVisible(false);
+    } catch (e) {
+      Alert.alert(t('error'), e.message);
+    }
   };
 
-  const handleSelectSavedAddress = (address) => {
-    setState(prev => ({ ...prev, recipient: address }));
-    setAddressBookModalVisible(false);
-  };
-
-  const handleDeleteSavedAddress = (address) => {
-    Alert.alert(t('delete'), t('confirm_delete_address'), [
-      { text: t('cancel'), style: 'cancel' },
-      { text: t('delete'), style: 'destructive', onPress: () => deleteAddress(address) },
-    ]);
+  // ✅ حذف العنوان المحفوظ
+  const handleDeleteSavedAddress = () => {
+    if (!savedItem) return;
+    Alert.alert(
+      t('address_book.delete_title'),
+      t('address_book.delete_confirm', { name: savedItem.name }),
+      [
+        { text: t('cancel'), style: 'cancel' },
+        {
+          text: t('delete'),
+          style: 'destructive',
+          onPress: async () => {
+            await deleteAddressById(savedItem.id);
+            await loadAddressBook();
+            setSaveAddressModalVisible(false);
+          },
+        },
+      ]
+    );
   };
 
   useEffect(() => {
@@ -413,6 +481,11 @@ export default function SendScreen() {
   const handleOpenTokenModal = () => {
     setState(prev => ({ ...prev, modalVisible: true }));
     loadAllTokenBalances();
+  };
+
+  // ✅ الانتقال إلى شاشة دفتر العناوين الكامل
+  const handleOpenAddressBook = () => {
+    navigation.navigate('AddressBook', { mode: 'select', returnScreen: 'Send' });
   };
 
   const renderTokenItem = useCallback(({ item }) => {
@@ -438,10 +511,12 @@ export default function SendScreen() {
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.background }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       
+      {/* ── الهيدر ── */}
       <View style={[styles.headerNew, { backgroundColor: colors.card, paddingTop: Platform.OS === 'ios' ? 0 : insets.top }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={[styles.backButton, { backgroundColor: colors.background, borderColor: colors.border, borderWidth: 1 }]}>
           <Ionicons name="arrow-back" size={18} color={colors.text} />
         </TouchableOpacity>
+
         <View style={styles.headerTitleContainer}>
           <Text style={[styles.headerTitle, { color: colors.text }]}>{t('sendScreen.title')}</Text>
           {activeAccount && (
@@ -450,14 +525,23 @@ export default function SendScreen() {
             </Text>
           )}
         </View>
-        <TouchableOpacity onPress={() => setAddressBookModalVisible(true)} style={[styles.addressBookButton, { backgroundColor: colors.background, borderColor: colors.border, borderWidth: 1 }]}>
-          <Ionicons name="book-outline" size={18} color={primaryColor} />
+
+        {/* ✅ زر دفتر العناوين مع تسمية واضحة */}
+        <TouchableOpacity
+          onPress={handleOpenAddressBook}
+          style={[styles.addressBookButton, { backgroundColor: colors.background, borderColor: colors.border, borderWidth: 1 }]}
+        >
+          <Ionicons name="book-outline" size={16} color={primaryColor} />
+          <Text style={[styles.addressBookLabel, { color: primaryColor }]} numberOfLines={1}>
+            {t('address_book.title')}
+          </Text>
         </TouchableOpacity>
       </View>
 
       <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 80 }]}>
         <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
 
+          {/* ── حقل المبلغ ── */}
           <View style={[styles.inputSection, { marginBottom: 20 }]}>
             <View style={styles.amountHeader}>
               <Text style={[styles.inputLabel, { color: colors.text }]}>{t('sendScreen.inputs.amount')}</Text>
@@ -493,6 +577,7 @@ export default function SendScreen() {
             </Text>
           </View>
 
+          {/* ── حقل المستلم ── */}
           <View style={styles.inputSection}>
             <Text style={[styles.inputLabel, { color: colors.text }]}>{t('sendScreen.inputs.recipient')}</Text>
             <View style={[styles.inputContainerNew, { backgroundColor: colors.card, borderColor: state.recipientExists === false ? colors.error : colors.border }]}>
@@ -520,24 +605,36 @@ export default function SendScreen() {
               </View>
             </View>
 
+            {/* ── زر حفظ/تعديل العنوان ── */}
             {state.recipient.length >= 32 && (
               <View style={styles.quickActions}>
                 <TouchableOpacity
-                  style={[styles.quickActionBtn, { backgroundColor: isRecipientSaved ? 'rgba(16,185,129,0.08)' : 'rgba(245,158,11,0.08)' }]}
-                  onPress={() => {
-                    if (!isRecipientSaved) setSaveAddressModalVisible(true);
-                    else Alert.alert(t('info'), t('sendScreen.already_saved'));
-                  }}
+                  style={[
+                    styles.quickActionBtn,
+                    {
+                      backgroundColor: isRecipientSaved ? 'rgba(16,185,129,0.08)' : 'rgba(245,158,11,0.08)',
+                      borderColor:     isRecipientSaved ? colors.success + '30' : colors.warning + '30',
+                      borderWidth: 1,
+                    },
+                  ]}
+                  onPress={handleOpenSaveModal}
                 >
-                  <Ionicons name={isRecipientSaved ? 'bookmark' : 'bookmark-outline'} size={14} color={isRecipientSaved ? colors.success : colors.warning} />
+                  <Ionicons
+                    name={isRecipientSaved ? 'bookmark' : 'bookmark-outline'}
+                    size={14}
+                    color={isRecipientSaved ? colors.success : colors.warning}
+                  />
                   <Text style={[styles.quickActionText, { color: isRecipientSaved ? colors.success : colors.warning }]}>
-                    {isRecipientSaved ? t('sendScreen.saved') : t('save')}
+                    {isRecipientSaved
+                      ? t('sendScreen.edit_saved', 'تعديل المحفوظ')
+                      : t('sendScreen.save_to_address_book', 'حفظ في دفتر العناوين')}
                   </Text>
                 </TouchableOpacity>
               </View>
             )}
           </View>
 
+          {/* ── زر الإرسال ── */}
           <TouchableOpacity
             style={[styles.sendButtonNew, { backgroundColor: primaryColor, opacity: state.loading ? 0.7 : 1 }]}
             onPress={handleSend}
@@ -554,6 +651,7 @@ export default function SendScreen() {
         </Animated.View>
       </ScrollView>
 
+      {/* ═══ Modal: اختيار العملة ═══ */}
       <Modal visible={state.modalVisible} transparent animationType="slide" onRequestClose={() => setState(prev => ({ ...prev, modalVisible: false }))}>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContentNew, { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1 }]}>
@@ -577,82 +675,135 @@ export default function SendScreen() {
         </View>
       </Modal>
 
-      <Modal visible={addressBookModalVisible} transparent animationType="slide" onRequestClose={() => setAddressBookModalVisible(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContentNew, { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1, maxHeight: '80%' }]}>
+      {/* ═══ Modal: حفظ/تعديل العنوان ═══ */}
+      <Modal visible={saveAddressModalVisible} transparent animationType="slide" onRequestClose={() => setSaveAddressModalVisible(false)}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalOverlay}>
+          <View style={[styles.saveSheet, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
+
             <View style={styles.modalHeader}>
               <View style={styles.modalHeaderLeft}>
-                <Ionicons name="book" size={20} color={primaryColor} />
-                <Text style={[styles.modalTitle, { color: colors.text }]}>{t('address_book')}</Text>
+                <Ionicons
+                  name={savedItem ? 'create-outline' : 'bookmark'}
+                  size={20}
+                  color={savedItem ? primaryColor : colors.warning}
+                />
+                <Text style={[styles.modalTitle, { color: colors.text }]}>
+                  {savedItem
+                    ? t('address_book.edit_title', 'تعديل العنوان')
+                    : t('save_address', 'حفظ العنوان')}
+                </Text>
               </View>
-              <TouchableOpacity onPress={() => setAddressBookModalVisible(false)} style={[styles.closeBtn, { backgroundColor: colors.background }]}>
+              <TouchableOpacity onPress={() => setSaveAddressModalVisible(false)} style={[styles.closeBtn, { backgroundColor: colors.background }]}>
                 <Ionicons name="close" size={18} color={colors.text} />
               </TouchableOpacity>
             </View>
-            {addressBook.length === 0 ? (
-              <View style={styles.emptyState}>
-                <View style={[styles.emptyIconContainer, { backgroundColor: colors.background }]}>
-                  <Ionicons name="book-outline" size={44} color={colors.textSecondary} />
-                </View>
-                <Text style={[styles.emptyTitle,    { color: colors.text }]}>{t('no_saved_addresses')}</Text>
-                <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>{t('save_address_hint')}</Text>
-              </View>
-            ) : (
-              <FlatList
-                data={addressBook}
-                keyExtractor={item => item.id}
-                contentContainerStyle={styles.addressList}
-                renderItem={({ item }) => (
-                  <TouchableOpacity style={[styles.addressItemNew, { backgroundColor: colors.background, borderColor: colors.border, borderWidth: 1 }]} onPress={() => handleSelectSavedAddress(item.address)}>
-                    <View style={[styles.addressAvatar, { backgroundColor: primaryColor + '15' }]}>
-                      <Text style={[styles.addressAvatarText, { color: primaryColor }]}>{item.name.charAt(0).toUpperCase()}</Text>
-                    </View>
-                    <View style={styles.addressInfo}>
-                      <Text style={[styles.addressNameNew, { color: colors.text }]}>{item.name}</Text>
-                      <Text style={[styles.addressTextNew, { color: colors.textSecondary }]}>{item.address.slice(0, 10)}...{item.address.slice(-6)}</Text>
-                    </View>
-                    <TouchableOpacity onPress={() => handleDeleteSavedAddress(item.address)} style={styles.deleteBtn}>
-                      <Ionicons name="trash-outline" size={18} color={colors.error} />
-                    </TouchableOpacity>
-                  </TouchableOpacity>
-                )}
-              />
-            )}
-          </View>
-        </View>
-      </Modal>
 
-      <Modal visible={saveAddressModalVisible} transparent animationType="fade" onRequestClose={() => setSaveAddressModalVisible(false)}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalOverlayCenter}>
-          <View style={[styles.saveDialogContent, { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1 }]}>
-            <View style={[styles.saveDialogIcon, { backgroundColor: colors.warning + '12' }]}>
-              <Ionicons name="bookmark" size={28} color={colors.warning} />
-            </View>
-            <Text style={[styles.saveDialogTitle, { color: colors.text }]}>{t('save_address')}</Text>
-            <View style={[styles.addressPreview, { backgroundColor: colors.background, borderColor: colors.border, borderWidth: 1 }]}>
-              <Text style={[styles.addressPreviewText, { color: colors.textSecondary }]}>
-                {state.recipient.slice(0, 14)}...{state.recipient.slice(-8)}
+            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+
+              {/* معاينة العنوان */}
+              <View style={[styles.addressPreview, { backgroundColor: colors.background, borderColor: colors.border, borderWidth: 1 }]}>
+                <Text style={[styles.addressPreviewText, { color: colors.textSecondary }]}>
+                  {state.recipient.slice(0, 14)}...{state.recipient.slice(-8)}
+                </Text>
+              </View>
+
+              {/* الاسم */}
+              <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>
+                {t('address_book.fields.name', 'الاسم')}
               </Text>
-            </View>
-            <TextInput
-              style={[styles.saveDialogInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.background, paddingVertical: 0, height: 46 }]}
-              placeholder={t('enter_address_name')}
-              placeholderTextColor={colors.textSecondary}
-              value={newAddressName}
-              onChangeText={setNewAddressName}
-              autoFocus
-              autoCorrect={false}
-            />
-            <View style={styles.saveDialogButtons}>
-              <TouchableOpacity style={[styles.saveDialogBtn, { borderColor: colors.border }]} onPress={() => { setSaveAddressModalVisible(false); setNewAddressName(''); }}>
-                <Text style={{ color: colors.text }}>{t('cancel')}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.saveDialogBtnPrimary, { backgroundColor: primaryColor }]} onPress={handleSaveAddressConfirm}>
-                <Ionicons name="bookmark" size={16} color="#FFF" />
-                <Text style={styles.saveDialogBtnText}>{t('save')}</Text>
-              </TouchableOpacity>
-            </View>
+              <View style={[styles.inputRow, { backgroundColor: colors.background, borderColor: colors.border, borderWidth: 1 }]}>
+                <Ionicons name="person-outline" size={16} color={colors.textSecondary} />
+                <TextInput
+                  style={[styles.inputTxt, { color: colors.text }]}
+                  placeholder={t('address_book.fields.name_placeholder', 'مثل: أحمد، منصة Orca...')}
+                  placeholderTextColor={colors.textSecondary}
+                  value={saveFormName}
+                  onChangeText={setSaveFormName}
+                  autoFocus
+                  autoCorrect={false}
+                />
+              </View>
+
+              {/* التصنيف */}
+              <Text style={[styles.fieldLabel, { color: colors.textSecondary, marginTop: 14 }]}>
+                {t('address_book.fields.category', 'التصنيف')}
+              </Text>
+              <View style={styles.catGrid}>
+                {AB_CATEGORIES.map(cat => {
+                  const isActive = saveFormCategory === cat.id;
+                  return (
+                    <TouchableOpacity
+                      key={cat.id}
+                      style={[
+                        styles.catOption,
+                        {
+                          backgroundColor: isActive ? cat.color + '20' : colors.background,
+                          borderColor:     isActive ? cat.color : colors.border,
+                        },
+                      ]}
+                      onPress={() => setSaveFormCategory(cat.id)}
+                    >
+                      <Ionicons name={cat.icon} size={14} color={isActive ? cat.color : colors.textSecondary} />
+                      <Text style={[styles.catOptionTxt, { color: isActive ? cat.color : colors.text }]}>
+                        {t(`address_book.categories.${cat.id}`)}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              {/* الملاحظة */}
+              <Text style={[styles.fieldLabel, { color: colors.textSecondary, marginTop: 14 }]}>
+                {t('address_book.fields.note', 'ملاحظة (اختياري)')}
+              </Text>
+              <View style={[styles.inputRow, { backgroundColor: colors.background, borderColor: colors.border, borderWidth: 1, height: 46 }]}>
+                <Ionicons name="create-outline" size={16} color={colors.textSecondary} />
+                <TextInput
+                  style={[styles.inputTxt, { color: colors.text }]}
+                  placeholder={t('address_book.fields.note_placeholder', 'ملاحظة قصيرة...')}
+                  placeholderTextColor={colors.textSecondary}
+                  value={saveFormNote}
+                  onChangeText={setSaveFormNote}
+                  autoCorrect={false}
+                  maxLength={60}
+                />
+              </View>
+
+              {/* الأزرار */}
+              <View style={styles.sheetBtns}>
+                <TouchableOpacity
+                  style={[styles.sheetBtn, { backgroundColor: colors.background, borderColor: colors.border, borderWidth: 1 }]}
+                  onPress={() => setSaveAddressModalVisible(false)}
+                >
+                  <Text style={[styles.sheetBtnTxt, { color: colors.text }]}>{t('cancel')}</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.sheetBtnPrimary, { backgroundColor: primaryColor }]}
+                  onPress={handleSaveAddressConfirm}
+                >
+                  <Ionicons name={savedItem ? 'checkmark' : 'bookmark'} size={16} color="#FFF" />
+                  <Text style={styles.sheetBtnPrimaryTxt}>
+                    {savedItem ? t('save', 'حفظ') : t('address_book.add_btn', 'إضافة')}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* زر الحذف — يظهر فقط عند التعديل */}
+              {savedItem && (
+                <TouchableOpacity
+                  style={[styles.deleteBtn, { borderColor: colors.error + '30' }]}
+                  onPress={handleDeleteSavedAddress}
+                >
+                  <Ionicons name="trash-outline" size={14} color={colors.error} />
+                  <Text style={[styles.deleteBtnTxt, { color: colors.error }]}>
+                    {t('address_book.delete_btn', 'حذف هذا العنوان')}
+                  </Text>
+                </TouchableOpacity>
+              )}
+
+            </ScrollView>
           </View>
         </KeyboardAvoidingView>
       </Modal>
@@ -663,12 +814,30 @@ export default function SendScreen() {
 const styles = StyleSheet.create({
   scrollContent:       { flexGrow: 1 },
   container:           { flex: 1, padding: 20 },
-  headerNew:           { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 16, borderBottomWidth: 1 },
-  backButton:          { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
-  headerTitleContainer:{ flex: 1, alignItems: 'center', paddingHorizontal: 10 },
-  headerTitle:         { fontSize: 18, fontWeight: '800', textAlign: 'center' },
-  headerSubText:       { fontSize: 11, marginTop: 2, textAlign: 'center' },
-  addressBookButton:   { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+  headerNew:           { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 16, borderBottomWidth: 1, gap: 10 },
+  backButton:          { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center', flexShrink: 0 },
+
+  headerTitleContainer:{ flex: 1, alignItems: 'center', paddingHorizontal: 6 },
+  headerTitle:         { fontSize: 16, fontWeight: '800', textAlign: 'center' },
+  headerSubText:       { fontSize: 10, marginTop: 2, textAlign: 'center' },
+
+  // ✅ زر دفتر العناوين (مع تسمية)
+  addressBookButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    height: 40,
+    borderRadius: 12,
+    flexShrink: 0,
+    maxWidth: 130,
+  },
+  addressBookLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    flexShrink: 1,
+  },
+
   inputSection:        { marginBottom: 16 },
   inputLabel:          { fontSize: 14, fontWeight: '700', marginBottom: 10 },
   inputContainerNew:   { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: 14, paddingLeft: 12, paddingRight: 8, height: 48 },
@@ -677,19 +846,44 @@ const styles = StyleSheet.create({
   iconBtn:             { width: 32, height: 32, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
   amountHeader:        { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
   maxButton:           { fontSize: 12, fontWeight: '700' },
+
   quickActions:        { flexDirection: 'row', marginTop: 10, gap: 8 },
-  quickActionBtn:      { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10, gap: 5 },
+  quickActionBtn:      { flexDirection: 'row', alignItems: 'center', paddingVertical: 9, paddingHorizontal: 14, borderRadius: 10, gap: 6 },
   quickActionText:     { fontSize: 12, fontWeight: '700' },
+
   sendButtonNew:       { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: 16, borderRadius: 18, gap: 10, marginTop: 10 },
   sendButtonText:      { color: '#FFF', fontSize: 16, fontWeight: '700' },
+
   modalOverlay:        { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modalOverlayCenter:  { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 20 },
   modalContentNew:     { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingTop: 12, maxHeight: '75%' },
+  saveSheet:           { borderTopLeftRadius: 26, borderTopRightRadius: 26, padding: 20, paddingTop: 12, paddingBottom: Platform.OS === 'ios' ? 34 : 20, maxHeight: '90%' },
   modalHandle:         { width: 36, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 16 },
   modalHeader:         { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   modalHeaderLeft:     { flexDirection: 'row', alignItems: 'center', gap: 8 },
   closeBtn:            { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
-  modalTitle:          { fontSize: 18, fontWeight: '800' },
+  modalTitle:          { fontSize: 17, fontWeight: '800' },
+
+  addressPreview:      { width: '100%', padding: 10, borderRadius: 10, marginBottom: 14 },
+  addressPreviewText:  { fontSize: 11, textAlign: 'center', fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' },
+
+  fieldLabel:          { fontSize: 12, fontWeight: '700', marginBottom: 8 },
+  inputRow:            { flexDirection: 'row', alignItems: 'center', borderRadius: 12, paddingHorizontal: 12, height: 52, gap: 8 },
+  inputTxt:            { flex: 1, fontSize: 14, paddingVertical: 0 },
+
+  catGrid:             { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  catOption:           { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 9, borderRadius: 12, borderWidth: 1, gap: 6 },
+  catOptionTxt:        { fontSize: 12, fontWeight: '700' },
+
+  sheetBtns:           { flexDirection: 'row', gap: 10, marginTop: 20 },
+  sheetBtn:            { flex: 1, padding: 14, borderRadius: 12, alignItems: 'center' },
+  sheetBtnTxt:         { fontSize: 14, fontWeight: '700' },
+  sheetBtnPrimary:     { flex: 1.5, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: 14, borderRadius: 12, gap: 6 },
+  sheetBtnPrimaryTxt:  { color: '#FFF', fontSize: 14, fontWeight: '800' },
+
+  deleteBtn:           { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 12, borderRadius: 12, borderWidth: 1, marginTop: 12, gap: 6 },
+  deleteBtnTxt:        { fontSize: 13, fontWeight: '700' },
+
   tokenList:           { paddingBottom: 16 },
   tokenItem:           { borderRadius: 14, padding: 12, marginBottom: 8, borderWidth: 1.5 },
   tokenItemContent:    { flexDirection: 'row', alignItems: 'center' },
@@ -697,28 +891,7 @@ const styles = StyleSheet.create({
   tokenDetails:        { flex: 1, paddingHorizontal: 10 },
   tokenItemName:       { fontSize: 14, fontWeight: '700' },
   tokenBalance:        { fontSize: 12, marginTop: 2 },
-  emptyState:          { alignItems: 'center', paddingVertical: 30 },
-  emptyIconContainer:  { width: 80, height: 80, borderRadius: 40, justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
-  emptyTitle:          { fontSize: 16, fontWeight: '800', marginBottom: 4 },
-  emptySubtitle:       { fontSize: 12, textAlign: 'center' },
-  addressList:         { paddingBottom: 16 },
-  addressItemNew:      { flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 14, marginBottom: 8, borderWidth: 1 },
-  addressAvatar:       { width: 40, height: 40, borderRadius: 10, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
-  addressAvatarText:   { fontSize: 18, fontWeight: '800' },
-  addressInfo:         { flex: 1 },
-  addressNameNew:      { fontSize: 14, fontWeight: '700', marginBottom: 2 },
-  addressTextNew:      { fontSize: 11 },
-  deleteBtn:           { padding: 8 },
-  saveDialogContent:   { width: '100%', padding: 20, borderRadius: 20, alignItems: 'center' },
-  saveDialogIcon:      { width: 54, height: 54, borderRadius: 27, justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
-  saveDialogTitle:     { fontSize: 18, fontWeight: '800', marginBottom: 12 },
-  addressPreview:      { width: '100%', padding: 10, borderRadius: 10, marginBottom: 12 },
-  addressPreviewText:  { fontSize: 11, textAlign: 'center', fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' },
-  saveDialogInput:     { width: '100%', borderWidth: 1, borderRadius: 12, padding: 12, fontSize: 14, marginBottom: 16, textAlign: 'center' },
-  saveDialogButtons:   { flexDirection: 'row', gap: 10, width: '100%' },
-  saveDialogBtn:       { flex: 1, padding: 14, borderRadius: 12, alignItems: 'center', borderWidth: 1 },
-  saveDialogBtnPrimary:{ flex: 1, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: 14, borderRadius: 12, gap: 6 },
-  saveDialogBtnText:   { color: '#FFF', fontSize: 14, fontWeight: '700' },
+
   tokenSelectorPill:   { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, borderWidth: 1, gap: 6 },
   selectedTokenIcon:   { width: 24, height: 24, borderRadius: 12 },
   tokenSymbolText:     { fontSize: 13, fontWeight: '700' },

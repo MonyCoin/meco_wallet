@@ -16,7 +16,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getSolBalance, getTokenAccounts, getTokenBalance } from '../services/heliusService';
 import { CORE_TOKENS, getJupiterMarketData, getCustomTokens } from '../services/jupiterMarketService';
 import * as LocalAuthentication from 'expo-local-authentication';
-import { getUnreadCount } from '../services/notificationsService';   // ✅ جديد
+import { getUnreadCount } from '../services/notificationsService';
 
 const { width, height } = Dimensions.get('window');
 
@@ -73,7 +73,7 @@ export default function WalletScreen() {
   const [menuVisible,           setMenuVisible]           = useState(false);
   const [emojiPickerVisible,    setEmojiPickerVisible]    = useState(false);
   const [accountEmojis,         setAccountEmojis]         = useState({});
-  const [unreadCount,           setUnreadCount]           = useState(0);  // ✅ جديد
+  const [unreadCount,           setUnreadCount]           = useState(0);
 
   const fadeAnim  = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(20)).current;
@@ -81,7 +81,6 @@ export default function WalletScreen() {
   const swipeableRefs        = useRef({});
   const accountSwipeableRefs = useRef({});
 
-  // ✅ تحميل عدد الإشعارات غير المقروءة عند كل زيارة للشاشة
   useFocusEffect(useCallback(() => {
     let isActive = true;
     const load = async () => {
@@ -311,7 +310,6 @@ export default function WalletScreen() {
   const activeAccount = accounts[activeAccountIndex];
   const activeEmoji   = activeAccount ? accountEmojis[activeAccount.publicKey] : null;
 
-  // ✅ الانتقال إلى شاشة الإشعارات
   const handleOpenNotifications = () => {
     navigation.navigate('Notifications');
   };
@@ -488,10 +486,8 @@ export default function WalletScreen() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <View style={[styles.container, { backgroundColor: colors.background }]}>
 
-        {/* ✅ حل مشكلة التداخل: دفع البطاقة بالكامل أسفل منطقة الـ Status Bar */}
         <View style={{ height: Platform.OS === 'ios' ? insets.top : insets.top + 12 }} />
 
-        {/* ── البطاقة العلوية المغلقة والعائمة باحترافية (Solflare Style Floating Card) ── */}
         <Animated.View style={[styles.headerCard, { 
           backgroundColor: colors.card, 
           opacity: fadeAnim, 
@@ -531,7 +527,6 @@ export default function WalletScreen() {
               </View>
             </View>
 
-            {/* ✅ أيقونة الجرس مع Badge + زر القائمة (النقاط الثلاث) */}
             <View style={styles.topBarActions}>
               <TouchableOpacity
                 onPress={handleOpenNotifications}
@@ -570,7 +565,6 @@ export default function WalletScreen() {
           </View>
         </Animated.View>
 
-        {/* ── أزرار العمليات الأربعة الدائرية العائمة عريضة النسق عائمة بالأسفل ── */}
         <View style={styles.actionsGrid}>
           {[
             { icon:'arrow-up',        color:colors.success, screen:'Send',    label:t('send')              },
@@ -587,7 +581,6 @@ export default function WalletScreen() {
           ))}
         </View>
 
-        {/* Assets List */}
         <View style={styles.assetsSection}>
           <View style={styles.assetsHeader}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('wallet_your_assets')}</Text>
@@ -626,6 +619,20 @@ export default function WalletScreen() {
                   <Ionicons name="settings-outline" size={18} color={primaryColor} />
                 </View>
                 <Text style={[styles.menuItemText, { color: colors.text }]}>{t('settings')}</Text>
+                <Ionicons name="chevron-forward" size={14} color={colors.textSecondary} />
+              </TouchableOpacity>
+
+              {/* ✅ تنبيهات الأسعار — جديد */}
+              <TouchableOpacity
+                style={[styles.menuItem, { borderBottomColor: colors.border }]}
+                onPress={() => { setMenuVisible(false); navigation.navigate('PriceAlerts'); }}
+              >
+                <View style={[styles.menuItemIcon, { backgroundColor: '#F59E0B15' }]}>
+                  <Ionicons name="notifications-outline" size={18} color="#F59E0B" />
+                </View>
+                <Text style={[styles.menuItemText, { color: colors.text }]}>
+                  {t('alerts.menu_label', 'تنبيهات الأسعار')}
+                </Text>
                 <Ionicons name="chevron-forward" size={14} color={colors.textSecondary} />
               </TouchableOpacity>
 
@@ -802,7 +809,6 @@ const styles = StyleSheet.create({
   accountsCount:{ fontSize:11, fontWeight:'500', marginTop:2 },
   dotsButton:   { width:40, height:40, borderRadius:12, justifyContent:'center', alignItems:'center', borderWidth: 1 },
 
-  // ✅ أنماط الجرس الجديدة
   topBarActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   bellButton:    { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center', position: 'relative' },
   bellBadge:     { position: 'absolute', top: -3, right: -3, minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 5, justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: 'transparent' },

@@ -39,7 +39,10 @@ import TradingScreen            from './screens/TradingScreen';
 import PortfolioScreen          from './screens/PortfolioScreen';
 import DappBrowserScreen        from './screens/DappBrowserScreen';
 import NotificationsScreen      from './screens/NotificationsScreen';
+import PriceAlertsScreen        from './screens/PriceAlertsScreen';           // ✅ جديد
+import AddressBookScreen      from './screens/AddressBookScreen';
 import { checkBalanceChanges }  from './services/balanceMonitorService';
+import { checkPriceAlerts }     from './services/priceAlertService';           // ✅ جديد
 
 // منع الشاشة الترحيبية الأصلية من الاختفاء تلقائياً لتفادي الوميض الأبيض
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -134,7 +137,6 @@ export default function AppContainer() {
   const [navReady,     setNavReady]     = useState(false);
   const { t } = useTranslation();
 
-  // ✅ ألوان الخلفية الموحّدة حسب الثيم — تُستخدم في Stack Navigator
   const isDark = theme === 'dark';
   const stackBgColor = isDark ? '#07070F' : '#F4F5F9';
 
@@ -244,12 +246,13 @@ export default function AppContainer() {
     }
   }, [initialRoute, navReady]);
 
-  // ✅ فحص الرصيد عند فتح التطبيق — بعد استقرار التطبيق بـ 3 ثواني
+  // ✅ فحص الرصيد + تنبيهات الأسعار عند فتح التطبيق — بعد استقرار التطبيق بـ 3 ثواني
   useEffect(() => {
     if (initialRoute === 'BottomTabs') {
       const timer = setTimeout(() => {
         const accounts = useAppStore.getState().accounts;
         checkBalanceChanges(accounts).catch(() => {});
+        checkPriceAlerts().catch(() => {});                          // ✅ فحص تنبيهات الأسعار
       }, 3000);
 
       return () => clearTimeout(timer);
@@ -273,8 +276,8 @@ export default function AppContainer() {
         <Stack.Navigator
           initialRouteName={initialRoute}
           screenOptions={{
-            cardStyle:              { backgroundColor: stackBgColor },  // ✅ خلفية موحّدة
-            detachPreviousScreen:   false,                              // ✅ إبقاء الشاشة السابقة بالذاكرة
+            cardStyle:              { backgroundColor: stackBgColor },
+            detachPreviousScreen:   false,
           }}
         >
           <Stack.Screen name="Home"               component={HomeScreen}               options={{ headerShown:false }} />
@@ -294,7 +297,9 @@ export default function AppContainer() {
           <Stack.Screen name="Settings"           component={SettingsScreen}           options={{ headerShown:false }} />
           <Stack.Screen name="Portfolio"          component={PortfolioScreen}          options={{ headerShown:false }} />
           <Stack.Screen name="Notifications"      component={NotificationsScreen}      options={{ headerShown:false }} />
-
+          <Stack.Screen name="PriceAlerts"        component={PriceAlertsScreen}        options={{ headerShown:false }} />  
+          <Stack.Screen name="AddressBook"   component={AddressBookScreen}   options={{ headerShown:false }} />
+       
           <Stack.Screen 
             name="DappBrowser" 
             component={DappBrowserScreen} 
