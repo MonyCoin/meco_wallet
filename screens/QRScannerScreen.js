@@ -7,8 +7,8 @@ import {
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import { useTranslation } from 'react-i18next';
-import { useNavigation } from '@react-navigation/native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context'; // ✅ استيراد لحساب هوامش الأمان
+import { useNavigation, useRoute } from '@react-navigation/native';   // ✅ useRoute
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppStore } from '../store';
 import { pairWalletConnect } from '../services/walletConnectService';
@@ -18,10 +18,14 @@ const { width } = Dimensions.get('window');
 export default function QRScannerScreen() {
   const { t } = useTranslation();
   const navigation = useNavigation();
+  const route = useRoute();                                            // ✅
   const theme = useAppStore(state => state.theme);
   const primaryColor = useAppStore(state => state.primaryColor || '#6C63FF');
   const isDark = theme === 'dark';
-  const insets = useSafeAreaInsets(); // جلب مسافات الأمان للهاتف
+  const insets = useSafeAreaInsets();
+
+  // ✅ الشاشة التي سنعود إليها
+  const returnTo = route.params?.returnTo || 'Send';
 
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
@@ -48,7 +52,6 @@ export default function QRScannerScreen() {
     await processScannedData(data);
   };
 
-  // ✅ الموجّه الذكي: يفرق بين ربط Web3 وإرسال الأموال
   const processScannedData = async (data) => {
     if (!data) return;
 
@@ -73,18 +76,27 @@ export default function QRScannerScreen() {
 
     const isValidAddress = data.length >= 32 && data.length <= 44 && !data.includes(' ');
     if (isValidAddress) {
-      Alert.alert(t('qr_scanner.success', 'تم المسح بنجاح'), t('qr_scanner.address_found', 'تم العثور على عنوان محفظة'), [
-        { text: t('cancel', 'إلغاء'), style: 'cancel', onPress: () => setScanned(false) },
-        { text: t('qr_scanner.use_address', 'استخدام العنوان'), onPress: () => navigation.navigate('Send', { scannedAddress: data }) }
-      ]);
+      Alert.alert(
+        t('qr_scanner.success', 'تم المسح بنجاح'),
+        t('qr_scanner.address_found', 'تم العثور على عنوان محفظة'),
+        [
+          { text: t('cancel', 'إلغاء'), style: 'cancel', onPress: () => setScanned(false) },
+          {
+            text: t('qr_scanner.use_address', 'استخدام العنوان'),
+            onPress: () => {
+              // ✅ العودة للشاشة الأصلية بضغطة واحدة فقط
+              navigation.popTo(returnTo, { scannedAddress: data });
+            },
+          },
+        ]
+      );
       return;
-    } 
-    
+    }
+
     Alert.alert(t('error', 'خطأ'), t('qr_scanner.invalid_address', 'هذا الرمز لا يحتوي على عنوان محفظة أو رابط ربط صالح.'));
     setScanned(false);
   };
 
-  // ✅ دالة قراءة الـ QR من الصورة باستخدام خدمة سحابية
   const decodeQRFromImage = async (imageUri) => {
     try {
       const formData = new FormData();
@@ -97,13 +109,10 @@ export default function QRScannerScreen() {
       const response = await fetch('https://api.qrserver.com/v1/read-qr-code/', {
         method: 'POST',
         body: formData,
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
+        headers: { 'Content-Type': 'multipart/form-data' },
       });
 
       const data = await response.json();
-      
       if (data && data[0] && data[0].symbol && data[0].symbol[0].data) {
         return data[0].symbol[0].data;
       }
@@ -131,7 +140,6 @@ export default function QRScannerScreen() {
       if (!result.canceled && result.assets?.length > 0) {
         setProcessingImage(true);
         const imageUri = result.assets[0].uri;
-
         const qrText = await decodeQRFromImage(imageUri);
 
         if (qrText) {
@@ -172,8 +180,6 @@ export default function QRScannerScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      
-      {/* ── هيدر الشاشة العلوي المتناسق والآمن ── */}
       <View style={[styles.header, { borderBottomColor: colors.border, paddingTop: Platform.OS === 'ios' ? 12 : insets.top + 10, paddingBottom: 14 }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={[styles.backButton, { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1 }]}>
           <Ionicons name="arrow-back" size={18} color={colors.text} />
@@ -198,7 +204,6 @@ export default function QRScannerScreen() {
         </View>
       </View>
 
-      {/* حاوي الكاميرا الهندسي الأنيق */}
       <View style={styles.cameraContainer}>
         <CameraView
           style={styles.camera}
@@ -218,7 +223,6 @@ export default function QRScannerScreen() {
         </CameraView>
       </View>
 
-      {/* تعليمات المسح السفلية الآمنة */}
       <View style={[styles.instructions, { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1, marginBottom: insets.bottom > 0 ? insets.bottom + 16 : 20 }]}>
         <Ionicons name="qr-code" size={16} color={primaryColor} />
         <Text style={[styles.instructionsText, { color: colors.textSecondary }]}>
@@ -226,7 +230,6 @@ export default function QRScannerScreen() {
         </Text>
       </View>
 
-      {/* زر إعادة المسح الآمن والطفيف من الأسفل */}
       {scanned && !processingImage && (
         <TouchableOpacity style={[styles.rescanButton, { backgroundColor: primaryColor, bottom: insets.bottom > 0 ? insets.bottom + 80 : 100 }]} onPress={() => setScanned(false)}>
           <Text style={styles.rescanButtonText}>{t('qr_scanner.rescan', 'مسح مرة أخرى')}</Text>

@@ -594,7 +594,7 @@ export default function SendScreen() {
                 <TouchableOpacity onPress={handlePasteAddress} style={styles.iconBtn}>
                   <Ionicons name="clipboard-outline" size={18} color={primaryColor} />
                 </TouchableOpacity>
-                <TouchableOpacity onPress={() => navigation.navigate('QRScanner')} style={styles.iconBtn}>
+                <TouchableOpacity onPress={() => navigation.navigate('QRScanner', { returnTo: 'Send' })} style={styles.iconBtn}>
                   <Ionicons name="qr-code-outline" size={18} color={primaryColor} />
                 </TouchableOpacity>
                 {state.recipient.length > 0 && (

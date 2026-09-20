@@ -220,9 +220,10 @@ export default function AddressBookScreen() {
     );
   };
 
+  // ✅ التعديل: popTo بدل navigate للعودة بضغطة واحدة
   const handleSelect = (item) => {
     if (isSelectionMode) {
-      navigation.navigate(returnScreen || 'Send', {
+      navigation.popTo(returnScreen || 'Send', {
         selectedAddress: item.address,
       });
     } else {
