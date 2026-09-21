@@ -294,7 +294,7 @@ COINGECKO_API_KEY=your_coingecko_key
 | 📥 إشعارات الاستقبال التلقائية | ✅ Completed | v1.19.0 |
 | 🎯 تنبيهات الأسعار | ✅ Completed | v1.20.0 |
 | 📒 دفتر العناوين المتقدم | ✅ Completed | v1.20.0 |
-| 🔄 التحديث الفوري (OTA) | ✅ Completed | v1.18.0 |
+| 🔄 التحديث الفوري (OTA) | ✅ Completed | v1.20.0 |
 | 📲 تطبيق iOS | 🔄 In Progress | — |
 
 ---
