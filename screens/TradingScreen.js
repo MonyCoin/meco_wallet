@@ -715,11 +715,25 @@ export default function TradingScreen() {
 
       </ScrollView>
 
+      {/* ── اختيار عملة التسعير (Quote Currency Modal) ── */}
       <Modal visible={quoteModal} transparent animationType="slide" onRequestClose={()=>setQuoteModal(false)}>
-        <TouchableOpacity style={S.modalOverlay} activeOpacity={1} onPress={()=>setQuoteModal(false)}>
+        <TouchableOpacity 
+          style={[S.modalOverlay, { paddingBottom: Math.max(insets.bottom, 20) }]} 
+          activeOpacity={1} 
+          onPress={()=>setQuoteModal(false)}
+        >
           <View style={[S.modalBox,{backgroundColor:C.card}]}>
             <View style={[S.modalHandle,{backgroundColor:C.border}]}/>
-            <Text style={[S.modalTitle,{color:C.text}]}>{t('select_quote_currency')}</Text>
+            
+            {/* هيدر المودال مع زر الإغلاق X */}
+            <View style={S.modalHeader}>
+              <TouchableOpacity onPress={()=>setQuoteModal(false)} style={[S.modalCloseBtn, { backgroundColor: C.card2 }]}>
+                <Ionicons name="close" size={18} color={C.text} />
+              </TouchableOpacity>
+              <Text style={[S.modalTitle,{color:C.text, marginBottom:0}]}>{t('select_quote_currency')}</Text>
+              <View style={{ width: 36 }} /> {/* Spacer لموازنة العنصرين */}
+            </View>
+
             {QUOTE_TOKENS.map(qt=>(
               <TouchableOpacity key={qt.symbol}
                 style={[S.quoteOption,{borderColor:C.border},qt.symbol===quoteToken.symbol&&{borderColor:primaryColor,backgroundColor:primaryColor+'12'}]}
@@ -805,10 +819,41 @@ const S = StyleSheet.create({
   statsGrid:{flexDirection:'row',flexWrap:'wrap',justifyContent:'space-between',rowGap:10},
   statItem:{width:'48.5%',padding:14,borderRadius:12,borderWidth:1},
   statL:{fontSize:11,marginBottom:4},statV:{fontSize:13,fontWeight:'700'},
-  modalOverlay:{flex:1,backgroundColor:'rgba(0,0,0,0.5)',justifyContent:'flex-end'},
-  modalBox:{borderTopLeftRadius:24,borderTopRightRadius:24,padding:20,paddingTop:12,paddingBottom: Platform.OS==='ios'?36:20},
+  
+  // ── تعديلات المودال الاحترافي ──
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+    paddingHorizontal: 16, // لجعل البطاقة عائمة من الجوانب
+  },
+  modalBox: {
+    borderRadius: 24, // تدوير جميع الحواف
+    padding: 20,
+    paddingTop: 12,
+    paddingBottom: 20,
+    width: '100%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  modalCloseBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    textAlign: 'center',
+    flex: 1,
+  },
   modalHandle:{width:36,height:4,borderRadius:2,alignSelf:'center',marginBottom:16},
-  modalTitle:{fontSize:18,fontWeight:'800',marginBottom:16,textAlign:'center'},
   quoteOption:{flexDirection:'row',alignItems:'center',padding:14,borderRadius:14,borderWidth:1,marginBottom:8,gap:12},
   quoteOptionTxt:{flex:1,fontSize:15,fontWeight:'700'},
 });

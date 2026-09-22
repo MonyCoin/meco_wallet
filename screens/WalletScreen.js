@@ -27,7 +27,8 @@ const ACCOUNT_EMOJIS = [
   '🤖','👻','🦸','🧙','🧊','🌋','🌺','🦩','🐬','🦖',
 ];
 
-const EMOJIS_STORAGE_KEY = '@meco_account_emojis';
+const EMOJIS_STORAGE_KEY  = '@meco_account_emojis';
+const HIDE_BALANCE_KEY    = '@meco_hide_balance';   // ✅ جديد
 
 export default function WalletScreen() {
   const navigation   = useNavigation();
@@ -74,6 +75,7 @@ export default function WalletScreen() {
   const [emojiPickerVisible,    setEmojiPickerVisible]    = useState(false);
   const [accountEmojis,         setAccountEmojis]         = useState({});
   const [unreadCount,           setUnreadCount]           = useState(0);
+  const [hideBalance,           setHideBalance]           = useState(false);   // ✅ جديد
 
   const fadeAnim  = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(20)).current;
@@ -95,7 +97,21 @@ export default function WalletScreen() {
     AsyncStorage.getItem(EMOJIS_STORAGE_KEY)
       .then(stored => { if (stored) setAccountEmojis(JSON.parse(stored)); })
       .catch(() => {});
+
+    // ✅ تحميل حالة إخفاء الرصيد
+    AsyncStorage.getItem(HIDE_BALANCE_KEY)
+      .then(stored => { if (stored === 'true') setHideBalance(true); })
+      .catch(() => {});
   }, []);
+
+  // ✅ دالة تبديل إخفاء الرصيد
+  const toggleHideBalance = async () => {
+    const newValue = !hideBalance;
+    setHideBalance(newValue);
+    try {
+      await AsyncStorage.setItem(HIDE_BALANCE_KEY, newValue ? 'true' : 'false');
+    } catch (_) {}
+  };
 
   const saveEmoji = async (publicKey, emoji) => {
     const updated = { ...accountEmojis, [publicKey]: emoji };
@@ -370,10 +386,13 @@ export default function WalletScreen() {
             </View>
             <View style={styles.assetRight}>
               <Text style={[styles.assetBalance, { color: colors.text }]}>
-                {item.amount > 0 ? item.amount.toFixed(item.amount > 100 ? 2 : 4) : '0'}
+                {hideBalance
+                  ? '••••••'
+                  : (item.amount > 0 ? item.amount.toFixed(item.amount > 100 ? 2 : 4) : '0')
+                }
               </Text>
               <Text style={[styles.assetValue, { color: colors.textSecondary }]}>
-                {item.valueUSD > 0 ? `$${item.valueUSD.toFixed(2)}` : '$0.00'}
+                {hideBalance ? '•••' : (item.valueUSD > 0 ? `$${item.valueUSD.toFixed(2)}` : '$0.00')}
               </Text>
             </View>
             <View style={styles.assetChevron}>
@@ -472,7 +491,10 @@ export default function WalletScreen() {
               {isLoading
                 ? <ActivityIndicator size="small" color={primaryColor} />
                 : <Text style={[styles.accountBalance, { color: colors.text }]}>
-                    ${usdBalance?.toLocaleString('en-US', { minimumFractionDigits:2, maximumFractionDigits:2 }) || '0.00'}
+                    {hideBalance
+                      ? '•••••'
+                      : `$${usdBalance?.toLocaleString('en-US', { minimumFractionDigits:2, maximumFractionDigits:2 }) || '0.00'}`
+                    }
                   </Text>
               }
             </View>
@@ -551,14 +573,27 @@ export default function WalletScreen() {
             </View>
           </View>
 
+          {/* ✅ قسم الرصيد مع زر الإخفاء */}
           <View style={styles.balanceSection}>
-            <Text style={[styles.balanceLabel, { color: colors.textSecondary }]}>{t('total_balance')}</Text>
+            <View style={styles.balanceLabelRow}>
+              <Text style={[styles.balanceLabel, { color: colors.textSecondary }]}>{t('total_balance')}</Text>
+              <TouchableOpacity onPress={toggleHideBalance} style={styles.eyeBtn}>
+                <Ionicons
+                  name={hideBalance ? 'eye-off-outline' : 'eye-outline'}
+                  size={16}
+                  color={colors.textSecondary}
+                />
+              </TouchableOpacity>
+            </View>
             {loadingInitial || isSwitchingAccount ? (
               <View style={styles.loadingBalance}><ActivityIndicator color={primaryColor} /></View>
             ) : (
               <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
                 <Text style={[styles.balanceAmount, { color: colors.text }]}>
-                  ${totalBalanceUSD.toLocaleString('en-US', { minimumFractionDigits:2, maximumFractionDigits:2 })}
+                  {hideBalance
+                    ? '$ ••••••'
+                    : `$${totalBalanceUSD.toLocaleString('en-US', { minimumFractionDigits:2, maximumFractionDigits:2 })}`
+                  }
                 </Text>
               </Animated.View>
             )}
@@ -609,20 +644,13 @@ export default function WalletScreen() {
         <Modal visible={menuVisible} transparent animationType="fade" onRequestClose={() => setMenuVisible(false)}>
           <TouchableOpacity style={styles.menuOverlay} activeOpacity={1} onPress={() => setMenuVisible(false)}>
             <View style={[styles.menuCard, { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1 }]}>
+              
+              <View style={[styles.menuHeader, { borderBottomColor: colors.border }]}>
+                <TouchableOpacity onPress={() => setMenuVisible(false)} style={styles.menuCloseBtn}>
+                  <Ionicons name="close" size={18} color={colors.text} />
+                </TouchableOpacity>
+              </View>
 
-              {/* الإعدادات */}
-              <TouchableOpacity
-                style={[styles.menuItem, { borderBottomColor: colors.border }]}
-                onPress={() => { setMenuVisible(false); navigation.navigate('Settings'); }}
-              >
-                <View style={[styles.menuItemIcon, { backgroundColor: primaryColor + '15' }]}>
-                  <Ionicons name="settings-outline" size={18} color={primaryColor} />
-                </View>
-                <Text style={[styles.menuItemText, { color: colors.text }]}>{t('settings')}</Text>
-                <Ionicons name="chevron-forward" size={14} color={colors.textSecondary} />
-              </TouchableOpacity>
-
-              {/* ✅ تنبيهات الأسعار — جديد */}
               <TouchableOpacity
                 style={[styles.menuItem, { borderBottomColor: colors.border }]}
                 onPress={() => { setMenuVisible(false); navigation.navigate('PriceAlerts'); }}
@@ -636,7 +664,6 @@ export default function WalletScreen() {
                 <Ionicons name="chevron-forward" size={14} color={colors.textSecondary} />
               </TouchableOpacity>
 
-              {/* تغيير الاسم */}
               <TouchableOpacity
                 style={[styles.menuItem, { borderBottomColor: colors.border }]}
                 onPress={() => {
@@ -653,15 +680,25 @@ export default function WalletScreen() {
                 <Ionicons name="chevron-forward" size={14} color={colors.textSecondary} />
               </TouchableOpacity>
 
-              {/* اختيار إيموجي */}
               <TouchableOpacity
-                style={styles.menuItem}
+                style={[styles.menuItem, { borderBottomColor: colors.border }]}
                 onPress={() => { setMenuVisible(false); setTimeout(() => setEmojiPickerVisible(true), 200); }}
               >
                 <View style={[styles.menuItemIcon, { backgroundColor: primaryColor + '15' }]}>
                   <Text style={{ fontSize: 18 }}>🎨</Text>
                 </View>
                 <Text style={[styles.menuItemText, { color: colors.text }]}>{t('change')}</Text>
+                <Ionicons name="chevron-forward" size={14} color={colors.textSecondary} />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.menuItem, { borderBottomWidth: 0 }]}
+                onPress={() => { setMenuVisible(false); navigation.navigate('Settings'); }}
+              >
+                <View style={[styles.menuItemIcon, { backgroundColor: primaryColor + '15' }]}>
+                  <Ionicons name="settings-outline" size={18} color={primaryColor} />
+                </View>
+                <Text style={[styles.menuItemText, { color: colors.text }]}>{t('settings')}</Text>
                 <Ionicons name="chevron-forward" size={14} color={colors.textSecondary} />
               </TouchableOpacity>
 
@@ -750,7 +787,7 @@ export default function WalletScreen() {
         {/* منتقي الحسابات المطور (Bottom Sheet) */}
         <Modal visible={accountsModalVisible} transparent animationType="slide" onRequestClose={() => setAccountsModalVisible(false)}>
           <View style={styles.modalOverlayBottom}>
-            <View style={[styles.accountsModalContent, { backgroundColor: colors.card }]}>
+            <View style={[styles.accountsModalContent, { backgroundColor: colors.card, marginBottom: Math.max(insets.bottom, 20) }]}>
               <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
               <View style={styles.accountsModalHeader}>
                 <View style={styles.accountsHeaderLeft}>
@@ -814,10 +851,13 @@ const styles = StyleSheet.create({
   bellBadge:     { position: 'absolute', top: -3, right: -3, minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 5, justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: 'transparent' },
   bellBadgeTxt:  { color: '#FFF', fontSize: 10, fontWeight: '800' },
 
-  balanceSection:{ alignItems:'center' },
-  balanceLabel: { fontSize:13, fontWeight:'500', marginBottom:6 },
-  balanceAmount:{ fontSize:36, fontWeight:'800', letterSpacing:-0.5 },
-  loadingBalance:{ height:40, justifyContent:'center' },
+  // ✅ قسم الرصيد مع العين
+  balanceSection: { alignItems:'center' },
+  balanceLabelRow:{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 },
+  balanceLabel:   { fontSize:13, fontWeight:'500' },
+  eyeBtn:         { padding: 2 },
+  balanceAmount:  { fontSize:36, fontWeight:'800', letterSpacing:-0.5 },
+  loadingBalance: { height:40, justifyContent:'center' },
   
   actionsGrid:  { flexDirection:'row', justifyContent:'space-around', width: '100%', paddingHorizontal: 4, marginTop: 16, marginBottom: 12 },
   actionBtn:    { alignItems:'center', gap:6, flex: 1 },
@@ -853,9 +893,12 @@ const styles = StyleSheet.create({
   
   menuOverlay:  { flex:1, backgroundColor:'rgba(0,0,0,0.2)', justifyContent:'flex-start', alignItems:'flex-end', paddingTop:Platform.OS==='ios'?100:80, paddingRight:20 },
   menuCard:     { width:210, borderRadius:16, overflow:'hidden', elevation:10, shadowOffset:{width:0,height:4}, shadowOpacity:0.1, shadowRadius:10 },
+  menuHeader:   { flexDirection:'row', justifyContent:'flex-end', paddingHorizontal:8, paddingTop:8, paddingBottom:4, borderBottomWidth:1 },
+  menuCloseBtn: { padding:6, borderRadius:8 },
   menuItem:     { flexDirection:'row', alignItems:'center', padding:12, borderBottomWidth:1, gap:10 },
   menuItemIcon: { width:34, height:34, borderRadius:10, justifyContent:'center', alignItems:'center' },
   menuItemText: { flex:1, fontSize:14, fontWeight:'600' },
+  
   emojiPickerContent:{ borderTopLeftRadius:24, borderTopRightRadius:24, padding:20, paddingTop:12, maxHeight:height*0.55 },
   emojiPickerHeader: { flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:12 },
   emojiGrid:    { paddingBottom:16 },
@@ -863,8 +906,9 @@ const styles = StyleSheet.create({
   emojiText:    { fontSize:26 },
   removeEmojiBtn:{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:6, paddingVertical:8, borderRadius:10, borderWidth:1, marginBottom:12 },
   removeEmojiText:{ fontSize:13, fontWeight:'600' },
+  
   modalOverlay: { flex:1, backgroundColor:'rgba(0,0,0,0.5)', justifyContent:'center', alignItems:'center', padding:20 },
-  modalOverlayBottom:{ flex:1, backgroundColor:'rgba(0,0,0,0.5)', justifyContent:'flex-end', padding:20 },
+  modalOverlayBottom:{ flex:1, backgroundColor:'rgba(0,0,0,0.5)', justifyContent:'flex-end', paddingHorizontal: 16 },
   modalContent: { width:'100%', padding:20, borderRadius:20, alignItems:'center' },
   modalHeader:  { marginBottom:12 },
   modalTitle:   { fontSize:18, fontWeight:'bold', marginBottom:16, textAlign:'center' },
@@ -872,7 +916,8 @@ const styles = StyleSheet.create({
   modalButtons: { flexDirection:'row', gap:10, width:'100%' },
   modalBtn:     { flex:1, padding:14, borderRadius:12, alignItems:'center', borderWidth:1.5 },
   modalBtnPrimary:{ flex:1, padding:14, borderRadius:12, alignItems:'center' },
-  accountsModalContent:{ width:'100%', maxHeight:height*0.8, padding:20, paddingTop:12, borderTopLeftRadius:24, borderTopRightRadius:24, flex:1 },
+  
+  accountsModalContent:{ width:'100%', maxHeight:height*0.75, padding:20, paddingTop:12, borderRadius:24, flex:1 },
   modalHandle:  { width:36, height:4, borderRadius:2, alignSelf:'center', marginBottom:16 },
   accountsModalHeader:{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:6 },
   accountsHeaderLeft: { flexDirection:'row', alignItems:'center', gap:8 },
