@@ -15,7 +15,7 @@ import * as SwapAPI from '../services/swapService';
 import NetInfo from '@react-native-community/netinfo';
 import { CORE_TOKENS, getSolPriceUsd } from '../services/jupiterMarketService';
 import { getSolBalance, getTokenBalance } from '../services/heliusService';
-import { addNotification, NOTIF_TYPES } from '../services/notificationsService';   // ✅ جديد
+import { addNotification, NOTIF_TYPES } from '../services/notificationsService';
 
 const { height, width } = Dimensions.get('window');
 
@@ -340,19 +340,31 @@ export default function SwapScreen() {
   });
 
   const renderTokenModal = (visible, onClose, onSelect, selectedToken) => (
-    <Modal visible={visible} transparent animationType="slide">
-      <View style={styles.modalOverlay}>
-        <View style={[styles.modalContent, { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1 }]}>
-          <View style={styles.modalHandle} />
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      {/* استخدام TouchableOpacity لإغلاق المودال عند الضغط خارج البطاقة */}
+      <TouchableOpacity 
+        style={[styles.modalOverlay, { paddingBottom: Math.max(insets.bottom, 20) }]} 
+        activeOpacity={1} 
+        onPress={onClose}
+      >
+        <TouchableOpacity 
+          activeOpacity={1} 
+          style={[styles.modalContent, { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1 }]}
+        >
+          <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
+          
           <View style={styles.modalHeader}>
-            <Text style={[styles.modalTitle, { color: colors.text }]}>{t('select_token')}</Text>
             <TouchableOpacity onPress={onClose} style={[styles.closeBtn, { backgroundColor: colors.background }]}>
               <Ionicons name="close" size={18} color={colors.text} />
             </TouchableOpacity>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>{t('select_token')}</Text>
+            <View style={{ width: 36 }} /> {/* Spacer لموازنة العنصرين */}
           </View>
+
           <FlatList
             data={CORE_TOKENS.filter(tk => tk.swapAvailable)}
             keyExtractor={item => item.symbol}
+            showsVerticalScrollIndicator={false}
             renderItem={({ item }) => (
               <TouchableOpacity
                 style={[styles.tokenItem, { borderBottomColor: colors.border }]}
@@ -376,8 +388,8 @@ export default function SwapScreen() {
               </TouchableOpacity>
             )}
           />
-        </View>
-      </View>
+        </TouchableOpacity>
+      </TouchableOpacity>
     </Modal>
   );
 
@@ -652,11 +664,46 @@ const styles = StyleSheet.create({
   },
   executeButtonText: { color: '#FFF', fontSize: 16, fontWeight: '700' },
 
-  modalOverlay:  { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  modalContent:  { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingTop: 12, maxHeight: height * 0.75 },
-  modalHandle:   { width: 36, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 16, backgroundColor: '#E5E5EA' },
-  modalHeader:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  modalTitle:    { fontSize: 18, fontWeight: '800' },
+  // ── تعديلات المودال الاحترافي ──
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+    paddingHorizontal: 16, // لجعل البطاقة عائمة من الجوانب
+  },
+  modalContent: {
+    borderRadius: 24, // تدوير جميع الحواف
+    padding: 20,
+    paddingTop: 12,
+    maxHeight: height * 0.75,
+    width: '100%',
+  },
+  modalHandle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginBottom: 16,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    flex: 1,
+    textAlign: 'center',
+  },
+  closeBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   tokenItem:     { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1 },
   tokenIconWrapper:   { width: 40, height: 40, borderRadius: 10, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
   tokenIcon:          { width: 24, height: 24, borderRadius: 12 },
