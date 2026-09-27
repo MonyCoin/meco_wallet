@@ -37,7 +37,7 @@ export const useAppStore = create((set, get) => ({
   walletName: 'MECO Wallet',
   setWalletName: (name) => set({ walletName: name }),
 
-  primaryColor: '#06B6D4',
+  primaryColor: ' #3B82F6',
   setPrimaryColor: async (color) => {
     await AsyncStorage.setItem('app_primary_color', color);
     set({ primaryColor: color });
