@@ -54,7 +54,6 @@ async function getConnection() {
 
 // ─── Quote — مع معالجة MECO مطابقة لـ swapService ───────────────────────────
 async function getQuote(inputMint, outputMint, amount, slippageBps = 50) {
-  // ✅ نفس منطق swapService للـ MECO
   const isMeco          = inputMint === MECO_MINT || outputMint === MECO_MINT;
   const extraParams     = isMeco ? '&onlyDirectRoutes=false' : '';
   const effectiveSlippage = isMeco ? Math.max(slippageBps, 300) : slippageBps;
@@ -69,13 +68,24 @@ async function getQuote(inputMint, outputMint, amount, slippageBps = 50) {
     try {
       const url = `${ep.url}?inputMint=${inputMint}&outputMint=${outputMint}&amount=${amount}&slippageBps=${effectiveSlippage}${extraParams}`;
       const res = await fetchWT(url, { method: 'GET', headers: BROWSER_HEADERS }, 15000);
-      if (!res.ok) throw new Error(await res.text());
+
+      if (!res.ok) {
+        const raw = await res.text();
+        if (raw.includes('TOKEN_NOT_TRADABLE') || raw.includes('is not tradable')) {
+          lastError = new Error('TOKEN_NOT_TRADABLE'); continue;
+        }
+        if (raw.includes('insufficient_balance')) {
+          lastError = new Error('INSUFFICIENT_BALANCE'); continue;
+        }
+        lastError = new Error(raw); continue;
+      }
+
       const quote = await res.json();
-      if (!quote?.routePlan?.length) throw new Error('لا يوجد مسار للتداول');
+      if (!quote?.routePlan?.length) { lastError = new Error('NO_ROUTE'); continue; }
       return quote;
     } catch (err) { lastError = err; }
   }
-  throw new Error(`تعذر الحصول على السعر: ${lastError?.message || ''}`);
+  throw lastError || new Error('NO_ROUTE');
 }
 
 // ─── Swap TX ──────────────────────────────────────────────────────────────────
@@ -98,13 +108,19 @@ async function buildSwapTx(quote, walletPublicKey) {
           asLegacyTransaction:       false,
         }),
       }, 20000);
-      if (!res.ok) throw new Error(await res.text());
+      if (!res.ok) {
+        const raw = await res.text();
+        if (raw.includes('insufficient_balance') || raw.includes('Insufficient balance')) {
+          lastError = new Error('INSUFFICIENT_BALANCE'); continue;
+        }
+        lastError = new Error(raw); continue;
+      }
       const data = await res.json();
-      if (!data.swapTransaction) throw new Error('بيانات المعاملة غير مكتملة');
+      if (!data.swapTransaction) { lastError = new Error('بيانات المعاملة غير مكتملة'); continue; }
       return data.swapTransaction;
     } catch (err) { lastError = err; }
   }
-  throw new Error(`فشل بناء المعاملة: ${lastError?.message || ''}`);
+  throw lastError || new Error('فشل بناء المعاملة');
 }
 
 // ─── تنفيذ المعاملة — الرسوم atomic ─────────────────────────────────────────

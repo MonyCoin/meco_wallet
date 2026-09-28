@@ -472,6 +472,13 @@ const resources = {
       amount_in: 'المبلغ بـ',
       platform_fee_notice: 'سيتم خصم رسوم منصة ثابتة قدرها {{sol}} SOL{{usd}} بالإضافة إلى رسوم شبكة سولانا القياسية.',
       platform_fee_label: 'رسوم المنصة',
+      trading_errors: {
+        insufficient_balance: "الرصيد غير كافٍ لإتمام العملية.",
+        token_not_tradable: "هذه العملة غير قابلة للتداول حالياً عبر Jupiter.",
+        no_route: "لا توجد سيولة كافية لهذا الزوج حالياً.",
+        network: "تعذر الاتصال بالخادم، تحقق من الإنترنت.",
+        general: "تعذّر تنفيذ العملية. حاول مرة أخرى.",
+      },
 
       // ========== TransactionHistoryScreen ==========
       all: 'الكل',
@@ -1135,6 +1142,13 @@ const resources = {
       amount_in: 'Amount in',
       platform_fee_notice: 'A fixed platform fee of {{sol}} SOL{{usd}} will be deducted, in addition to the standard Solana network fee.',
       platform_fee_label: 'Platform Fee',
+      trading_errors: {
+        insufficient_balance: "Insufficient balance to complete this transaction.",
+        token_not_tradable: "This token is not tradable via Jupiter at the moment.",
+        no_route: "Insufficient liquidity for this pair currently.",
+        network: "Cannot connect to server, check your internet.",
+        general: "Could not process the transaction. Please try again.",
+      },
 
       // ========== TransactionHistoryScreen ==========
       all: 'All',

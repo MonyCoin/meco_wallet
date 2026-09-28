@@ -239,13 +239,31 @@ export default function TradingScreen() {
     }
   };
 
+  // ✅ دالة موحدة لتحويل رموز الأخطاء إلى رسائل عربية نظيفة
+  const getFriendlyError = (rawMsg) => {
+    const msg = (rawMsg || '').toString();
+    if (msg === 'INSUFFICIENT_BALANCE' || msg.includes('insufficient_balance') || msg.includes('Insufficient balance')) {
+      return t('trading_errors.insufficient_balance');
+    }
+    if (msg === 'TOKEN_NOT_TRADABLE' || msg.includes('TOKEN_NOT_TRADABLE') || msg.includes('is not tradable')) {
+      return t('trading_errors.token_not_tradable');
+    }
+    if (msg === 'NO_ROUTE' || msg.includes('NO_ROUTES') || msg.includes('no route')) {
+      return t('trading_errors.no_route');
+    }
+    if (msg.includes('Network') || msg.includes('timeout') || msg.includes('fetch') || msg.includes('انتهت مهلة')) {
+      return t('trading_errors.network');
+    }
+    return t('trading_errors.general');
+  };
+
   const handleExecute = async () => {
     if (!orderAmount || parseFloat(orderAmount)<=0) return;
     if (!walletPublicKey) { Alert.alert(t('error'), t('no_wallet')); return; }
 
     const amt      = parseFloat(orderAmount);
     const availBal = orderSide==='buy' ? userBalance.quote : userBalance.base;
-    if (amt > availBal) { Alert.alert(t('error'), t('insufficient_balance')); return; }
+    if (amt > availBal) { Alert.alert(t('error'), t('trading_errors.insufficient_balance')); return; }
 
     const inputToken  = orderSide==='buy' ? quoteToken    : selectedToken;
     const outputToken = orderSide==='buy' ? selectedToken : quoteToken;
@@ -394,7 +412,8 @@ export default function TradingScreen() {
                               await fetchBalances();
                               Alert.alert(t('success'), `✅ ${t('trade_success')}\n${mSig.slice(0,8)}...${mSig.slice(-4)}`);
                             } catch (e) {
-                              Alert.alert(t('error'), e.message);
+                              // ✅ رسالة نظيفة للـ fallback
+                              Alert.alert(t('error'), getFriendlyError(e?.message));
                             } finally {
                               setExecuting(false);
                             }
@@ -408,7 +427,8 @@ export default function TradingScreen() {
                 }
               }
             } catch (e) {
-              Alert.alert(t('error'), `${t('trade_failed')}: ${e.message}`);
+              // ✅ رسالة نظيفة للخطأ الرئيسي
+              Alert.alert(t('error'), getFriendlyError(e?.message));
             } finally {
               setExecuting(false);
             }
@@ -725,13 +745,12 @@ export default function TradingScreen() {
           <View style={[S.modalBox,{backgroundColor:C.card}]}>
             <View style={[S.modalHandle,{backgroundColor:C.border}]}/>
             
-            {/* هيدر المودال مع زر الإغلاق X */}
             <View style={S.modalHeader}>
               <TouchableOpacity onPress={()=>setQuoteModal(false)} style={[S.modalCloseBtn, { backgroundColor: C.card2 }]}>
                 <Ionicons name="close" size={18} color={C.text} />
               </TouchableOpacity>
               <Text style={[S.modalTitle,{color:C.text, marginBottom:0}]}>{t('select_quote_currency')}</Text>
-              <View style={{ width: 36 }} /> {/* Spacer لموازنة العنصرين */}
+              <View style={{ width: 36 }} />
             </View>
 
             {QUOTE_TOKENS.map(qt=>(
@@ -820,15 +839,14 @@ const S = StyleSheet.create({
   statItem:{width:'48.5%',padding:14,borderRadius:12,borderWidth:1},
   statL:{fontSize:11,marginBottom:4},statV:{fontSize:13,fontWeight:'700'},
   
-  // ── تعديلات المودال الاحترافي ──
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'flex-end',
-    paddingHorizontal: 16, // لجعل البطاقة عائمة من الجوانب
+    paddingHorizontal: 16,
   },
   modalBox: {
-    borderRadius: 24, // تدوير جميع الحواف
+    borderRadius: 24,
     padding: 20,
     paddingTop: 12,
     paddingBottom: 20,
