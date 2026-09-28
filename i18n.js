@@ -378,7 +378,11 @@ const resources = {
           done: "تم",
           sendFailed: "فشل الإرسال",
           unexpectedError: "حدث خطأ غير متوقع",
-          privateKeyNotFound: "لم يتم العثور على المفتاح الخاص بالمحفظة"
+          privateKeyNotFound: "لم يتم العثور على المفتاح الخاص بالمحفظة",
+          cannot_send_title: "تعذّر إكمال الإرسال",
+          recipient_needs_sol: "المستلم محفظة جديدة وتحتاج إلى رصيد بسيط من SOL لتفعيل الحساب. اطلب منه تحويل كمية صغيرة من SOL أولاً ثم أعد المحاولة.",
+          send_failed_title: "فشلت العملية",
+          simulation_failed: "تعذّر تنفيذ العملية. تأكد من رصيد SOL في محفظتك ثم حاول مرة أخرى."
         },
         errors: {
           privateKeyNotFound: "لم يتم العثور على المفتاح الخاص بالمحفظة"
@@ -1037,7 +1041,11 @@ const resources = {
           done: "Done",
           sendFailed: "Send failed",
           unexpectedError: "An unexpected error occurred",
-          privateKeyNotFound: "Private key not found"
+          privateKeyNotFound: "Private key not found",
+          cannot_send_title: "Cannot Complete Transfer",
+          recipient_needs_sol: "The recipient is a new wallet and needs a small SOL balance to activate their account. Ask them to receive a small amount of SOL first, then try again.",
+          send_failed_title: "Transaction Failed",
+          simulation_failed: "Could not process the transaction. Please check your SOL balance and try again."
         },
         errors: {
           privateKeyNotFound: "Private key not found"

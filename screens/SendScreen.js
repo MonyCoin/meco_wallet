@@ -373,15 +373,40 @@ export default function SendScreen() {
           if (isMounted.current) setState(prev => ({ ...prev, recipient: '', amount: '' }));
         }}]
       );
-    } catch (error) {
-      const errorString = error.toString();
-      if (errorString.includes('insufficient funds for rent') ||
-          errorString.includes('Transaction results in a account (0) with insufficient funds for rent')) {
-        Alert.alert(t('sendScreen.alerts.error'), t('errors.rentError'));
-        error.handled = true;
-      }
-      throw error;
-    }
+   } catch (error) {
+  const errorString = error.toString();
+
+  const isSimulationFailed =
+    errorString.includes('Simulation failed') ||
+    errorString.includes('Transaction simulation failed');
+  const isCustomProgram1 =
+    errorString.includes('custom program error: 0x1') ||
+    errorString.includes('custom program error 1');
+  const isRentError =
+    errorString.includes('insufficient funds for rent');
+
+  // 1) المستلم جديد ولا يملك SOL كافٍ لتفعيل الحساب
+  if (isRentError || (isSimulationFailed && isCustomProgram1)) {
+    Alert.alert(
+      t('sendScreen.alerts.cannot_send_title'),
+      t('sendScreen.alerts.recipient_needs_sol')
+    );
+    error.handled = true;
+    return;
+  }
+
+  // 2) أي خطأ محاكاة آخر غير متوقع
+  if (isSimulationFailed) {
+    Alert.alert(
+      t('sendScreen.alerts.send_failed_title'),
+      t('sendScreen.alerts.simulation_failed')
+    );
+    error.handled = true;
+    return;
+  }
+
+  throw error;
+}
   }, [state.networkFee, loadInitialBalance, t]);
 
   const handleMaxAmount = useCallback(() => {
