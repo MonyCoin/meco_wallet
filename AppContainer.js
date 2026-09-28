@@ -11,7 +11,6 @@ import { useAppStore } from './store';
 import { useTranslation } from 'react-i18next';
 import i18n from './i18n';
 
-// استيراد حزمة الشاشة الترحيبية للتحكم بالوميض ومنعه
 import * as SplashScreen from 'expo-splash-screen';
 
 import * as Linking from 'expo-linking';
@@ -44,10 +43,8 @@ import AddressBookScreen      from './screens/AddressBookScreen';
 import { checkBalanceChanges }  from './services/balanceMonitorService';
 import { checkPriceAlerts }     from './services/priceAlertService';
 
-// منع الشاشة الترحيبية الأصلية من الاختفاء تلقائياً لتفادي الوميض الأبيض
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
-// ✅ خلفية موحّدة تُستخدم في كل مراحل التحميل (لا وميض أبيض إطلاقاً)
 const SPLASH_BG = '#0A0A0F';
 
 const Stack = createStackNavigator();
@@ -59,6 +56,9 @@ function BottomTabs() {
   const theme        = useAppStore(state => state.theme);
   const isDark       = theme === 'dark';
   const insets       = useSafeAreaInsets();
+
+  // مسافة إضافية أسفل شريط التبويبات لفصله عن أزرار الهاتف
+  const bottomSpace = insets.bottom > 0 ? insets.bottom + 10 : 18;
 
   return (
     <Tab.Navigator
@@ -82,8 +82,8 @@ function BottomTabs() {
           borderTopColor: isDark ? '#1E1E38' : '#E8E8F2',
           elevation: 0,
           shadowOpacity: 0,
-          height: 60 + (insets.bottom > 0 ? insets.bottom : 10),
-          paddingBottom: insets.bottom > 0 ? insets.bottom : 10,
+          height: 60 + bottomSpace,
+          paddingBottom: bottomSpace,
           paddingTop: 8,
         },
         tabBarLabelStyle: {
@@ -206,7 +206,6 @@ export default function AppContainer() {
     init();
   }, []);
 
-  // ✅ إخفاء شاشة الإقلاع فقط بعد أن يكون المسار محدّداً + الواجهة الأولى مرسومة فعلاً
   useEffect(() => {
     if (initialRoute && navReady) {
       const timer = setTimeout(() => {
@@ -219,7 +218,6 @@ export default function AppContainer() {
     }
   }, [initialRoute, navReady]);
 
-  // ✅ فحص الرصيد + تنبيهات الأسعار عند فتح التطبيق — بعد استقرار التطبيق بـ 3 ثواني
   useEffect(() => {
     if (initialRoute === 'BottomTabs') {
       const timer = setTimeout(() => {
