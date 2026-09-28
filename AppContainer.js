@@ -39,10 +39,10 @@ import TradingScreen            from './screens/TradingScreen';
 import PortfolioScreen          from './screens/PortfolioScreen';
 import DappBrowserScreen        from './screens/DappBrowserScreen';
 import NotificationsScreen      from './screens/NotificationsScreen';
-import PriceAlertsScreen        from './screens/PriceAlertsScreen';           // ✅ جديد
+import PriceAlertsScreen        from './screens/PriceAlertsScreen';
 import AddressBookScreen      from './screens/AddressBookScreen';
 import { checkBalanceChanges }  from './services/balanceMonitorService';
-import { checkPriceAlerts }     from './services/priceAlertService';           // ✅ جديد
+import { checkPriceAlerts }     from './services/priceAlertService';
 
 // منع الشاشة الترحيبية الأصلية من الاختفاء تلقائياً لتفادي الوميض الأبيض
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -66,65 +66,38 @@ function BottomTabs() {
       screenOptions={({ route }) => ({
         headerShown: false,
         tabBarActiveTintColor:   primaryColor,
-        tabBarInactiveTintColor: 'gray',
+        tabBarInactiveTintColor: '#8B8B9E',
         tabBarIcon: ({ color, size, focused }) => {
           let iconName;
-          if      (route.name === 'Wallet')    iconName = focused ? 'wallet'      : 'wallet-outline';
-          else if (route.name === 'Market')    iconName = focused ? 'stats-chart' : 'stats-chart-outline';
-          else if (route.name === 'Trading')   iconName = focused ? 'trending-up' : 'trending-up-outline';
-          else if (route.name === 'AppPortal') iconName = focused ? 'compass'     : 'compass-outline';
-          else if (route.name === 'Portfolio') iconName = focused ? 'pie-chart'   : 'pie-chart-outline';
-          return <Ionicons name={iconName} size={size} color={color} />;
+          if      (route.name === 'Wallet')    iconName = focused ? 'wallet'           : 'wallet-outline';
+          else if (route.name === 'Market')    iconName = focused ? 'stats-chart'      : 'stats-chart-outline';
+          else if (route.name === 'Trading')   iconName = focused ? 'trending-up'      : 'trending-up-outline';
+          else if (route.name === 'AppPortal') iconName = focused ? 'compass'          : 'compass-outline';
+          else if (route.name === 'Portfolio') iconName = focused ? 'pie-chart'        : 'pie-chart-outline';
+          return <Ionicons name={iconName} size={22} color={color} />;
         },
         tabBarStyle: {
-          backgroundColor: isDark ? '#1A1A2E' : '#FFFFFF',
-          borderTopWidth: 0,
-          elevation: 10,
-          shadowColor: '#000',
-          shadowOpacity: 0.1,
-          shadowRadius: 10,
-          height: 65 + (insets.bottom > 0 ? insets.bottom : 15),
-          paddingBottom: (insets.bottom > 0 ? insets.bottom : 15) + 10,
-          paddingTop: 10,
-          position: 'absolute',
-          bottom: 0, left: 0, right: 0,
+          backgroundColor: isDark ? '#111122' : '#FFFFFF',
+          borderTopWidth: 1,
+          borderTopColor: isDark ? '#1E1E38' : '#E8E8F2',
+          elevation: 0,
+          shadowOpacity: 0,
+          height: 60 + (insets.bottom > 0 ? insets.bottom : 10),
+          paddingBottom: insets.bottom > 0 ? insets.bottom : 10,
+          paddingTop: 8,
         },
         tabBarLabelStyle: {
-          fontSize: 12,
-          marginBottom: insets.bottom > 0 ? 0 : 5,
+          fontSize: 11,
           fontWeight: '600',
+          marginTop: 2,
         },
       })}
     >
       <Tab.Screen name="Wallet"    component={WalletScreen}    options={{ tabBarLabel: t('wallet')              }} />
       <Tab.Screen name="Market"    component={MarketScreen}    options={{ tabBarLabel: t('market')              }} />
-
-      <Tab.Screen
-        name="Trading"
-        component={TradingScreen}
-        options={{
-          tabBarLabel: t('trading', 'تداول'),
-          tabBarIcon: ({ focused }) => (
-            <View style={{
-              width: 52, height: 52, borderRadius: 26,
-              backgroundColor: focused ? primaryColor : primaryColor + '25',
-              justifyContent: 'center', alignItems: 'center',
-              marginTop: -16,
-              shadowColor: primaryColor,
-              shadowOffset: { width: 0, height: 4 },
-              shadowOpacity: focused ? 0.5 : 0.2,
-              shadowRadius: 8,
-              elevation: focused ? 8 : 4,
-            }}>
-              <Ionicons name={focused ? 'trending-up' : 'trending-up-outline'} size={26} color={focused ? '#FFF' : primaryColor} />
-            </View>
-          ),
-          tabBarLabelStyle: { fontSize: 12, fontWeight: '700', marginTop: 4 },
-        }}
-      />
-
-      <Tab.Screen name="AppPortal" component={AppPortalScreen} options={{ tabBarLabel: t('explore') || 'استكشف'      }} />
-      <Tab.Screen name="Portfolio" component={PortfolioScreen} options={{ tabBarLabel: t('portfolio', 'محفظتي')     }} />
+      <Tab.Screen name="Trading"   component={TradingScreen}   options={{ tabBarLabel: t('trading', 'تداول')    }} />
+      <Tab.Screen name="AppPortal" component={AppPortalScreen} options={{ tabBarLabel: t('explore') || 'استكشف' }} />
+      <Tab.Screen name="Portfolio" component={PortfolioScreen} options={{ tabBarLabel: t('portfolio', 'محفظتي') }} />
     </Tab.Navigator>
   );
 }
@@ -252,7 +225,7 @@ export default function AppContainer() {
       const timer = setTimeout(() => {
         const accounts = useAppStore.getState().accounts;
         checkBalanceChanges(accounts).catch(() => {});
-        checkPriceAlerts().catch(() => {});                          // ✅ فحص تنبيهات الأسعار
+        checkPriceAlerts().catch(() => {});
       }, 3000);
 
       return () => clearTimeout(timer);
@@ -297,9 +270,9 @@ export default function AppContainer() {
           <Stack.Screen name="Settings"           component={SettingsScreen}           options={{ headerShown:false }} />
           <Stack.Screen name="Portfolio"          component={PortfolioScreen}          options={{ headerShown:false }} />
           <Stack.Screen name="Notifications"      component={NotificationsScreen}      options={{ headerShown:false }} />
-          <Stack.Screen name="PriceAlerts"        component={PriceAlertsScreen}        options={{ headerShown:false }} />  
+          <Stack.Screen name="PriceAlerts"        component={PriceAlertsScreen}        options={{ headerShown:false }} />
           <Stack.Screen name="AddressBook"   component={AddressBookScreen}   options={{ headerShown:false }} />
-       
+
           <Stack.Screen 
             name="DappBrowser" 
             component={DappBrowserScreen} 
