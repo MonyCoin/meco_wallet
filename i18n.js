@@ -479,6 +479,16 @@ const resources = {
         network: "تعذر الاتصال بالخادم، تحقق من الإنترنت.",
         general: "تعذّر تنفيذ العملية. حاول مرة أخرى.",
       },
+      trading_confirm: {
+        market_buy_title: "تأكيد أمر الشراء",
+        market_sell_title: "تأكيد أمر البيع",
+        limit_buy_title: "تأكيد أمر شراء محدد",
+        limit_sell_title: "تأكيد أمر بيع محدد",
+        market_buy_message: "سيتم شراء {{outAmount}} {{outSymbol}} مقابل {{inAmount}} {{inSymbol}}\n\nإجمالي الرسوم: {{totalFee}} SOL{{feeUsd}}\n(رسوم شبكة سولانا + رسوم منصة ثابتة قدرها {{platformFee}} SOL)",
+        market_sell_message: "سيتم بيع {{inAmount}} {{inSymbol}} مقابل {{outAmount}} {{outSymbol}}\n\nإجمالي الرسوم: {{totalFee}} SOL{{feeUsd}}\n(رسوم شبكة سولانا + رسوم منصة ثابتة قدرها {{platformFee}} SOL)",
+        limit_buy_message: "سيتم تسجيل أمر شراء {{outAmount}} {{outSymbol}} بسعر {{limitPrice}} {{quoteSymbol}}\n\nإجمالي الرسوم: {{totalFee}} SOL{{feeUsd}}\n(رسوم شبكة سولانا + رسوم منصة ثابتة قدرها {{platformFee}} SOL)",
+        limit_sell_message: "سيتم تسجيل أمر بيع {{inAmount}} {{inSymbol}} بسعر {{limitPrice}} {{quoteSymbol}}\n\nإجمالي الرسوم: {{totalFee}} SOL{{feeUsd}}\n(رسوم شبكة سولانا + رسوم منصة ثابتة قدرها {{platformFee}} SOL)",
+      },
 
       // ========== TransactionHistoryScreen ==========
       all: 'الكل',
@@ -1148,6 +1158,16 @@ const resources = {
         no_route: "Insufficient liquidity for this pair currently.",
         network: "Cannot connect to server, check your internet.",
         general: "Could not process the transaction. Please try again.",
+      },
+      trading_confirm: {
+        market_buy_title: "Confirm Buy Order",
+        market_sell_title: "Confirm Sell Order",
+        limit_buy_title: "Confirm Limit Buy Order",
+        limit_sell_title: "Confirm Limit Sell Order",
+        market_buy_message: "You will buy {{outAmount}} {{outSymbol}} for {{inAmount}} {{inSymbol}}\n\nTotal fees: {{totalFee}} SOL{{feeUsd}}\n(Solana network fee + fixed platform fee of {{platformFee}} SOL)",
+        market_sell_message: "You will sell {{inAmount}} {{inSymbol}} for {{outAmount}} {{outSymbol}}\n\nTotal fees: {{totalFee}} SOL{{feeUsd}}\n(Solana network fee + fixed platform fee of {{platformFee}} SOL)",
+        limit_buy_message: "You will place a limit buy order for {{outAmount}} {{outSymbol}} at {{limitPrice}} {{quoteSymbol}}\n\nTotal fees: {{totalFee}} SOL{{feeUsd}}\n(Solana network fee + fixed platform fee of {{platformFee}} SOL)",
+        limit_sell_message: "You will place a limit sell order for {{inAmount}} {{inSymbol}} at {{limitPrice}} {{quoteSymbol}}\n\nTotal fees: {{totalFee}} SOL{{feeUsd}}\n(Solana network fee + fixed platform fee of {{platformFee}} SOL)",
       },
 
       // ========== TransactionHistoryScreen ==========

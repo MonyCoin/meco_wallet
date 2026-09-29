@@ -239,7 +239,6 @@ export default function TradingScreen() {
     }
   };
 
-  // ✅ دالة موحدة لتحويل رموز الأخطاء إلى رسائل عربية نظيفة
   const getFriendlyError = (rawMsg) => {
     const msg = (rawMsg || '').toString();
     if (msg === 'INSUFFICIENT_BALANCE' || msg.includes('insufficient_balance') || msg.includes('Insufficient balance')) {
@@ -280,13 +279,54 @@ export default function TradingScreen() {
         : Math.round((amt * lp) * Math.pow(10, outputToken.decimals));
     }
 
-    const typeLabel = orderType==='market' ? t('market_order') : t('limit_order');
-    const priceInfo = orderType==='limit'  ? `\n${t('at_price')}: ${limitPrice} ${quoteToken.symbol}` : '';
-    const feeNotice = `\n\n${getFeeNotice()}`;
+    // ✅ رسالة تأكيد موحّدة بنفس نمط شاشة الإرسال
+    const solPriceNow   = getSolPrice();
+    const feeUsdDisplay = solPriceNow > 0 ? ` (≈ $${(PLATFORM_FEE_SOL * solPriceNow).toFixed(2)})` : '';
+
+    let confirmTitle;
+    let confirmMessage;
+
+    if (orderType === 'market') {
+      const outEstimate = estimatedTotal();
+      confirmTitle = orderSide === 'buy'
+        ? t('trading_confirm.market_buy_title')
+        : t('trading_confirm.market_sell_title');
+      confirmMessage = orderSide === 'buy'
+        ? t('trading_confirm.market_buy_message', {
+            outAmount: outEstimate, outSymbol: outputToken.symbol,
+            inAmount:  amt,          inSymbol:  inputToken.symbol,
+            totalFee:  PLATFORM_FEE_SOL, feeUsd: feeUsdDisplay,
+            platformFee: PLATFORM_FEE_SOL,
+          })
+        : t('trading_confirm.market_sell_message', {
+            inAmount:  amt,          inSymbol:  inputToken.symbol,
+            outAmount: outEstimate,  outSymbol: outputToken.symbol,
+            totalFee:  PLATFORM_FEE_SOL, feeUsd: feeUsdDisplay,
+            platformFee: PLATFORM_FEE_SOL,
+          });
+    } else {
+      const lp = limitPrice;
+      confirmTitle = orderSide === 'buy'
+        ? t('trading_confirm.limit_buy_title')
+        : t('trading_confirm.limit_sell_title');
+      confirmMessage = orderSide === 'buy'
+        ? t('trading_confirm.limit_buy_message', {
+            outAmount:  (amt / parseFloat(lp)).toFixed(6), outSymbol: outputToken.symbol,
+            limitPrice: lp, quoteSymbol: quoteToken.symbol,
+            totalFee:   PLATFORM_FEE_SOL, feeUsd: feeUsdDisplay,
+            platformFee: PLATFORM_FEE_SOL,
+          })
+        : t('trading_confirm.limit_sell_message', {
+            inAmount:   amt, inSymbol: inputToken.symbol,
+            limitPrice: lp, quoteSymbol: quoteToken.symbol,
+            totalFee:   PLATFORM_FEE_SOL, feeUsd: feeUsdDisplay,
+            platformFee: PLATFORM_FEE_SOL,
+          });
+    }
 
     Alert.alert(
-      `${typeLabel} — ${orderSide==='buy'?t('buy'):t('sell')}`,
-      `${amt} ${inputToken.symbol} → ${outputToken.symbol}${priceInfo}${feeNotice}`,
+      confirmTitle,
+      confirmMessage,
       [
         { text: t('cancel'), style: 'cancel' },
         {
@@ -412,7 +452,6 @@ export default function TradingScreen() {
                               await fetchBalances();
                               Alert.alert(t('success'), `✅ ${t('trade_success')}\n${mSig.slice(0,8)}...${mSig.slice(-4)}`);
                             } catch (e) {
-                              // ✅ رسالة نظيفة للـ fallback
                               Alert.alert(t('error'), getFriendlyError(e?.message));
                             } finally {
                               setExecuting(false);
@@ -427,7 +466,6 @@ export default function TradingScreen() {
                 }
               }
             } catch (e) {
-              // ✅ رسالة نظيفة للخطأ الرئيسي
               Alert.alert(t('error'), getFriendlyError(e?.message));
             } finally {
               setExecuting(false);
