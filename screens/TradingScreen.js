@@ -5,7 +5,7 @@ import {
   Dimensions, ActivityIndicator, TextInput, Platform,
   FlatList, Image, SafeAreaView, Alert, Modal,
 } from 'react-native';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import { useAppStore } from '../store';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
@@ -158,6 +158,23 @@ export default function TradingScreen() {
   const chartReady  = useRef(false);
   const pendingData = useRef(null);
 
+  // ✅ Ref يحتفظ بأحدث priceStats لاستخدامه في cleanup دون إعادة التسجيل
+  const priceStatsRef = useRef(priceStats);
+  useEffect(() => { priceStatsRef.current = priceStats; }, [priceStats]);
+
+  // ✅ تصفير الحقول المالية عند الخروج من الشاشة (blur) للحفاظ على الأمان
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+        setOrderAmount('');
+        setOrderType('market');
+        setOrderSide('buy');
+        const currentPrice = priceStatsRef.current?.current || 0;
+        setLimitPrice(currentPrice > 0 ? currentPrice.toFixed(6) : '');
+      };
+    }, [])
+  );
+
   const fetchBalances = useCallback(async () => {
     if (!walletPublicKey) return;
     try {
@@ -279,7 +296,6 @@ export default function TradingScreen() {
         : Math.round((amt * lp) * Math.pow(10, outputToken.decimals));
     }
 
-    // ✅ رسالة تأكيد موحّدة بنفس نمط شاشة الإرسال
     const solPriceNow   = getSolPrice();
     const feeUsdDisplay = solPriceNow > 0 ? ` (≈ $${(PLATFORM_FEE_SOL * solPriceNow).toFixed(2)})` : '';
 
