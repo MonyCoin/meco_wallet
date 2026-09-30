@@ -34,12 +34,13 @@ import TokenDetailsScreen       from './screens/TokenDetailsScreen';
 import QRScannerScreen          from './screens/QRScannerScreen';
 import SwapScreen               from './screens/SwapScreen';
 import StakingScreen            from './screens/StakingScreen';
-import TradingScreen            from './screens/TradingScreen';
 import PortfolioScreen          from './screens/PortfolioScreen';
 import DappBrowserScreen        from './screens/DappBrowserScreen';
 import NotificationsScreen      from './screens/NotificationsScreen';
 import PriceAlertsScreen        from './screens/PriceAlertsScreen';
 import AddressBookScreen      from './screens/AddressBookScreen';
+import QuickTradeScreen         from './screens/QuickTradeScreen';
+import TradeExecutionScreen     from './screens/TradeExecutionScreen';
 import { checkBalanceChanges }  from './services/balanceMonitorService';
 import { checkPriceAlerts }     from './services/priceAlertService';
 
@@ -57,7 +58,6 @@ function BottomTabs() {
   const isDark       = theme === 'dark';
   const insets       = useSafeAreaInsets();
 
-  // مسافة إضافية أسفل شريط التبويبات لفصله عن أزرار الهاتف
   const bottomSpace = insets.bottom > 0 ? insets.bottom + 10 : 18;
 
   return (
@@ -71,7 +71,6 @@ function BottomTabs() {
           let iconName;
           if      (route.name === 'Wallet')    iconName = focused ? 'wallet'           : 'wallet-outline';
           else if (route.name === 'Market')    iconName = focused ? 'stats-chart'      : 'stats-chart-outline';
-          else if (route.name === 'Trading')   iconName = focused ? 'trending-up'      : 'trending-up-outline';
           else if (route.name === 'AppPortal') iconName = focused ? 'compass'          : 'compass-outline';
           else if (route.name === 'Portfolio') iconName = focused ? 'pie-chart'        : 'pie-chart-outline';
           return <Ionicons name={iconName} size={22} color={color} />;
@@ -95,7 +94,6 @@ function BottomTabs() {
     >
       <Tab.Screen name="Wallet"    component={WalletScreen}    options={{ tabBarLabel: t('wallet')              }} />
       <Tab.Screen name="Market"    component={MarketScreen}    options={{ tabBarLabel: t('market')              }} />
-      <Tab.Screen name="Trading"   component={TradingScreen}   options={{ tabBarLabel: t('trading', 'تداول')    }} />
       <Tab.Screen name="AppPortal" component={AppPortalScreen} options={{ tabBarLabel: t('explore') || 'استكشف' }} />
       <Tab.Screen name="Portfolio" component={PortfolioScreen} options={{ tabBarLabel: t('portfolio', 'محفظتي') }} />
     </Tab.Navigator>
@@ -264,17 +262,18 @@ export default function AppContainer() {
           <Stack.Screen name="QRScanner"          component={QRScannerScreen}          options={{ headerShown:false }} />
           <Stack.Screen name="TokenDetails"       component={TokenDetailsScreen}       options={{ title: t('token_details'), headerBackTitle: t('back') }} />
           <Stack.Screen name="AppPortal"          component={AppPortalScreen}          options={{ title: t('explore')||'استكشف' }} />
-          <Stack.Screen name="Trading"            component={TradingScreen}            options={{ headerShown:false }} />
           <Stack.Screen name="Settings"           component={SettingsScreen}           options={{ headerShown:false }} />
           <Stack.Screen name="Portfolio"          component={PortfolioScreen}          options={{ headerShown:false }} />
           <Stack.Screen name="Notifications"      component={NotificationsScreen}      options={{ headerShown:false }} />
           <Stack.Screen name="PriceAlerts"        component={PriceAlertsScreen}        options={{ headerShown:false }} />
           <Stack.Screen name="AddressBook"   component={AddressBookScreen}   options={{ headerShown:false }} />
+          <Stack.Screen name="QuickTrade"         component={QuickTradeScreen}         options={{ headerShown:false }} />
+          <Stack.Screen name="TradeExecution"     component={TradeExecutionScreen}     options={{ headerShown:false }} />
 
-          <Stack.Screen 
-            name="DappBrowser" 
-            component={DappBrowserScreen} 
-            options={{ 
+          <Stack.Screen
+            name="DappBrowser"
+            component={DappBrowserScreen}
+            options={{
               title: 'Web3 Browser',
               headerShown: true,
               headerBackTitle: t('back') || 'رجوع',
@@ -284,7 +283,7 @@ export default function AppContainer() {
                 shadowOpacity: 0,
               },
               headerTintColor: isDark ? '#FFFFFF' : '#000000',
-            }} 
+            }}
           />
         </Stack.Navigator>
         <WalletConnectSignModal />

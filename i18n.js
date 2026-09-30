@@ -1689,6 +1689,43 @@ i18n.addResourceBundle('en', 'translation', {
   },
 }, true, true);
 
+// ═════════════════════════════════════════════════════════════════════════════
+// ✅ قسم تنفيذ التداول السريع (Quick Trade)
+// ═════════════════════════════════════════════════════════════════════════════
+i18n.addResourceBundle('ar', 'translation', {
+  quick_trade: {
+    title:          'تداول سريع',
+    subtitle:       'اختر عملة للبدء',
+    view_chart:     'عرض الرسم البياني',
+  },
+  trade_execution: {
+    amount_in_quote:      'المبلغ (عملة التسعير)',
+    amount_in_base:       'المبلغ (العملة)',
+    enter_amount:         'الرجاء إدخال المبلغ',
+    confirm_buy_title:    'تأكيد أمر الشراء',
+    confirm_sell_title:   'تأكيد أمر البيع',
+    confirm_buy_message:  'سيتم شراء {{outSymbol}} مقابل {{inAmount}} {{inSymbol}}\n\nرسوم المنصة: 0.0005 SOL + رسوم شبكة سولانا',
+    confirm_sell_message: 'سيتم بيع {{inAmount}} {{inSymbol}} مقابل {{outSymbol}}\n\nرسوم المنصة: 0.0005 SOL + رسوم شبكة سولانا',
+  },
+}, true, true);
+
+i18n.addResourceBundle('en', 'translation', {
+  quick_trade: {
+    title:          'Quick Trade',
+    subtitle:       'Pick a token to start',
+    view_chart:     'View Chart',
+  },
+  trade_execution: {
+    amount_in_quote:      'Amount (Quote Currency)',
+    amount_in_base:       'Amount (Token)',
+    enter_amount:         'Please enter an amount',
+    confirm_buy_title:    'Confirm Buy Order',
+    confirm_sell_title:   'Confirm Sell Order',
+    confirm_buy_message:  'You will buy {{outSymbol}} for {{inAmount}} {{inSymbol}}\n\nPlatform fee: 0.0005 SOL + Solana network fee',
+    confirm_sell_message: 'You will sell {{inAmount}} {{inSymbol}} for {{outSymbol}}\n\nPlatform fee: 0.0005 SOL + Solana network fee',
+  },
+}, true, true);
+
 export const changeLanguage = (lng) => {
   i18n.changeLanguage(lng);
   SecureStore.setItemAsync('app_language', lng);
