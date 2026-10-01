@@ -9,7 +9,7 @@ const HELIUS_URL = 'https://mainnet.helius-rpc.com/?api-key=fb28d3cf-7dd1-4667-9
 const MINT_TO_SYMBOL = {
   'So11111111111111111111111111111111111111112':  'SOL',
   'A5Ln25cfww33kfUSzBb89bMha7j1PnFQTy7H3FsQHN7W': 'MECO',
-  'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB': 'USDT', // ✅ mint صحيح
+  'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB': 'USDT',
   'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v': 'USDC',
   'JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbJedZ89LxcQ':  'JUP',
   '4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R': 'RAY',
@@ -27,6 +27,14 @@ const MINT_TO_SYMBOL = {
 
 // Helper — يُعيد رمز العملة من mint address
 const getMintSymbol = (mint) => MINT_TO_SYMBOL[mint] || 'TOKEN';
+
+// ✅ محوّل روابط IPFS / Arweave إلى HTTPS
+function normalizeIpfs(uri) {
+  if (!uri) return null;
+  if (uri.startsWith('ipfs://')) return `https://ipfs.io/ipfs/${uri.slice(7)}`;
+  if (uri.startsWith('ar://'))   return `https://arweave.net/${uri.slice(5)}`;
+  return uri;
+}
 
 const RPC_ENDPOINTS = [
   ...(HELIUS_URL ? [{ url: HELIUS_URL, priority: 1 }] : []),
@@ -70,6 +78,9 @@ const CACHE = {
   blockhashTime: 0,
   prices:        new LRUCache(20, PRICE_CACHE_DURATION),
 };
+
+// ✅ كاش منفصل لـ NFT (صلاحية 60 ثانية)
+const NFTs_CACHE = new LRUCache(10, 60000);
 
 class RPCManager {
   constructor(endpoints) {
@@ -185,7 +196,6 @@ export const getTokenMarketPrice = async (tokenSymbol) => {
     const cached = CACHE.prices.get(tokenSymbol);
     if (cached) return cached;
 
-    // MECO من DexScreener
     if (tokenSymbol === 'MECO') {
       try {
         const res  = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${MECO_MINT_ADDRESS}`);
@@ -203,11 +213,9 @@ export const getTokenMarketPrice = async (tokenSymbol) => {
       return 0;
     }
 
-    // باقي العملات من mint address
     const mintAddress = MINT_TO_SYMBOL[Object.keys(MINT_TO_SYMBOL).find(k => MINT_TO_SYMBOL[k] === tokenSymbol)];
     if (!mintAddress || tokenSymbol === 'MECO') return 0;
 
-    // البحث عن mint address بالاتجاه العكسي
     const mint = Object.keys(MINT_TO_SYMBOL).find(k => MINT_TO_SYMBOL[k] === tokenSymbol);
     if (!mint) return 0;
 
@@ -379,7 +387,6 @@ export async function sendTokenTransaction(fromKeypair, toAddress, mintAddress, 
     const amountRaw     = BigInt(Math.floor(amount * Math.pow(10, mintInfo.decimals)));
     if (amountRaw === 0n) throw new Error('AMOUNT_TOO_SMALL');
 
-    // ✅ فحص رصيد المُرسِل الفعلي وليس الحساب النشط في SecureStore
     const senderAddress = fromKeypair.publicKey.toBase58();
     const tokenBalance  = await getTokenBalance(mintAddress, true, senderAddress);
     if (tokenBalance < amount) throw new Error('INSUFFICIENT_BALANCE');
@@ -498,7 +505,6 @@ export async function getTransactionHistory(limit = 20, address = null) {
             const parsedInfo    = ix.parsed.info;
             const from          = parsedInfo.authority || parsedInfo.owner || pubKeyStr;
             const destinationAta= parsedInfo.destination;
-            // ✅ استخدام getMintSymbol للحصول على رمز العملة الصحيح
             const mint          = parsedInfo.mint || preToken.find(t => t.accountIndex === accountKeys.indexOf(destinationAta))?.mint;
 
             let toOwner     = destinationAta;
@@ -534,7 +540,7 @@ export async function getTransactionHistory(limit = 20, address = null) {
                 slot: sig.slot,
                 from, to: toOwner,
                 amount: Math.abs(exactAmount),
-                token:  getMintSymbol(mint), // ✅ يشمل جميع العملات
+                token:  getMintSymbol(mint),
                 mint,
                 type:   from === pubKeyStr ? 'send' : 'receive',
                 fee:    tx.meta.fee / web3.LAMPORTS_PER_SOL,
@@ -561,7 +567,7 @@ export async function getTransactionHistory(limit = 20, address = null) {
             if (Math.abs(delta) > 0.000001) {
               isTokenTx   = true;
               mint        = post.mint;
-              tokenSymbol = getMintSymbol(mint); // ✅ يشمل جميع العملات
+              tokenSymbol = getMintSymbol(mint);
               if (delta > 0) {
                 type   = 'receive';
                 amount = delta;
@@ -634,6 +640,88 @@ export async function getTransactionHistory(limit = 20, address = null) {
     return transactions;
   } catch (error) {
     console.error('getTransactionHistory error:', error);
+    return [];
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// ✅ جلب NFTs للمحفظة عبر Helius DAS API — مع دعم IPFS و الفيديو
+// ═════════════════════════════════════════════════════════════════════════════
+export async function getNFTsByOwner(address = null, limit = 20) {
+  try {
+    const pubKeyStr = address || await SecureStore.getItemAsync('wallet_public_key');
+    if (!pubKeyStr) return [];
+
+    const cacheKey = `nfts_${pubKeyStr}`;
+    const cached   = NFTs_CACHE.get(cacheKey);
+    if (cached) return cached;
+
+    const controller = new AbortController();
+    const timeoutId  = setTimeout(() => controller.abort(), 10000);
+
+    const res = await fetch(HELIUS_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal,
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id:      'meco-nfts',
+        method:  'getAssetsByOwner',
+        params: {
+          ownerAddress: pubKeyStr,
+          page:         1,
+          limit:        limit,
+          displayOptions: {
+            showFungible:       false,
+            showNativeBalance:  false,
+            showInscription:    false,
+          },
+        },
+      }),
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!res.ok) {
+      console.warn('getNFTsByOwner HTTP error:', res.status);
+      return [];
+    }
+
+    const json = await res.json();
+    if (!json?.result?.items?.length) {
+      NFTs_CACHE.set(cacheKey, []);
+      return [];
+    }
+
+    const validInterfaces = ['V1_NFT', 'ProgrammableNFT', 'MplCoreAsset', 'MplCoreCollection'];
+    const nfts = json.result.items
+      .filter(item => validInterfaces.includes(item.interface))
+      .map(item => {
+        const file     = item.content?.files?.[0];
+        const mime     = file?.mime || '';
+        const isVideo  = mime.startsWith('video/');
+        const rawMedia = file?.cdn_uri || file?.uri || null;
+        const mediaUri = normalizeIpfs(rawMedia);
+        const rawImage = item.content?.links?.image || null;
+        // ✅ صورة العرض: نُفضّل الصورة الرسمية، وإن لم توجد نستخدم ملف الفيديو فقط لو كان صورة
+        const imageUri = normalizeIpfs(rawImage) || (isVideo ? null : mediaUri);
+
+        return {
+          id:          item.id,
+          name:        item.content?.metadata?.name || 'Untitled NFT',
+          description: item.content?.metadata?.description || '',
+          collection:  item.grouping?.find(g => g.group_key === 'collection')?.group_value || null,
+          image:       imageUri,
+          video:       isVideo ? mediaUri : null,
+          type:        isVideo ? 'video' : 'image',
+        };
+      })
+      .filter(item => item.image || item.video);
+
+    NFTs_CACHE.set(cacheKey, nfts);
+    return nfts;
+  } catch (e) {
+    console.warn('getNFTsByOwner failed:', e.message);
     return [];
   }
 }

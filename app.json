@@ -53,7 +53,8 @@
             "googleServicesFile": "./google-services.json"
           }
         }
-      ]
+      ],
+      "expo-video"
     ],
     "owner": "monycoin",
     "extra": {
