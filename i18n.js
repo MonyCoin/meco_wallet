@@ -1726,23 +1726,6 @@ i18n.addResourceBundle('en', 'translation', {
   },
 }, true, true);
 
-// ═════════════════════════════════════════════════════════════════════════════
-// ✅ قسم NFT في شاشة المحفظة
-// ═════════════════════════════════════════════════════════════════════════════
-i18n.addResourceBundle('ar', 'translation', {
-  nft_section_title:    'NFTs',
-  nft_empty_hint:       'لا توجد NFTs في هذه المحفظة',
-  nft_collection_label: 'المجموعة',
-  nft_copy_mint:        'نسخ عنوان الـ NFT',
-}, true, true);
-
-i18n.addResourceBundle('en', 'translation', {
-  nft_section_title:    'NFTs',
-  nft_empty_hint:       'No NFTs in this wallet',
-  nft_collection_label: 'Collection',
-  nft_copy_mint:        'Copy NFT Address',
-}, true, true);
-
 export const changeLanguage = (lng) => {
   i18n.changeLanguage(lng);
   SecureStore.setItemAsync('app_language', lng);

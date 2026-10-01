@@ -13,8 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { GestureHandlerRootView, Swipeable } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useVideoPlayer, VideoView } from 'expo-video';
-import { getSolBalance, getTokenAccounts, getTokenBalance, getNFTsByOwner } from '../services/heliusService';
+import { getSolBalance, getTokenAccounts, getTokenBalance } from '../services/heliusService';
 import { CORE_TOKENS, getJupiterMarketData, getCustomTokens } from '../services/jupiterMarketService';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { getUnreadCount } from '../services/notificationsService';
@@ -37,26 +36,6 @@ const fmtTradePrice = (p) => {
   if (p >= 0.001) return `$${p.toFixed(4)}`;
   return `$${p.toFixed(8).replace(/0+$/, '').replace(/\.$/, '')}`;
 };
-
-// ✅ مشغّل الفيديو الخاص بـ NFT — component منفصل لأن Hook لا يعمل داخل شرط
-function NftVideoPlayer({ uri }) {
-  const player = useVideoPlayer(uri, (p) => {
-    p.loop = true;
-    p.muted = true;
-    p.play();
-  });
-
-  return (
-    <VideoView
-      player={player}
-      style={{ width: '100%', height: '100%' }}
-      contentFit="contain"
-      nativeControls={false}
-      allowsFullscreen
-      allowsPictureInPicture={false}
-    />
-  );
-}
 
 export default function WalletScreen() {
   const navigation   = useNavigation();
@@ -89,10 +68,6 @@ export default function WalletScreen() {
   const [totalBalanceUSD,       setTotalBalanceUSD]       = useState(0);
   const [assets,                setAssets]                = useState([]);
   const [tradableTokens,        setTradableTokens]        = useState([]);
-  const [nfts,                  setNfts]                  = useState([]);
-  const [loadingNfts,           setLoadingNfts]           = useState(false);
-  const [selectedNft,           setSelectedNft]           = useState(null);
-  const [nftModalVisible,       setNftModalVisible]       = useState(false);
   const [refreshing,            setRefreshing]            = useState(false);
   const [modalVisible,          setModalVisible]          = useState(false);
   const [tempWalletName,        setTempWalletName]        = useState('');
@@ -142,17 +117,6 @@ export default function WalletScreen() {
       .then(stored => { if (stored === 'true') setHideBalance(true); })
       .catch(() => {});
   }, []);
-
-  useEffect(() => {
-    if (!walletPublicKey) return;
-    let mounted = true;
-    setLoadingNfts(true);
-    getNFTsByOwner(walletPublicKey, 20)
-      .then(list => { if (mounted) setNfts(list || []); })
-      .catch(() => { if (mounted) setNfts([]); })
-      .finally(() => { if (mounted) setLoadingNfts(false); });
-    return () => { mounted = false; };
-  }, [walletPublicKey]);
 
   const toggleHideBalance = async () => {
     const newValue = !hideBalance;
@@ -302,10 +266,6 @@ export default function WalletScreen() {
   const handleRefresh = async () => {
     setRefreshing(true);
     await loadWalletData(walletPublicKey);
-    try {
-      const freshNfts = await getNFTsByOwner(walletPublicKey, 20);
-      setNfts(freshNfts || []);
-    } catch (_) {}
     setRefreshing(false);
   };
 
@@ -399,11 +359,6 @@ export default function WalletScreen() {
     navigation.navigate('QuickTrade', { token });
   };
 
-  const handleOpenNft = (nft) => {
-    setSelectedNft(nft);
-    setNftModalVisible(true);
-  };
-
   const renderLeftActions = (progress, dragX, asset) => {
     const trans = dragX.interpolate({ inputRange: [0,50,100], outputRange: [-80,-40,0], extrapolate: 'clamp' });
     return (
@@ -434,6 +389,7 @@ export default function WalletScreen() {
     );
   };
 
+  // ✅ renderAssetItem الآن يستخدم index والأصول كاملة من الخارج
   const renderAssetItem = (item, index, arr) => {
     return (
       <Animated.View
@@ -504,49 +460,6 @@ export default function WalletScreen() {
             {up ? '+' : ''}{(item.price_change_percentage_24h || 0).toFixed(2)}%
           </Text>
         </View>
-      </TouchableOpacity>
-    );
-  };
-
-  // ✅ بطاقة NFT — تعرض صورة، وإن لم توجد صورة لكن يوجد فيديو → أيقونة فيديو
-  const renderNftCard = (nft, index) => {
-    const hasImage = !!nft.image;
-    return (
-      <TouchableOpacity
-        key={nft.id}
-        style={[
-          styles.nftCard,
-          {
-            backgroundColor: colors.card,
-            borderColor: colors.border,
-            marginRight: index % 2 === 0 ? 8 : 0,
-          },
-        ]}
-        onPress={() => handleOpenNft(nft)}
-        activeOpacity={0.85}
-      >
-        <View style={[styles.nftImageWrap, { backgroundColor: isDark ? '#171730' : '#ECECF4' }]}>
-          {hasImage ? (
-            <Image source={{ uri: nft.image }} style={styles.nftImage} resizeMode="cover" />
-          ) : (
-            <Ionicons name="videocam-outline" size={32} color={colors.textSecondary} />
-          )}
-          {nft.type === 'video' && (
-            <View style={[styles.nftVideoBadge, { backgroundColor: 'rgba(0,0,0,0.6)' }]}>
-              <Ionicons name="play" size={12} color="#FFF" />
-            </View>
-          )}
-        </View>
-        <Text style={[styles.nftName, { color: colors.text }]} numberOfLines={1}>
-          {nft.name}
-        </Text>
-        {nft.collection ? (
-          <Text style={[styles.nftCollection, { color: colors.textSecondary }]} numberOfLines={1}>
-            {nft.collection.slice(0, 6)}...{nft.collection.slice(-4)}
-          </Text>
-        ) : (
-          <Text style={[styles.nftCollection, { color: colors.textSecondary }]}>NFT</Text>
-        )}
       </TouchableOpacity>
     );
   };
@@ -657,6 +570,7 @@ export default function WalletScreen() {
 
         <View style={{ height: Platform.OS === 'ios' ? insets.top : insets.top + 12 }} />
 
+        {/* ✅ ScrollView واحد يحتوي كل شيء */}
         <ScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
@@ -774,6 +688,7 @@ export default function WalletScreen() {
             ))}
           </View>
 
+          {/* قسم التداول السريع */}
           {tradableTokens.length > 0 && (
             <View style={styles.tradingSection}>
               <View style={styles.tradingHeader}>
@@ -802,6 +717,7 @@ export default function WalletScreen() {
               </TouchableOpacity>
             </View>
 
+            {/* ✅ عرض الأصول مباشرة داخل ScrollView بدلاً من FlatList */}
             <View style={[styles.listContainer, { backgroundColor: colors.card, borderColor: colors.border }]}>
               {assets.length === 0 ? (
                 (!loadingInitial && !isSwitchingAccount) && (
@@ -815,38 +731,9 @@ export default function WalletScreen() {
               )}
             </View>
           </View>
-
-          <View style={styles.nftsSection}>
-            <View style={styles.assetsHeader}>
-              <Text style={[styles.sectionTitle, { color: colors.text }]}>
-                {t('nft_section_title', 'NFTs')}
-              </Text>
-              {nfts.length > 0 && (
-                <View style={[styles.nftCountBadge, { backgroundColor: primaryColor + '15' }]}>
-                  <Text style={[styles.nftCountText, { color: primaryColor }]}>{nfts.length}</Text>
-                </View>
-              )}
-            </View>
-
-            {loadingNfts ? (
-              <View style={[styles.nftLoadingWrap, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                <ActivityIndicator color={primaryColor} />
-              </View>
-            ) : nfts.length === 0 ? (
-              <View style={[styles.nftEmptyWrap, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                <Ionicons name="image-outline" size={28} color={colors.textSecondary} />
-                <Text style={[styles.nftEmptyText, { color: colors.textSecondary }]}>
-                  {t('nft_empty_hint', 'لا توجد NFTs في هذه المحفظة')}
-                </Text>
-              </View>
-            ) : (
-              <View style={styles.nftGrid}>
-                {nfts.map((nft, index) => renderNftCard(nft, index))}
-              </View>
-            )}
-          </View>
         </ScrollView>
 
+        {/* ── قائمة الخيارات (Modal Menu) ── */}
         <Modal visible={menuVisible} transparent animationType="fade" onRequestClose={() => setMenuVisible(false)}>
           <TouchableOpacity style={styles.menuOverlay} activeOpacity={1} onPress={() => setMenuVisible(false)}>
             <View style={[styles.menuCard, { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1 }]}>
@@ -912,6 +799,7 @@ export default function WalletScreen() {
           </TouchableOpacity>
         </Modal>
 
+        {/* منتقي الإيموجي */}
         <Modal visible={emojiPickerVisible} transparent animationType="slide" onRequestClose={() => setEmojiPickerVisible(false)}>
           <View style={styles.modalOverlayBottom}>
             <View style={[styles.emojiPickerContent, { backgroundColor: colors.card }]}>
@@ -963,6 +851,7 @@ export default function WalletScreen() {
           </View>
         </Modal>
 
+        {/* تعديل الاسم */}
         <Modal visible={modalVisible} transparent animationType="fade" onRequestClose={() => { setModalVisible(false); setEditingAccountIndex(null); }}>
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalOverlay}>
             <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
@@ -988,6 +877,7 @@ export default function WalletScreen() {
           </KeyboardAvoidingView>
         </Modal>
 
+        {/* منتقي الحسابات */}
         <Modal visible={accountsModalVisible} transparent animationType="slide" onRequestClose={() => setAccountsModalVisible(false)}>
           <View style={styles.modalOverlayBottom}>
             <View style={[styles.accountsModalContent, { backgroundColor: colors.card, marginBottom: Math.max(insets.bottom, 20) }]}>
@@ -1029,83 +919,6 @@ export default function WalletScreen() {
               </View>
             </View>
           </View>
-        </Modal>
-
-        {/* ✅ Bottom Sheet تفاصيل NFT — يدعم الفيديو */}
-        <Modal
-          visible={nftModalVisible}
-          transparent
-          animationType="slide"
-          onRequestClose={() => setNftModalVisible(false)}
-        >
-          <TouchableOpacity
-            style={[styles.modalOverlayBottom, { paddingBottom: Math.max(insets.bottom, 20) }]}
-            activeOpacity={1}
-            onPress={() => setNftModalVisible(false)}
-          >
-            {selectedNft && (
-              <TouchableOpacity
-                activeOpacity={1}
-                style={[styles.nftSheet, { backgroundColor: colors.card }]}
-                onPress={() => {}}
-              >
-                <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
-
-                <View style={styles.nftSheetHeader}>
-                  <TouchableOpacity
-                    onPress={() => setNftModalVisible(false)}
-                    style={[styles.closeBtn, { backgroundColor: colors.background }]}
-                  >
-                    <Ionicons name="close" size={18} color={colors.text} />
-                  </TouchableOpacity>
-                  <Text style={[styles.modalTitle, { color: colors.text, marginBottom: 0 }]} numberOfLines={1}>
-                    {selectedNft.name}
-                  </Text>
-                  <View style={{ width: 36 }} />
-                </View>
-
-                <View style={[styles.nftSheetImageWrap, { backgroundColor: isDark ? '#171730' : '#ECECF4' }]}>
-                  {selectedNft.type === 'video' && selectedNft.video ? (
-                    <NftVideoPlayer key={selectedNft.id} uri={selectedNft.video} />
-                  ) : selectedNft.image ? (
-                    <Image source={{ uri: selectedNft.image }} style={styles.nftSheetImage} resizeMode="contain" />
-                  ) : (
-                    <Ionicons name="image-outline" size={60} color={colors.textSecondary} />
-                  )}
-                </View>
-
-                {selectedNft.description ? (
-                  <Text style={[styles.nftSheetDesc, { color: colors.textSecondary }]} numberOfLines={3}>
-                    {selectedNft.description}
-                  </Text>
-                ) : null}
-
-                {selectedNft.collection ? (
-                  <View style={[styles.nftSheetRow, { borderColor: colors.border }]}>
-                    <Text style={[styles.nftSheetLabel, { color: colors.textSecondary }]}>
-                      {t('nft_collection_label', 'المجموعة')}
-                    </Text>
-                    <Text style={[styles.nftSheetValue, { color: colors.text }]} numberOfLines={1}>
-                      {selectedNft.collection.slice(0, 8)}...{selectedNft.collection.slice(-6)}
-                    </Text>
-                  </View>
-                ) : null}
-
-                <TouchableOpacity
-                  style={[styles.nftSheetBtn, { borderColor: colors.border, backgroundColor: colors.background }]}
-                  onPress={() => {
-                    Clipboard.setStringAsync(selectedNft.id);
-                    Alert.alert(t('success'), t('copied'));
-                  }}
-                >
-                  <Ionicons name="copy-outline" size={16} color={primaryColor} />
-                  <Text style={[styles.nftSheetBtnTxt, { color: colors.text }]}>
-                    {t('nft_copy_mint', 'نسخ عنوان الـ NFT')}
-                  </Text>
-                </TouchableOpacity>
-              </TouchableOpacity>
-            )}
-          </TouchableOpacity>
         </Modal>
 
       </View>
@@ -1185,58 +998,6 @@ const styles = StyleSheet.create({
   swipeActionLabel:{ color:'#FFF', fontSize:11, fontWeight:'600', marginTop:4 },
   emptyContainer:{ alignItems:'center', paddingVertical:50, gap:8 },
   emptyText:    { fontSize:13, marginTop:4 },
-
-  nftsSection: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 4 },
-  nftGrid:     { flexDirection: 'row', flexWrap: 'wrap' },
-  nftCard: {
-    width: '48.5%',
-    marginBottom: 12,
-    borderRadius: 16,
-    borderWidth: 1,
-    padding: 8,
-  },
-  nftImageWrap: {
-    width: '100%',
-    aspectRatio: 1,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-    overflow: 'hidden',
-    marginBottom: 8,
-    position: 'relative',
-  },
-  nftImage:     { width: '100%', height: '100%' },
-  nftName:      { fontSize: 13, fontWeight: '700', marginBottom: 2 },
-  nftCollection:{ fontSize: 10, fontWeight: '500' },
-  nftVideoBadge:{ position: 'absolute', bottom: 6, right: 6, width: 22, height: 22,
-                  borderRadius: 11, justifyContent: 'center', alignItems: 'center' },
-
-  nftLoadingWrap: { paddingVertical: 30, borderRadius: 18, borderWidth: 1, alignItems: 'center' },
-  nftEmptyWrap:   { paddingVertical: 26, borderRadius: 18, borderWidth: 1, alignItems: 'center', gap: 8 },
-  nftEmptyText:   { fontSize: 12, fontWeight: '600' },
-  nftCountBadge:  { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
-  nftCountText:   { fontSize: 11, fontWeight: '800' },
-
-  nftSheet: { width: '100%', padding: 20, paddingTop: 12, borderTopLeftRadius: 24, borderTopRightRadius: 24 },
-  nftSheetHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
-  nftSheetImageWrap: {
-    width: '100%',
-    aspectRatio: 1,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    overflow: 'hidden',
-    marginBottom: 14,
-  },
-  nftSheetImage: { width: '100%', height: '100%' },
-  nftSheetDesc:  { fontSize: 13, lineHeight: 19, marginBottom: 12, textAlign: 'center' },
-  nftSheetRow:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-                   paddingVertical: 12, borderTopWidth: 1, marginBottom: 8, gap: 12 },
-  nftSheetLabel: { fontSize: 12, fontWeight: '600' },
-  nftSheetValue: { fontSize: 12, fontWeight: '700', flex: 1, textAlign: 'right' },
-  nftSheetBtn:   { flexDirection: 'row', justifyContent: 'center', alignItems: 'center',
-                   paddingVertical: 14, borderRadius: 12, borderWidth: 1, gap: 8, marginTop: 6 },
-  nftSheetBtnTxt:{ fontSize: 13, fontWeight: '700' },
 
   menuOverlay:  { flex:1, backgroundColor:'rgba(0,0,0,0.2)', justifyContent:'flex-start', alignItems:'flex-end', paddingTop:Platform.OS==='ios'?100:80, paddingRight:20 },
   menuCard:     { width:210, borderRadius:16, overflow:'hidden', elevation:10, shadowOffset:{width:0,height:4}, shadowOpacity:0.1, shadowRadius:10 },
