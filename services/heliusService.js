@@ -645,7 +645,7 @@ export async function getTransactionHistory(limit = 20, address = null) {
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-// ✅ جلب NFTs للمحفظة عبر Helius DAS API — مع دعم IPFS و الفيديو
+// ✅ جلب NFTs للمحفظة عبر Helius DAS API — مع أولوية CDN
 // ═════════════════════════════════════════════════════════════════════════════
 export async function getNFTsByOwner(address = null, limit = 20) {
   try {
@@ -702,9 +702,12 @@ export async function getNFTsByOwner(address = null, limit = 20) {
         const isVideo  = mime.startsWith('video/');
         const rawMedia = file?.cdn_uri || file?.uri || null;
         const mediaUri = normalizeIpfs(rawMedia);
-        const rawImage = item.content?.links?.image || null;
-        // ✅ صورة العرض: نُفضّل الصورة الرسمية، وإن لم توجد نستخدم ملف الفيديو فقط لو كان صورة
-        const imageUri = normalizeIpfs(rawImage) || (isVideo ? null : mediaUri);
+
+        // ✅ الأولوية: cdn_uri (يعمل دائماً) → links.image → mediaUri إن لم يكن فيديو
+        const imageUri =
+          normalizeIpfs(file?.cdn_uri) ||
+          normalizeIpfs(item.content?.links?.image) ||
+          (isVideo ? null : mediaUri);
 
         return {
           id:          item.id,
