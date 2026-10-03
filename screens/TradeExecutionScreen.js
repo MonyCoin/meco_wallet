@@ -12,7 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { executeMarketSwap } from '../services/tradingService';
 import { getSolBalance, getTokenBalance } from '../services/heliusService';
-import { CORE_TOKENS } from '../services/jupiterMarketService';
+import { CORE_TOKENS, getJupiterMarketData } from '../services/jupiterMarketService';
 import { addNotification, NOTIF_TYPES } from '../services/notificationsService';
 
 const PLATFORM_FEE_SOL = 0.0005;
@@ -71,7 +71,12 @@ export default function TradeExecutionScreen() {
   const [executing,    setExecuting]    = useState(false);
   const [baseBalance,  setBaseBalance]  = useState(0);   // رصيد العملة المستهدفة
   const [quoteBalance, setQuoteBalance] = useState(0);   // رصيد عملة التسعير
-  const [tokenPrice,   setTokenPrice]   = useState(0);   // سعر العملة الحالي بالدولار (تقريبي)
+  const [tokenPrice,   setTokenPrice]   = useState(0);   // سعر العملة المستهدفة بالدولار
+  // ✅ سعر عملة التسعير نفسها بالدولار — ناقصة قبل كده، وده سبب الباگ:
+  // الكود كان بيفترض إن عملة التسعير دايمًا = 1 دولار (USDC/USDT)، فلو
+  // المستخدم اختار SOL أو MECO كعملة تسعير كانت المعاينة بتطلع غلط تمامًا
+  const [quoteTokenPrice, setQuoteTokenPrice] = useState(0);
+  const [pricesLoading,   setPricesLoading]   = useState(true);
 
   const scrollRef = useRef(null);
 
@@ -103,20 +108,40 @@ export default function TradeExecutionScreen() {
 
   useEffect(() => { fetchBalances(); }, [fetchBalances]);
 
-  // ── سعر العملة بالدولار (من الأخبار عبر Jupiter) — لتقدير الاستلام ──
+  // ✅ نجيب سعر العملتين (المستهدفة وعملة التسعير) بالدولار معًا من نفس
+  // الاستدعاء — عشان نقدر نحوّل بين أي زوج عملات صح (الدولار كوسيط دايمًا)،
+  // مش بس لما عملة التسعير تبقى USDC/USDT
   useEffect(() => {
     let mounted = true;
-    import('../services/jupiterMarketService').then(({ getJupiterMarketData }) => {
-      getJupiterMarketData()
-        .then(list => {
-          if (!mounted) return;
-          const tk = list.find(d => d.mint === targetToken.mint);
-          if (tk) setTokenPrice(tk.current_price || 0);
-        })
-        .catch(() => {});
-    });
+    setPricesLoading(true);
+
+    // ✅ سقف زمني 8 ثوانٍ احتياطي (فوق الحماية الداخلية فى jupiterMarketService
+    // نفسه) — مجرد طبقة أمان إضافية، مش الاعتماد الأساسي بعد إصلاح الاستيراد
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('price_fetch_timeout')), 8000)
+    );
+
+    Promise.race([getJupiterMarketData(), timeoutPromise])
+      .then(list => {
+        if (!mounted) return;
+        const targetTk = list.find(d => d.mint === targetToken.mint);
+        const quoteTk  = list.find(d => d.mint === quoteToken.mint);
+        const isStable = quoteToken.symbol === 'USDC' || quoteToken.symbol === 'USDT';
+
+        setTokenPrice(targetTk?.current_price || 0);
+        // ✅ fallback آمن: لو ستيبل كوين ومعندناش سعرها من جوبيتر لأي سبب،
+        // نعتبرها ≈ 1 دولار (الوضع الطبيعي الحقيقي) بدل ما تبقى صفر وتوهم
+        // إنها غير متاحة؛ لأي عملة تانية بدون سعر فعلي، نسيبها صفر (نص
+        // المعاينة هيعرض "—" بدل رقم غلط)
+        setQuoteTokenPrice(quoteTk?.current_price || (isStable ? 1 : 0));
+      })
+      .catch(() => {
+        if (mounted) { setTokenPrice(0); setQuoteTokenPrice(0); }
+      })
+      .finally(() => { if (mounted) setPricesLoading(false); });
+
     return () => { mounted = false; };
-  }, [targetToken.mint]);
+  }, [targetToken.mint, quoteToken.mint, quoteToken.symbol]);
 
   // ── MAX ────────────────────────────────────────────────────────
   const handleMax = () => {
@@ -132,16 +157,21 @@ export default function TradeExecutionScreen() {
     setAmount(val > 0 ? val.toFixed(6) : '0');
   };
 
-  // ── تقدير الاستلام (تقديري فقط للتأكيد) ─────────────────────
+  // ✅ تقدير الاستلام (تقديري فقط للمعاينة قبل التأكيد — التنفيذ الفعلي
+  // بيعتمد على سعر Jupiter الحي وقت الضغط على تأكيد، مش على الرقم ده خالص)
+  // بنحوّل عن طريق الدولار كوسيط دايمًا، فيشتغل صح أيًا كانت عملة التسعير
+  const pricesReady = tokenPrice > 0 && quoteTokenPrice > 0;
+
   const estimateOutput = () => {
+    if (!pricesReady) return null;
     const amt = parseFloat(amount) || 0;
-    if (amt <= 0 || tokenPrice <= 0) return 0;
+    if (amt <= 0) return 0;
     if (side === 'buy') {
-      // amt بالدولار (USDC/USDT) → / السعر
-      return amt / tokenPrice;
+      // amt بعملة التسعير → دولار → عملة الهدف
+      return (amt * quoteTokenPrice) / tokenPrice;
     } else {
-      // amt بالعملة → * السعر
-      return amt * tokenPrice;
+      // amt بعملة الهدف → دولار → عملة التسعير
+      return (amt * tokenPrice) / quoteTokenPrice;
     }
   };
 
@@ -253,6 +283,7 @@ export default function TradeExecutionScreen() {
 
   // ── عرض ────────────────────────────────────────────────────────
   const sideColor = side === 'buy' ? C.success : C.error;
+  const estimatedOutput = estimateOutput();
 
   return (
     <SafeAreaView style={[S.root, { backgroundColor: C.bg, paddingTop: Platform.OS === 'ios' ? 0 : insets.top }]}>
@@ -371,9 +402,14 @@ export default function TradeExecutionScreen() {
           <View style={[S.outputCard, { backgroundColor: C.card, borderColor: C.border }]}>
             <Text style={[S.outputLabel, { color: C.muted }]}>{t('you_receive')} ≈</Text>
             <View style={S.outputRow}>
-              <Text style={[S.outputValue, { color: C.text }]} numberOfLines={1}>
-                {fmtAmount(estimateOutput())}
-              </Text>
+              {pricesLoading ? (
+                <ActivityIndicator size="small" color={primaryColor} />
+              ) : (
+                <Text style={[S.outputValue, { color: C.text }]} numberOfLines={1}>
+                  {/* ✅ لو السعر مش متاح، نعرض "—" صراحة بدل رقم ممكن يكون غلط */}
+                  {estimatedOutput === null ? '—' : fmtAmount(estimatedOutput)}
+                </Text>
+              )}
               <View style={[S.tokenPill, { backgroundColor: C.card2, borderColor: C.border }]}>
                 <SafeImage uri={outputToken.image} size={20} />
                 <Text style={[S.tokenPillTxt, { color: C.text }]}>{outputToken.symbol}</Text>
