@@ -1726,6 +1726,29 @@ i18n.addResourceBundle('en', 'translation', {
   },
 }, true, true);
 
+// ═════════════════════════════════════════════════════════════════════════════
+// ✅ قسم بطاقات السوق وملخص التخزين
+// ═════════════════════════════════════════════════════════════════════════════
+i18n.addResourceBundle('ar', 'translation', {
+  market_pulse_title: 'نبض السوق',
+  staking_summary_title: 'ملخص التخزين',
+  staking_summary_staked_label: 'المبلغ المخزّن',
+  staking_summary_rewards_label: 'الأرباح المتراكمة',
+  staking_summary_view_btn: 'عرض التفاصيل',
+  staking_summary_cta: 'ابدأ التخزين الآن',
+  staking_summary_cta_sub: 'خزّن MECO واكسب أرباحًا يومية',
+}, true, true);
+
+i18n.addResourceBundle('en', 'translation', {
+  market_pulse_title: 'Market Pulse',
+  staking_summary_title: 'Staking Summary',
+  staking_summary_staked_label: 'Staked Amount',
+  staking_summary_rewards_label: 'Accumulated Rewards',
+  staking_summary_view_btn: 'View Details',
+  staking_summary_cta: 'Start Staking Now',
+  staking_summary_cta_sub: 'Stake MECO and earn daily rewards',
+}, true, true);
+
 export const changeLanguage = (lng) => {
   i18n.changeLanguage(lng);
   SecureStore.setItemAsync('app_language', lng);

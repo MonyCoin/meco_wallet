@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getSolBalance, getTokenAccounts, getTokenBalance } from '../services/heliusService';
 import { CORE_TOKENS, getJupiterMarketData, getCustomTokens } from '../services/jupiterMarketService';
+import { getUserStakingData } from '../services/stakingService'; // ✅ ملخص التخزين
 import * as LocalAuthentication from 'expo-local-authentication';
 import { getUnreadCount } from '../services/notificationsService';
 
@@ -68,6 +69,8 @@ export default function WalletScreen() {
   const [totalBalanceUSD,       setTotalBalanceUSD]       = useState(0);
   const [assets,                setAssets]                = useState([]);
   const [tradableTokens,        setTradableTokens]        = useState([]);
+  // ✅ ملخص التخزين — بيانات محلية خفيفة من stakingService، بتتحدث مع كل حساب
+  const [stakingData,           setStakingData]           = useState({ stakedAmount: 0, pendingRewards: 0, apy: 0, plan: null });
   const [refreshing,            setRefreshing]            = useState(false);
   const [modalVisible,          setModalVisible]          = useState(false);
   const [tempWalletName,        setTempWalletName]        = useState('');
@@ -154,12 +157,15 @@ export default function WalletScreen() {
       setIsSwitchingAccount(true);
       const addr = typeof publicKey === 'string' ? publicKey : publicKey.toString();
 
-      const [solBal, tokenAccounts, marketData, customTokensList] = await Promise.all([
+      const [solBal, tokenAccounts, marketData, customTokensList, stakingInfo] = await Promise.all([
         getSolBalance(true, addr).catch(() => 0),
         getTokenAccounts(addr).catch(() => []),
         getJupiterMarketData().catch(() => []),
         getCustomTokens().catch(() => []),
+        getUserStakingData(addr).catch(() => ({ stakedAmount: 0, pendingRewards: 0, apy: 0, plan: null })),
       ]);
+
+      setStakingData(stakingInfo);
 
       const priceMap = {};
       marketData.forEach(tk => { priceMap[tk.symbol] = tk.current_price || 0; });
@@ -389,7 +395,6 @@ export default function WalletScreen() {
     );
   };
 
-  // ✅ renderAssetItem الآن يستخدم index والأصول كاملة من الخارج
   const renderAssetItem = (item, index, arr) => {
     return (
       <Animated.View
@@ -456,6 +461,32 @@ export default function WalletScreen() {
             size={11}
             color={up ? colors.success : colors.error}
           />
+          <Text style={[styles.tradeCardChange, { color: up ? colors.success : colors.error }]}>
+            {up ? '+' : ''}{(item.price_change_percentage_24h || 0).toFixed(2)}%
+          </Text>
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
+  // ✅ نبض السوق — نفس بطاقة renderTradeCard، مرتبة حسب أكبر تحرك سعري
+  // (موجب أو سالب) خلال 24 ساعة، من نفس tradableTokens الموجودة أصلاً —
+  // صفر استدعاءات شبكة إضافية
+  const renderMoverCard = ({ item }) => {
+    const up = (item.price_change_percentage_24h || 0) >= 0;
+    return (
+      <TouchableOpacity
+        style={[styles.tradeCard, { backgroundColor: colors.card, borderColor: up ? colors.success + '35' : colors.error + '35' }]}
+        onPress={() => handleOpenQuickTrade(item)}
+        activeOpacity={0.85}
+      >
+        <Image source={{ uri: item.image }} style={styles.tradeCardIcon} />
+        <Text style={[styles.tradeCardSymbol, { color: colors.text }]}>{item.symbol}</Text>
+        <Text style={[styles.tradeCardPrice, { color: colors.text }]} numberOfLines={1}>
+          {fmtTradePrice(item.current_price)}
+        </Text>
+        <View style={[styles.moverBadge, { backgroundColor: (up ? colors.success : colors.error) + '18' }]}>
+          <Ionicons name={up ? 'trending-up' : 'trending-down'} size={11} color={up ? colors.success : colors.error} />
           <Text style={[styles.tradeCardChange, { color: up ? colors.success : colors.error }]}>
             {up ? '+' : ''}{(item.price_change_percentage_24h || 0).toFixed(2)}%
           </Text>
@@ -564,13 +595,20 @@ export default function WalletScreen() {
     );
   };
 
+  // ✅ أكبر العملات تحركًا (موجب أو سالب) من بيانات tradableTokens الجاهزة أصلاً
+  const topMovers = [...tradableTokens]
+    .filter(tk => tk.current_price > 0)
+    .sort((a, b) => Math.abs(b.price_change_percentage_24h || 0) - Math.abs(a.price_change_percentage_24h || 0))
+    .slice(0, 8);
+
+  const hasStaked = stakingData.stakedAmount > 0;
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <View style={[styles.container, { backgroundColor: colors.background }]}>
 
         <View style={{ height: Platform.OS === 'ios' ? insets.top : insets.top + 12 }} />
 
-        {/* ✅ ScrollView واحد يحتوي كل شيء */}
         <ScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
@@ -688,7 +726,6 @@ export default function WalletScreen() {
             ))}
           </View>
 
-          {/* قسم التداول السريع */}
           {tradableTokens.length > 0 && (
             <View style={styles.tradingSection}>
               <View style={styles.tradingHeader}>
@@ -717,7 +754,6 @@ export default function WalletScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* ✅ عرض الأصول مباشرة داخل ScrollView بدلاً من FlatList */}
             <View style={[styles.listContainer, { backgroundColor: colors.card, borderColor: colors.border }]}>
               {assets.length === 0 ? (
                 (!loadingInitial && !isSwitchingAccount) && (
@@ -731,9 +767,90 @@ export default function WalletScreen() {
               )}
             </View>
           </View>
+
+          {/* ✅ ملخص التخزين — بديل قسم الـ NFTs المشال */}
+          <View style={styles.stakingSection}>
+            <View style={styles.assetsHeader}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                {t('staking_summary_title', 'ملخص التخزين')}
+              </Text>
+            </View>
+
+            {hasStaked ? (
+              <View style={[styles.stakingCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <View style={styles.stakingRow}>
+                  <View style={styles.stakingCol}>
+                    <Text style={[styles.stakingLabel, { color: colors.textSecondary }]}>
+                      {t('staking_summary_staked_label', 'المبلغ المخزّن')}
+                    </Text>
+                    <Text style={[styles.stakingValue, { color: colors.text }]}>
+                      {stakingData.stakedAmount.toLocaleString('en-US', { maximumFractionDigits: 4 })} MECO
+                    </Text>
+                  </View>
+                  <View style={[styles.stakingDivider, { backgroundColor: colors.border }]} />
+                  <View style={styles.stakingCol}>
+                    <Text style={[styles.stakingLabel, { color: colors.textSecondary }]}>
+                      {t('staking_summary_rewards_label', 'الأرباح المتراكمة')}
+                    </Text>
+                    <Text style={[styles.stakingValue, { color: colors.success }]}>
+                      +{(stakingData.pendingRewards || 0).toLocaleString('en-US', { maximumFractionDigits: 6 })}
+                    </Text>
+                  </View>
+                </View>
+                <TouchableOpacity
+                  style={[styles.stakingBtn, { backgroundColor: primaryColor }]}
+                  onPress={() => navigation.navigate('Staking')}
+                >
+                  <Ionicons name="trending-up" size={16} color="#FFF" />
+                  <Text style={styles.stakingBtnTxt}>
+                    {t('staking_summary_view_btn', 'عرض التفاصيل')}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={[styles.stakingEmptyCard, { backgroundColor: colors.card, borderColor: primaryColor + '35' }]}
+                onPress={() => navigation.navigate('Staking')}
+                activeOpacity={0.85}
+              >
+                <View style={[styles.stakingEmptyIcon, { backgroundColor: primaryColor + '15' }]}>
+                  <Ionicons name="trending-up" size={22} color={primaryColor} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.stakingEmptyTitle, { color: colors.text }]}>
+                    {t('staking_summary_cta', 'ابدأ التخزين الآن')}
+                  </Text>
+                  <Text style={[styles.stakingEmptySub, { color: colors.textSecondary }]}>
+                    {t('staking_summary_cta_sub', 'خزّن MECO واكسب أرباحًا يومية')}
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {/* ✅ نبض السوق — بديل قسم الـ NFTs المشال */}
+          {topMovers.length > 0 && (
+            <View style={styles.moversSection}>
+              <View style={styles.tradingHeader}>
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                  {t('market_pulse_title', 'نبض السوق')}
+                </Text>
+                <Ionicons name="pulse-outline" size={16} color={colors.textSecondary} />
+              </View>
+
+              <FlatList
+                data={topMovers}
+                renderItem={renderMoverCard}
+                keyExtractor={item => item.mint}
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.tradingList}
+              />
+            </View>
+          )}
         </ScrollView>
 
-        {/* ── قائمة الخيارات (Modal Menu) ── */}
         <Modal visible={menuVisible} transparent animationType="fade" onRequestClose={() => setMenuVisible(false)}>
           <TouchableOpacity style={styles.menuOverlay} activeOpacity={1} onPress={() => setMenuVisible(false)}>
             <View style={[styles.menuCard, { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1 }]}>
@@ -799,7 +916,6 @@ export default function WalletScreen() {
           </TouchableOpacity>
         </Modal>
 
-        {/* منتقي الإيموجي */}
         <Modal visible={emojiPickerVisible} transparent animationType="slide" onRequestClose={() => setEmojiPickerVisible(false)}>
           <View style={styles.modalOverlayBottom}>
             <View style={[styles.emojiPickerContent, { backgroundColor: colors.card }]}>
@@ -851,7 +967,6 @@ export default function WalletScreen() {
           </View>
         </Modal>
 
-        {/* تعديل الاسم */}
         <Modal visible={modalVisible} transparent animationType="fade" onRequestClose={() => { setModalVisible(false); setEditingAccountIndex(null); }}>
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalOverlay}>
             <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
@@ -877,7 +992,6 @@ export default function WalletScreen() {
           </KeyboardAvoidingView>
         </Modal>
 
-        {/* منتقي الحسابات */}
         <Modal visible={accountsModalVisible} transparent animationType="slide" onRequestClose={() => setAccountsModalVisible(false)}>
           <View style={styles.modalOverlayBottom}>
             <View style={[styles.accountsModalContent, { backgroundColor: colors.card, marginBottom: Math.max(insets.bottom, 20) }]}>
@@ -971,6 +1085,7 @@ const styles = StyleSheet.create({
   tradeCardPrice:     { fontSize: 12, fontWeight: '600' },
   tradeCardChangeRow: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 2 },
   tradeCardChange:    { fontSize: 11, fontWeight: '700' },
+  moverBadge:         { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 2, alignSelf: 'flex-start', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8 },
 
   assetsSection:{ paddingHorizontal:20, paddingTop:4, paddingBottom: 8 },
   assetsHeader: { flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:12 },
@@ -998,6 +1113,24 @@ const styles = StyleSheet.create({
   swipeActionLabel:{ color:'#FFF', fontSize:11, fontWeight:'600', marginTop:4 },
   emptyContainer:{ alignItems:'center', paddingVertical:50, gap:8 },
   emptyText:    { fontSize:13, marginTop:4 },
+
+  // ✅ ملخص التخزين
+  stakingSection: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 4 },
+  stakingCard:    { borderRadius: 18, borderWidth: 1, padding: 16 },
+  stakingRow:     { flexDirection: 'row', alignItems: 'center' },
+  stakingCol:     { flex: 1 },
+  stakingDivider: { width: 1, height: 36, marginHorizontal: 14 },
+  stakingLabel:   { fontSize: 11, fontWeight: '600', marginBottom: 4 },
+  stakingValue:   { fontSize: 17, fontWeight: '800' },
+  stakingBtn:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 14, paddingVertical: 11, borderRadius: 12 },
+  stakingBtnTxt:  { color: '#FFF', fontSize: 13, fontWeight: '700' },
+  stakingEmptyCard: { flexDirection: 'row', alignItems: 'center', borderRadius: 18, borderWidth: 1.5, borderStyle: 'dashed', padding: 14, gap: 12 },
+  stakingEmptyIcon: { width: 44, height: 44, borderRadius: 13, justifyContent: 'center', alignItems: 'center' },
+  stakingEmptyTitle:{ fontSize: 14, fontWeight: '700', marginBottom: 2 },
+  stakingEmptySub:  { fontSize: 11 },
+
+  // ✅ نبض السوق
+  moversSection: { marginTop: 4, marginBottom: 8 },
 
   menuOverlay:  { flex:1, backgroundColor:'rgba(0,0,0,0.2)', justifyContent:'flex-start', alignItems:'flex-end', paddingTop:Platform.OS==='ios'?100:80, paddingRight:20 },
   menuCard:     { width:210, borderRadius:16, overflow:'hidden', elevation:10, shadowOffset:{width:0,height:4}, shadowOpacity:0.1, shadowRadius:10 },
