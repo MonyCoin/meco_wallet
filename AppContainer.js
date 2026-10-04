@@ -38,9 +38,10 @@ import PortfolioScreen          from './screens/PortfolioScreen';
 import DappBrowserScreen        from './screens/DappBrowserScreen';
 import NotificationsScreen      from './screens/NotificationsScreen';
 import PriceAlertsScreen        from './screens/PriceAlertsScreen';
-import AddressBookScreen      from './screens/AddressBookScreen';
+import AddressBookScreen        from './screens/AddressBookScreen';
 import QuickTradeScreen         from './screens/QuickTradeScreen';
 import TradeExecutionScreen     from './screens/TradeExecutionScreen';
+import ActivityHistoryScreen    from './screens/ActivityHistoryScreen';
 import { checkBalanceChanges }  from './services/balanceMonitorService';
 import { checkPriceAlerts }     from './services/priceAlertService';
 
@@ -266,9 +267,10 @@ export default function AppContainer() {
           <Stack.Screen name="Portfolio"          component={PortfolioScreen}          options={{ headerShown:false }} />
           <Stack.Screen name="Notifications"      component={NotificationsScreen}      options={{ headerShown:false }} />
           <Stack.Screen name="PriceAlerts"        component={PriceAlertsScreen}        options={{ headerShown:false }} />
-          <Stack.Screen name="AddressBook"   component={AddressBookScreen}   options={{ headerShown:false }} />
+          <Stack.Screen name="AddressBook"        component={AddressBookScreen}        options={{ headerShown:false }} />
           <Stack.Screen name="QuickTrade"         component={QuickTradeScreen}         options={{ headerShown:false }} />
           <Stack.Screen name="TradeExecution"     component={TradeExecutionScreen}     options={{ headerShown:false }} />
+          <Stack.Screen name="ActivityHistory"    component={ActivityHistoryScreen}    options={{ headerShown:false }} />
 
           <Stack.Screen
             name="DappBrowser"

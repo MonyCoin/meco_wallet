@@ -15,7 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getSolBalance, getTokenAccounts, getTokenBalance } from '../services/heliusService';
 import { CORE_TOKENS, getJupiterMarketData, getCustomTokens } from '../services/jupiterMarketService';
-import { getUserStakingData } from '../services/stakingService'; // ✅ ملخص التخزين
+import { getUserStakingData } from '../services/stakingService';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { getUnreadCount } from '../services/notificationsService';
 
@@ -69,7 +69,6 @@ export default function WalletScreen() {
   const [totalBalanceUSD,       setTotalBalanceUSD]       = useState(0);
   const [assets,                setAssets]                = useState([]);
   const [tradableTokens,        setTradableTokens]        = useState([]);
-  // ✅ ملخص التخزين — بيانات محلية خفيفة من stakingService، بتتحدث مع كل حساب
   const [stakingData,           setStakingData]           = useState({ stakedAmount: 0, pendingRewards: 0, apy: 0, plan: null });
   const [refreshing,            setRefreshing]            = useState(false);
   const [modalVisible,          setModalVisible]          = useState(false);
@@ -469,32 +468,6 @@ export default function WalletScreen() {
     );
   };
 
-  // ✅ نبض السوق — نفس بطاقة renderTradeCard، مرتبة حسب أكبر تحرك سعري
-  // (موجب أو سالب) خلال 24 ساعة، من نفس tradableTokens الموجودة أصلاً —
-  // صفر استدعاءات شبكة إضافية
-  const renderMoverCard = ({ item }) => {
-    const up = (item.price_change_percentage_24h || 0) >= 0;
-    return (
-      <TouchableOpacity
-        style={[styles.tradeCard, { backgroundColor: colors.card, borderColor: up ? colors.success + '35' : colors.error + '35' }]}
-        onPress={() => handleOpenQuickTrade(item)}
-        activeOpacity={0.85}
-      >
-        <Image source={{ uri: item.image }} style={styles.tradeCardIcon} />
-        <Text style={[styles.tradeCardSymbol, { color: colors.text }]}>{item.symbol}</Text>
-        <Text style={[styles.tradeCardPrice, { color: colors.text }]} numberOfLines={1}>
-          {fmtTradePrice(item.current_price)}
-        </Text>
-        <View style={[styles.moverBadge, { backgroundColor: (up ? colors.success : colors.error) + '18' }]}>
-          <Ionicons name={up ? 'trending-up' : 'trending-down'} size={11} color={up ? colors.success : colors.error} />
-          <Text style={[styles.tradeCardChange, { color: up ? colors.success : colors.error }]}>
-            {up ? '+' : ''}{(item.price_change_percentage_24h || 0).toFixed(2)}%
-          </Text>
-        </View>
-      </TouchableOpacity>
-    );
-  };
-
   const renderAccountLeftActions = (item) => {
     const isActive = item.index === activeAccountIndex;
     return (
@@ -594,12 +567,6 @@ export default function WalletScreen() {
       </View>
     );
   };
-
-  // ✅ أكبر العملات تحركًا (موجب أو سالب) من بيانات tradableTokens الجاهزة أصلاً
-  const topMovers = [...tradableTokens]
-    .filter(tk => tk.current_price > 0)
-    .sort((a, b) => Math.abs(b.price_change_percentage_24h || 0) - Math.abs(a.price_change_percentage_24h || 0))
-    .slice(0, 8);
 
   const hasStaked = stakingData.stakedAmount > 0;
 
@@ -768,7 +735,7 @@ export default function WalletScreen() {
             </View>
           </View>
 
-          {/* ✅ ملخص التخزين — بديل قسم الـ NFTs المشال */}
+          {/* ✅ ملخص التخزين */}
           <View style={styles.stakingSection}>
             <View style={styles.assetsHeader}>
               <Text style={[styles.sectionTitle, { color: colors.text }]}>
@@ -829,26 +796,32 @@ export default function WalletScreen() {
             )}
           </View>
 
-          {/* ✅ نبض السوق — بديل قسم الـ NFTs المشال */}
-          {topMovers.length > 0 && (
-            <View style={styles.moversSection}>
-              <View style={styles.tradingHeader}>
-                <Text style={[styles.sectionTitle, { color: colors.text }]}>
-                  {t('market_pulse_title', 'نبض السوق')}
-                </Text>
-                <Ionicons name="pulse-outline" size={16} color={colors.textSecondary} />
+          {/* ✅ النشاط الأخير — عنوان + زر View فقط */}
+          <View style={styles.activitySection}>
+            <TouchableOpacity
+              style={[styles.activityCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+              onPress={() => navigation.navigate('ActivityHistory')}
+              activeOpacity={0.75}
+            >
+              <View style={[styles.activityIconWrap, { backgroundColor: primaryColor + '15' }]}>
+                <Ionicons name="time-outline" size={20} color={primaryColor} />
               </View>
-
-              <FlatList
-                data={topMovers}
-                renderItem={renderMoverCard}
-                keyExtractor={item => item.mint}
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.tradingList}
-              />
-            </View>
-          )}
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.activityLabel, { color: colors.text }]}>
+                  {t('activity.title')}
+                </Text>
+                <Text style={[styles.activitySub, { color: colors.textSecondary }]}>
+                  {t('activity.subtitle')}
+                </Text>
+              </View>
+              <View style={[styles.viewPill, { backgroundColor: primaryColor + '15', borderColor: primaryColor + '30' }]}>
+                <Text style={[styles.viewPillTxt, { color: primaryColor }]}>
+                  {t('activity.view')}
+                </Text>
+                <Ionicons name="arrow-forward" size={12} color={primaryColor} />
+              </View>
+            </TouchableOpacity>
+          </View>
         </ScrollView>
 
         <Modal visible={menuVisible} transparent animationType="fade" onRequestClose={() => setMenuVisible(false)}>
@@ -1085,7 +1058,6 @@ const styles = StyleSheet.create({
   tradeCardPrice:     { fontSize: 12, fontWeight: '600' },
   tradeCardChangeRow: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 2 },
   tradeCardChange:    { fontSize: 11, fontWeight: '700' },
-  moverBadge:         { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 2, alignSelf: 'flex-start', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8 },
 
   assetsSection:{ paddingHorizontal:20, paddingTop:4, paddingBottom: 8 },
   assetsHeader: { flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:12 },
@@ -1114,7 +1086,6 @@ const styles = StyleSheet.create({
   emptyContainer:{ alignItems:'center', paddingVertical:50, gap:8 },
   emptyText:    { fontSize:13, marginTop:4 },
 
-  // ✅ ملخص التخزين
   stakingSection: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 4 },
   stakingCard:    { borderRadius: 18, borderWidth: 1, padding: 16 },
   stakingRow:     { flexDirection: 'row', alignItems: 'center' },
@@ -1129,8 +1100,14 @@ const styles = StyleSheet.create({
   stakingEmptyTitle:{ fontSize: 14, fontWeight: '700', marginBottom: 2 },
   stakingEmptySub:  { fontSize: 11 },
 
-  // ✅ نبض السوق
-  moversSection: { marginTop: 4, marginBottom: 8 },
+  // ✅ النشاط الأخير — بطاقة واحدة فيها زر View
+  activitySection:  { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 20 },
+  activityCard:     { flexDirection: 'row', alignItems: 'center', padding: 14, borderRadius: 18, borderWidth: 1, gap: 12 },
+  activityIconWrap: { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+  activityLabel:    { fontSize: 14, fontWeight: '700' },
+  activitySub:      { fontSize: 11, marginTop: 3 },
+  viewPill:         { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, borderWidth: 1 },
+  viewPillTxt:      { fontSize: 12, fontWeight: '700' },
 
   menuOverlay:  { flex:1, backgroundColor:'rgba(0,0,0,0.2)', justifyContent:'flex-start', alignItems:'flex-end', paddingTop:Platform.OS==='ios'?100:80, paddingRight:20 },
   menuCard:     { width:210, borderRadius:16, overflow:'hidden', elevation:10, shadowOffset:{width:0,height:4}, shadowOpacity:0.1, shadowRadius:10 },

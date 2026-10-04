@@ -1,3 +1,4 @@
+// services/heliusService.js
 import * as SecureStore from 'expo-secure-store';
 import * as web3 from '@solana/web3.js';
 import * as splToken from '@solana/spl-token';
@@ -9,7 +10,7 @@ const HELIUS_URL = 'https://mainnet.helius-rpc.com/?api-key=fb28d3cf-7dd1-4667-9
 const MINT_TO_SYMBOL = {
   'So11111111111111111111111111111111111111112':  'SOL',
   'A5Ln25cfww33kfUSzBb89bMha7j1PnFQTy7H3FsQHN7W': 'MECO',
-  'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB': 'USDT', // ✅ mint صحيح
+  'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB': 'USDT',
   'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v': 'USDC',
   'JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbJedZ89LxcQ':  'JUP',
   '4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R': 'RAY',
@@ -185,7 +186,6 @@ export const getTokenMarketPrice = async (tokenSymbol) => {
     const cached = CACHE.prices.get(tokenSymbol);
     if (cached) return cached;
 
-    // MECO من DexScreener
     if (tokenSymbol === 'MECO') {
       try {
         const res  = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${MECO_MINT_ADDRESS}`);
@@ -203,11 +203,9 @@ export const getTokenMarketPrice = async (tokenSymbol) => {
       return 0;
     }
 
-    // باقي العملات من mint address
     const mintAddress = MINT_TO_SYMBOL[Object.keys(MINT_TO_SYMBOL).find(k => MINT_TO_SYMBOL[k] === tokenSymbol)];
     if (!mintAddress || tokenSymbol === 'MECO') return 0;
 
-    // البحث عن mint address بالاتجاه العكسي
     const mint = Object.keys(MINT_TO_SYMBOL).find(k => MINT_TO_SYMBOL[k] === tokenSymbol);
     if (!mint) return 0;
 
@@ -379,7 +377,6 @@ export async function sendTokenTransaction(fromKeypair, toAddress, mintAddress, 
     const amountRaw     = BigInt(Math.floor(amount * Math.pow(10, mintInfo.decimals)));
     if (amountRaw === 0n) throw new Error('AMOUNT_TOO_SMALL');
 
-    // ✅ فحص رصيد المُرسِل الفعلي وليس الحساب النشط في SecureStore
     const senderAddress = fromKeypair.publicKey.toBase58();
     const tokenBalance  = await getTokenBalance(mintAddress, true, senderAddress);
     if (tokenBalance < amount) throw new Error('INSUFFICIENT_BALANCE');
@@ -440,14 +437,25 @@ export function clearBalanceCache(mintAddress) {
   CACHE.blockhashTime = 0;
 }
 
-export async function getTransactionHistory(limit = 20, address = null) {
+/**
+ * ✅ جلب سجل المعاملات مع دعم Pagination
+ * @param {number} limit   - عدد المعاملات المطلوبة (افتراضي 20)
+ * @param {string} address - عنوان المحفظة (اختياري، يستخدم المحفظة النشطة افتراضيًا)
+ * @param {string} before  - signature لآخر معاملة تم تحميلها (للصفحة التالية)
+ */
+export async function getTransactionHistory(limit = 20, address = null, before = null) {
   try {
     const pubKeyStr = address || await SecureStore.getItemAsync('wallet_public_key');
     if (!pubKeyStr) return [];
 
     const connection = await rpcManager.getConnection();
     const pubKey     = new web3.PublicKey(pubKeyStr);
-    const signatures = await connection.getSignaturesForAddress(pubKey, { limit, commitment: 'confirmed' });
+
+    // ✅ خيارات getSignaturesForAddress — تُضاف before عند التصفح للأمام
+    const sigOptions = { limit, commitment: 'confirmed' };
+    if (before) sigOptions.before = before;
+
+    const signatures = await connection.getSignaturesForAddress(pubKey, sigOptions);
     const transactions = [];
 
     for (const sig of signatures) {
@@ -498,7 +506,6 @@ export async function getTransactionHistory(limit = 20, address = null) {
             const parsedInfo    = ix.parsed.info;
             const from          = parsedInfo.authority || parsedInfo.owner || pubKeyStr;
             const destinationAta= parsedInfo.destination;
-            // ✅ استخدام getMintSymbol للحصول على رمز العملة الصحيح
             const mint          = parsedInfo.mint || preToken.find(t => t.accountIndex === accountKeys.indexOf(destinationAta))?.mint;
 
             let toOwner     = destinationAta;
@@ -534,7 +541,7 @@ export async function getTransactionHistory(limit = 20, address = null) {
                 slot: sig.slot,
                 from, to: toOwner,
                 amount: Math.abs(exactAmount),
-                token:  getMintSymbol(mint), // ✅ يشمل جميع العملات
+                token:  getMintSymbol(mint),
                 mint,
                 type:   from === pubKeyStr ? 'send' : 'receive',
                 fee:    tx.meta.fee / web3.LAMPORTS_PER_SOL,
@@ -561,7 +568,7 @@ export async function getTransactionHistory(limit = 20, address = null) {
             if (Math.abs(delta) > 0.000001) {
               isTokenTx   = true;
               mint        = post.mint;
-              tokenSymbol = getMintSymbol(mint); // ✅ يشمل جميع العملات
+              tokenSymbol = getMintSymbol(mint);
               if (delta > 0) {
                 type   = 'receive';
                 amount = delta;

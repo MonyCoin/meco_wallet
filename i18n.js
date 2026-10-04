@@ -1749,6 +1749,43 @@ i18n.addResourceBundle('en', 'translation', {
   staking_summary_cta_sub: 'Stake MECO and earn daily rewards',
 }, true, true);
 
+// ═════════════════════════════════════════════════════════════════════════════
+// ✅ قسم النشاط الأخير — بطاقة WalletScreen + شاشة ActivityHistory
+// ═════════════════════════════════════════════════════════════════════════════
+i18n.addResourceBundle('ar', 'translation', {
+  activity: {
+    title:         'النشاط الأخير',
+    subtitle:      'اعرض كل معاملاتك',
+    view:          'عرض',
+    history_title: 'سجل العمليات',
+    empty:         'لا توجد معاملات بعد',
+    no_more:       'لا توجد عمليات أخرى',
+    received:      'استلمت',
+    sent:          'أرسلت',
+    just_now:      'الآن',
+    minutes_ago:   'منذ {{count}} دقيقة',
+    hours_ago:     'منذ {{count}} ساعة',
+    days_ago:      'منذ {{count}} يوم',
+  },
+}, true, true);
+
+i18n.addResourceBundle('en', 'translation', {
+  activity: {
+    title:         'Recent Activity',
+    subtitle:      'View all your transactions',
+    view:          'View',
+    history_title: 'Activity History',
+    empty:         'No transactions yet',
+    no_more:       'No more transactions',
+    received:      'Received',
+    sent:          'Sent',
+    just_now:      'Just now',
+    minutes_ago:   '{{count}} minutes ago',
+    hours_ago:     '{{count}} hours ago',
+    days_ago:      '{{count}} days ago',
+  },
+}, true, true);
+
 export const changeLanguage = (lng) => {
   i18n.changeLanguage(lng);
   SecureStore.setItemAsync('app_language', lng);
