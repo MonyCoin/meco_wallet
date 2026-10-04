@@ -16,28 +16,26 @@ import { initWalletConnect, pairWalletConnect } from '../services/walletConnectS
 const { width } = Dimensions.get('window');
 const BOOKMARKS_KEY = '@meco_bookmarks';
 const HISTORY_KEY   = '@meco_browsing_history';
-const HISTORY_MAX   = 50;
-const COLS     = 3;
-const GAP      = 12;
-const CARD_W   = (width - 40 - GAP * (COLS - 1)) / COLS;
+const GAP     = 12;
+const CARD_W  = (width - 40 - GAP) / 2;
 
 const DAPPS = [
-  { id:'marinade', name:'Marinade', icon:'https://assets.coingecko.com/coins/images/18612/large/mnde.png', url:'https://marinade.finance/app/staking', category:'staking', badge:'8.5% APY'  },
-  { id:'jito',     name:'Jito',     icon:'https://assets.coingecko.com/coins/images/33228/large/jto.png',  url:'https://jito.network/staking',         category:'staking', badge:'9.2% APY'  },
-  { id:'jupiter',  name:'Jupiter',  icon:'https://assets.coingecko.com/coins/images/34188/large/jup.png',  url:'https://jup.ag',                       category:'trading', badge:'DEX'       },
-  { id:'orca',     name:'Orca',     icon:'https://assets.coingecko.com/coins/images/17547/large/Orca_Logo.png', url:'https://www.orca.so/pools',       category:'pools',   badge:'Pools'     },
+  { id:'jupiter',  name:'Jupiter',  icon:'https://assets.coingecko.com/coins/images/34188/large/jup.png',  url:'https://jup.ag',                       category:'trading', badge:'DEX',      featured:true, desc:'أفضل أسعار التبادل على Solana' },
+  { id:'marinade', name:'Marinade', icon:'https://assets.coingecko.com/coins/images/18612/large/mnde.png', url:'https://marinade.finance/app/staking', category:'staking', badge:'8.5% APY' },
+  { id:'jito',     name:'Jito',     icon:'https://assets.coingecko.com/coins/images/33228/large/jto.png',  url:'https://jito.network/staking',         category:'staking', badge:'9.2% APY' },
+  { id:'orca',     name:'Orca',     icon:'https://assets.coingecko.com/coins/images/17547/large/Orca_Logo.png', url:'https://www.orca.so/pools',       category:'pools',   badge:'Pools' },
   { id:'raydium',  name:'Raydium',  icon:'https://assets.coingecko.com/coins/images/13928/large/PSigc4ie_400x400.jpg', url:'https://raydium.io/liquidity/pools/', category:'pools', badge:'15.5% APY' },
-  { id:'meteora',  name:'Meteora',  icon:'https://www.meteora.ag/favicon.ico',                              url:'https://app.meteora.ag',               category:'defi',    badge:'20% APY'   },
-  { id:'kamino',   name:'Kamino',   icon:'https://www.kamino.finance/favicon.ico',                          url:'https://app.kamino.finance/lend',      category:'defi',    badge:'8% APY'    },
-  { id:'drift',    name:'Drift',    icon:'https://www.drift.trade/favicon.ico',                              url:'https://app.drift.trade',              category:'trading', badge:'Perps'     },
-  { id:'solend',   name:'Solend',   icon:'https://solend.fi/favicon.ico',                                    url:'https://solend.fi/dashboard',          category:'defi',    badge:'5% APY'    },
+  { id:'meteora',  name:'Meteora',  icon:'https://www.meteora.ag/favicon.ico',                              url:'https://app.meteora.ag',               category:'defi',    badge:'20% APY' },
+  { id:'kamino',   name:'Kamino',   icon:'https://www.kamino.finance/favicon.ico',                          url:'https://app.kamino.finance/lend',      category:'defi',    badge:'8% APY' },
+  { id:'drift',    name:'Drift',    icon:'https://www.drift.trade/favicon.ico',                              url:'https://app.drift.trade',              category:'trading', badge:'Perps' },
+  { id:'solend',   name:'Solend',   icon:'https://solend.fi/favicon.ico',                                    url:'https://solend.fi/dashboard',          category:'defi',    badge:'5% APY' },
 ];
 
 const CAT_COLOR = {
   staking: '#3B82F6',
   defi:    '#8B5CF6',
   trading: '#10B981',
-  pools:   '#9945FF',
+  pools:   '#F59E0B',
 };
 
 const SafeImg = ({ uri, size, radiusRatio = 0.28 }) => {
@@ -77,11 +75,11 @@ export default function AppPortalScreen() {
   };
 
   const FILTERS = [
-    { id:'all',     label: t('all', 'الكل')       },
-    { id:'staking', label: t('category_staking', 'Staking')  },
-    { id:'defi',    label: t('category_defi', 'DeFi')        },
-    { id:'trading', label: t('category_trading', 'Trading')  },
-    { id:'pools',   label: t('category_pools', 'Pools')      },
+    { id:'all',     label: t('all', 'الكل') },
+    { id:'staking', label: t('category_staking', 'Staking') },
+    { id:'defi',    label: t('category_defi', 'DeFi') },
+    { id:'trading', label: t('category_trading', 'Trading') },
+    { id:'pools',   label: t('category_pools', 'Pools') },
   ];
 
   const [filter,      setFilter]      = useState('all');
@@ -106,7 +104,6 @@ export default function AppPortalScreen() {
     initWalletConnect().catch(() => {});
   }, []);
 
-  // WalletConnect QR من DappBrowser
   useEffect(() => {
     const scanned = route.params?.scannedAddress;
     if (scanned?.startsWith('wc:')) {
@@ -129,10 +126,9 @@ export default function AppPortalScreen() {
     } catch (_) {}
   };
 
-  // إعادة تحميل المفضلة وسجل التصفح عند العودة من DappBrowser
   useEffect(() => {
-    const unsubscribe = navigation.addListener('focus', () => { loadBm(); loadHistory(); });
-    return unsubscribe;
+    const unsub = navigation.addListener('focus', () => { loadBm(); loadHistory(); });
+    return unsub;
   }, [navigation]);
 
   const saveBm = async (list) => {
@@ -180,9 +176,11 @@ export default function AppPortalScreen() {
     openUrl(url, 'Web3');
   };
 
-  const filtered = filter === 'all' ? DAPPS : DAPPS.filter(d => d.category === filter);
-  const padTop   = Platform.OS === 'ios' ? insets.top + 10 : insets.top + 18;
-  const padBot   = insets.bottom + 80;
+  const filtered    = filter === 'all' ? DAPPS : DAPPS.filter(d => d.category === filter);
+  const heroApp     = filter === 'all' ? DAPPS.find(d => d.featured) : null;
+  const gridApps    = heroApp ? filtered.filter(d => d.id !== heroApp.id) : filtered;
+  const padTop      = Platform.OS === 'ios' ? insets.top + 10 : insets.top + 18;
+  const padBot      = insets.bottom + 80;
 
   const fmtHistoryTime = (ts) => {
     if (!ts) return '';
@@ -194,7 +192,41 @@ export default function AppPortalScreen() {
     return new Date(ts).toLocaleDateString();
   };
 
-  // ── بطاقة تطبيق موحدة — بشريط علوي وحلقة أيقونة بلون الفئة ─────────────────
+  // ── Hero Card ─────────────────────────────────────────────────────────────
+  const HeroCard = ({ item }) => {
+    const color = CAT_COLOR[item.category] || C.accent;
+    return (
+      <TouchableOpacity
+        style={[S.hero, { backgroundColor:C.card, borderColor:C.border }]}
+        onPress={() => openUrl(item.url, item.name)}
+        activeOpacity={0.85}
+      >
+        <View style={[S.heroStripe, { backgroundColor:color }]} />
+        <View style={[S.heroIcon, { backgroundColor:color + '14', borderColor:color + '30' }]}>
+          <SafeImg uri={item.icon} size={52} radiusRatio={0.28} />
+        </View>
+        <View style={{ flex:1 }}>
+          <View style={S.heroTitleRow}>
+            <Text style={[S.heroName, { color:C.text }]}>{item.name}</Text>
+            <View style={[S.heroBadge, { backgroundColor:color + '20' }]}>
+              <Text style={[S.heroBadgeTxt, { color }]}>{item.badge}</Text>
+            </View>
+          </View>
+          <Text style={[S.heroDesc, { color:C.muted }]} numberOfLines={1}>
+            {item.desc || t('featured_app', 'تطبيق مميز')}
+          </Text>
+          <View style={S.heroOpen}>
+            <Text style={[S.heroOpenTxt, { color }]}>
+              {t('portal_open_app', 'افتح التطبيق')}
+            </Text>
+            <Ionicons name="arrow-forward" size={13} color={color} />
+          </View>
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
+  // ── Dapp Grid Card ────────────────────────────────────────────────────────
   const DappCard = ({ item }) => {
     const color = CAT_COLOR[item.category] || C.accent;
     return (
@@ -203,19 +235,18 @@ export default function AppPortalScreen() {
         onPress={() => openUrl(item.url, item.name)}
         activeOpacity={0.75}
       >
-        <View style={[S.cardAccent, { backgroundColor:color }]} />
-        <View style={[S.iconRing, { borderColor:color+'45' }]}>
-          <SafeImg uri={item.icon} size={40} radiusRatio={0.26} />
+        <View style={[S.iconRing, { borderColor:color + '30', backgroundColor:color + '10' }]}>
+          <SafeImg uri={item.icon} size={44} radiusRatio={0.28} />
         </View>
         <Text style={[S.cardName, { color:C.text }]} numberOfLines={1}>{item.name}</Text>
-        <View style={[S.cardBadge, { backgroundColor: color+'18' }]}>
+        <View style={[S.cardBadge, { backgroundColor:color + '18' }]}>
           <Text style={[S.cardBadgeTxt, { color }]}>{item.badge}</Text>
         </View>
       </TouchableOpacity>
     );
   };
 
-  // ── صف مفضلة ───────────────────────────────────────────────────────────────
+  // ── Bookmark Row ──────────────────────────────────────────────────────────
   const BmRow = ({ item }) => (
     <TouchableOpacity
       style={[S.bmRow, { backgroundColor:C.card, borderColor:C.border }]}
@@ -224,12 +255,12 @@ export default function AppPortalScreen() {
       delayLongPress={600}
       activeOpacity={0.75}
     >
-      <View style={[S.bmIco, { backgroundColor:C.accent+'18' }]}>
+      <View style={[S.bmIco, { backgroundColor:C.accent + '18' }]}>
         <Ionicons name="globe-outline" size={20} color={C.accent} />
       </View>
       <View style={{ flex:1 }}>
         <Text style={[S.bmName, { color:C.text }]} numberOfLines={1}>{item.name}</Text>
-        <Text style={[S.bmUrl,  { color:C.muted }]} numberOfLines={1}>
+        <Text style={[S.bmUrl, { color:C.muted }]} numberOfLines={1}>
           {item.url.replace(/^https?:\/\//, '')}
         </Text>
       </View>
@@ -241,65 +272,61 @@ export default function AppPortalScreen() {
     <View style={[S.root, { backgroundColor:C.bg, paddingTop:padTop }]}>
 
       <Animated.View style={{ opacity:fadeAnim, transform:[{ translateY:slideAnim }] }}>
-        {/* ── العنوان ── */}
+        {/* ── Header ── */}
         <View style={S.headerRow}>
-          <View>
-            <Text style={[S.headerTitle, { color:C.text }]}>{t('explore_web3', 'استكشف Web3')}</Text>
-            <Text style={[S.headerSub, { color:C.muted }]}>{t('explore_desc', 'أفضل التطبيقات اللامركزية بين يديك')}</Text>
-          </View>
-          <View style={[S.compassBtn, { backgroundColor:C.accent+'18', borderColor:C.accent+'35' }]}>
-            <Ionicons name="compass" size={20} color={C.accent} />
+          <View style={{ flex:1 }}>
+            <Text style={[S.headerTitle, { color:C.text }]}>
+              {t('explore_web3', 'استكشف Web3')}
+            </Text>
+            <Text style={[S.headerSub, { color:C.muted }]}>
+              {t('explore_desc', 'أفضل التطبيقات اللامركزية بين يديك')}
+            </Text>
           </View>
         </View>
 
-        {/* ── شريط البحث + زر السجل (3 نقاط) ── */}
-        <View style={S.searchRow}>
-          <View style={[S.searchBar, { backgroundColor:C.card, borderColor:C.border }]}>
-            <Ionicons name="search-outline" size={16} color={C.muted} style={{ marginLeft:12 }} />
-            <TextInput
-              style={[S.searchInput, { color:C.text }]}
-              placeholder={t('browser_search_placeholder', 'ابحث أو أدخل رابطاً...')}
-              placeholderTextColor={C.muted}
-              value={search}
-              onChangeText={setSearch}
-              onSubmitEditing={handleSearch}
-              returnKeyType="go"
-              autoCapitalize="none"
-              autoCorrect={false}
-              keyboardType="url"
-            />
-            {search.length > 0 && (
-              <TouchableOpacity onPress={() => setSearch('')} style={{ marginRight:8 }}>
-                <Ionicons name="close-circle" size={16} color={C.muted} />
-              </TouchableOpacity>
-            )}
-          </View>
+        {/* ── Search ── */}
+        <View style={[S.searchBar, { backgroundColor:C.card, borderColor:C.border }]}>
+          <Ionicons name="search-outline" size={16} color={C.muted} style={{ marginLeft:14 }} />
+          <TextInput
+            style={[S.searchInput, { color:C.text }]}
+            placeholder={t('browser_search_placeholder', 'ابحث أو أدخل رابطاً...')}
+            placeholderTextColor={C.muted}
+            value={search}
+            onChangeText={setSearch}
+            onSubmitEditing={handleSearch}
+            returnKeyType="go"
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="url"
+          />
+          {search.length > 0 && (
+            <TouchableOpacity onPress={() => setSearch('')} style={{ paddingHorizontal:8 }}>
+              <Ionicons name="close-circle" size={16} color={C.muted} />
+            </TouchableOpacity>
+          )}
           <TouchableOpacity
-            style={[S.historyBtn, { backgroundColor:C.card, borderColor:C.border }]}
             onPress={() => setHistoryOpen(true)}
+            style={[S.searchHistoryBtn, { borderLeftColor:C.border }]}
           >
-            <Ionicons name="ellipsis-vertical" size={18} color={C.text} />
+            <Ionicons name="time-outline" size={17} color={C.muted} />
           </TouchableOpacity>
         </View>
 
-        {/* ── تبويبات اكتشف / مفضلة ── */}
-        <View style={[S.mainTabs, { backgroundColor:C.card, borderColor:C.border }]}>
+        {/* ── Segmented Tabs ── */}
+        <View style={[S.segment, { backgroundColor:C.card, borderColor:C.border }]}>
           {[
-            { id:'explore',   icon:'compass',  label: t('discover', 'اكتشف')    },
-            { id:'bookmarks', icon:'bookmark', label: t('bookmarks', 'المفضلة') },
+            { id:'explore',   label: t('discover', 'اكتشف')    },
+            { id:'bookmarks', label: t('bookmarks', 'المفضلة') },
           ].map(tab => {
             const on = view === tab.id;
             return (
               <TouchableOpacity
                 key={tab.id}
-                style={[S.mainTab, on && { backgroundColor:C.accent }]}
+                style={[S.segBtn, on && { backgroundColor:C.accent }]}
                 onPress={() => setView(tab.id)}
+                activeOpacity={0.85}
               >
-                <Ionicons
-                  name={on ? tab.icon : `${tab.icon}-outline`}
-                  size={14} color={on ? '#FFF' : C.muted}
-                />
-                <Text style={[S.mainTabTxt, { color: on ? '#FFF' : C.muted }]}>
+                <Text style={[S.segTxt, { color: on ? '#FFF' : C.muted }]}>
                   {tab.label}
                 </Text>
               </TouchableOpacity>
@@ -310,52 +337,57 @@ export default function AppPortalScreen() {
 
       {view === 'explore' ? (
         <Animated.View style={{ flex:1, opacity:fadeAnim }}>
-          {/* ── فلاتر الفئات ── */}
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={S.filterRow}
-            style={{ maxHeight:44, marginBottom:12 }}
-          >
-            {FILTERS.map(f => {
-              const on = filter === f.id;
-              const dotColor = CAT_COLOR[f.id];
-              return (
-                <TouchableOpacity
-                  key={f.id}
-                  style={[S.filterBtn, {
-                    backgroundColor: on ? C.accent : C.card,
-                    borderColor:     on ? C.accent : C.border,
-                  }]}
-                  onPress={() => setFilter(f.id)}
-                >
-                  {dotColor && <View style={[S.filterDot, { backgroundColor: on ? '#FFF' : dotColor }]} />}
-                  <Text style={[S.filterTxt, { color: on ? '#FFF' : C.muted }]}>
-                    {f.label}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-
-          {/* ── شبكة التطبيقات الموحدة ── */}
           <ScrollView
             showsVerticalScrollIndicator={false}
-            contentContainerStyle={[S.grid, { paddingBottom: padBot }]}
+            contentContainerStyle={[S.scrollContent, { paddingBottom: padBot }]}
             keyboardShouldPersistTaps="handled"
           >
+            {/* Hero */}
+            {heroApp && (
+              <View style={{ marginBottom:16 }}>
+                <HeroCard item={heroApp} />
+              </View>
+            )}
+
+            {/* Filters */}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={S.filterRow}
+              style={{ marginBottom:14 }}
+            >
+              {FILTERS.map(f => {
+                const on = filter === f.id;
+                const dotColor = CAT_COLOR[f.id];
+                return (
+                  <TouchableOpacity
+                    key={f.id}
+                    style={[S.filterBtn, {
+                      backgroundColor: on ? C.accent : C.card,
+                      borderColor:     on ? C.accent : C.border,
+                    }]}
+                    onPress={() => setFilter(f.id)}
+                    activeOpacity={0.8}
+                  >
+                    {dotColor && (
+                      <View style={[S.filterDot, { backgroundColor: on ? '#FFF' : dotColor }]} />
+                    )}
+                    <Text style={[S.filterTxt, { color: on ? '#FFF' : C.muted }]}>
+                      {f.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+
+            {/* Grid */}
             <View style={S.gridWrap}>
-              {filtered.map(item => <DappCard key={item.id} item={item} />)}
-              {filtered.length % COLS !== 0 &&
-                Array.from({ length: COLS - (filtered.length % COLS) }).map((_, i) => (
-                  <View key={`ph${i}`} style={{ width:CARD_W }} />
-                ))
-              }
+              {gridApps.map(item => <DappCard key={item.id} item={item} />)}
+              {gridApps.length % 2 !== 0 && <View style={{ width:CARD_W }} />}
             </View>
           </ScrollView>
         </Animated.View>
       ) : (
-        /* ── المفضلة ── */
         <Animated.ScrollView
           style={{ flex:1, opacity:fadeAnim }}
           contentContainerStyle={[S.bmList, { paddingBottom: padBot }]}
@@ -363,10 +395,10 @@ export default function AppPortalScreen() {
           keyboardShouldPersistTaps="handled"
         >
           <TouchableOpacity
-            style={[S.addBmBtn, { borderColor:C.accent+'40', backgroundColor:C.card }]}
+            style={[S.addBmBtn, { borderColor:C.accent + '40', backgroundColor:C.card }]}
             onPress={() => { setNewBm({ name:'', url:'' }); setAddVisible(true); }}
           >
-            <View style={[S.addBmIco, { backgroundColor:C.accent+'18' }]}>
+            <View style={[S.addBmIco, { backgroundColor:C.accent + '18' }]}>
               <Ionicons name="add" size={20} color={C.accent} />
             </View>
             <Text style={[S.addBmTxt, { color:C.accent }]}>
@@ -380,7 +412,7 @@ export default function AppPortalScreen() {
               ? bookmarks.map(b => <BmRow key={b.id} item={b} />)
               : (
                 <View style={[S.empty, { backgroundColor:C.card, borderColor:C.border }]}>
-                  <View style={[S.emptyIco, { backgroundColor:C.accent+'18' }]}>
+                  <View style={[S.emptyIco, { backgroundColor:C.accent + '18' }]}>
                     <Ionicons name="bookmark-outline" size={30} color={C.accent} />
                   </View>
                   <Text style={[S.emptyTitle, { color:C.text }]}>
@@ -395,7 +427,7 @@ export default function AppPortalScreen() {
         </Animated.ScrollView>
       )}
 
-      {/* ── Modal سجل التصفح (من الثلاث نقاط) ── */}
+      {/* History Modal */}
       <Modal visible={historyOpen} transparent animationType="slide"
         onRequestClose={() => setHistoryOpen(false)}>
         <TouchableWithoutFeedback onPress={() => setHistoryOpen(false)}>
@@ -418,7 +450,7 @@ export default function AppPortalScreen() {
                 <ScrollView showsVerticalScrollIndicator={false} style={{ marginTop:10 }}>
                   {history.length === 0 ? (
                     <View style={[S.empty, { backgroundColor:C.inputBg, borderColor:C.border, marginTop:4 }]}>
-                      <View style={[S.emptyIco, { backgroundColor:C.accent+'18' }]}>
+                      <View style={[S.emptyIco, { backgroundColor:C.accent + '18' }]}>
                         <Ionicons name="time-outline" size={28} color={C.accent} />
                       </View>
                       <Text style={[S.emptyTitle, { color:C.text }]}>
@@ -437,7 +469,7 @@ export default function AppPortalScreen() {
                       delayLongPress={500}
                       activeOpacity={0.75}
                     >
-                      <View style={[S.bmIco, { backgroundColor:C.accent+'18' }]}>
+                      <View style={[S.bmIco, { backgroundColor:C.accent + '18' }]}>
                         <Ionicons name="time-outline" size={18} color={C.accent} />
                       </View>
                       <View style={{ flex:1 }}>
@@ -458,7 +490,7 @@ export default function AppPortalScreen() {
         </TouchableWithoutFeedback>
       </Modal>
 
-      {/* ── Modal إضافة مفضلة ── */}
+      {/* Add Bookmark Modal */}
       <Modal visible={addVisible} transparent animationType="slide"
         onRequestClose={() => setAddVisible(false)}>
         <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
@@ -509,44 +541,61 @@ export default function AppPortalScreen() {
 
 const S = StyleSheet.create({
   root:        { flex:1 },
+  scrollContent:{ paddingHorizontal:20 },
 
-  // عنوان
-  headerRow:   { flexDirection:'row', justifyContent:'space-between', alignItems:'flex-start', paddingHorizontal:20, marginBottom:14 },
+  // Header
+  headerRow:   { flexDirection:'row', alignItems:'flex-start', paddingHorizontal:20, marginBottom:14 },
   headerTitle: { fontSize:24, fontWeight:'800', letterSpacing:-0.4 },
   headerSub:   { fontSize:12, marginTop:3 },
-  compassBtn:  { width:42, height:42, borderRadius:13, borderWidth:1, justifyContent:'center', alignItems:'center' },
 
-  // بحث + سجل
-  searchRow:   { flexDirection:'row', alignItems:'center', paddingHorizontal:20, marginBottom:12, gap:10 },
-  searchBar:   { flex:1, flexDirection:'row', alignItems:'center', borderRadius:14, borderWidth:1, height:46 },
-  searchInput: { flex:1, fontSize:14, height:'100%', paddingRight:8 },
-  historyBtn:  { width:46, height:46, borderRadius:14, borderWidth:1, justifyContent:'center', alignItems:'center' },
+  // Search
+  searchBar:   { flexDirection:'row', alignItems:'center', borderRadius:14, borderWidth:1,
+                 height:48, marginHorizontal:20, marginBottom:12 },
+  searchInput: { flex:1, fontSize:14, height:'100%', paddingHorizontal:10 },
+  searchHistoryBtn:{ width:42, height:'100%', justifyContent:'center', alignItems:'center', borderLeftWidth:1 },
 
-  // تبويبات رئيسية
-  mainTabs:    { flexDirection:'row', marginHorizontal:20, borderRadius:14, borderWidth:1, padding:3, marginBottom:14, gap:3 },
-  mainTab:     { flex:1, flexDirection:'row', alignItems:'center', justifyContent:'center', paddingVertical:10, borderRadius:11, gap:6 },
-  mainTabTxt:  { fontSize:13, fontWeight:'700' },
+  // Segment
+  segment:     { flexDirection:'row', marginHorizontal:20, borderRadius:14, borderWidth:1,
+                 padding:3, marginBottom:16, gap:3 },
+  segBtn:      { flex:1, paddingVertical:10, borderRadius:11, alignItems:'center', justifyContent:'center' },
+  segTxt:      { fontSize:13, fontWeight:'700' },
 
-  // فلاتر
-  filterRow:   { paddingHorizontal:20, gap:8, alignItems:'center', paddingVertical:2 },
-  filterBtn:   { flexDirection:'row', alignItems:'center', paddingHorizontal:16, paddingVertical:8, borderRadius:20, borderWidth:1.5, gap:6 },
+  // Hero
+  hero:        { flexDirection:'row', alignItems:'center', padding:16, borderRadius:20,
+                 borderWidth:1, gap:14, overflow:'hidden',
+                 shadowColor:'#000', shadowOffset:{width:0,height:3},
+                 shadowOpacity:0.06, shadowRadius:8, elevation:3 },
+  heroStripe:  { position:'absolute', top:0, left:0, bottom:0, width:4 },
+  heroIcon:    { width:64, height:64, borderRadius:18, borderWidth:1.5,
+                 justifyContent:'center', alignItems:'center' },
+  heroTitleRow:{ flexDirection:'row', alignItems:'center', gap:8, marginBottom:4 },
+  heroName:    { fontSize:18, fontWeight:'800' },
+  heroBadge:   { paddingHorizontal:8, paddingVertical:2, borderRadius:8 },
+  heroBadgeTxt:{ fontSize:10, fontWeight:'800' },
+  heroDesc:    { fontSize:12, marginBottom:8 },
+  heroOpen:    { flexDirection:'row', alignItems:'center', gap:4 },
+  heroOpenTxt: { fontSize:12, fontWeight:'800' },
+
+  // Filters
+  filterRow:   { paddingRight:20, gap:8, alignItems:'center' },
+  filterBtn:   { flexDirection:'row', alignItems:'center', paddingHorizontal:14, paddingVertical:7,
+                 borderRadius:20, borderWidth:1.5, gap:6 },
   filterDot:   { width:6, height:6, borderRadius:3 },
   filterTxt:   { fontSize:12, fontWeight:'700' },
 
-  // شبكة
-  grid:        { paddingHorizontal:20 },
+  // Grid
   gridWrap:    { flexDirection:'row', flexWrap:'wrap', gap:GAP },
-  card:        { alignItems:'center', paddingTop:14, paddingBottom:16, paddingHorizontal:6,
-                 borderRadius:18, borderWidth:1, gap:8, overflow:'hidden',
+  card:        { alignItems:'center', paddingVertical:18, paddingHorizontal:10,
+                 borderRadius:18, borderWidth:1, gap:10,
                  shadowColor:'#000', shadowOffset:{width:0,height:2},
                  shadowOpacity:0.04, shadowRadius:6, elevation:2 },
-  cardAccent:  { position:'absolute', top:0, left:0, right:0, height:3 },
-  iconRing:    { width:52, height:52, borderRadius:16, borderWidth:1.5, justifyContent:'center', alignItems:'center' },
-  cardName:    { fontSize:12, fontWeight:'700', textAlign:'center' },
-  cardBadge:   { paddingHorizontal:8, paddingVertical:3, borderRadius:8 },
-  cardBadgeTxt:{ fontSize:10, fontWeight:'700' },
+  iconRing:    { width:56, height:56, borderRadius:18, borderWidth:1.5,
+                 justifyContent:'center', alignItems:'center' },
+  cardName:    { fontSize:13, fontWeight:'700', textAlign:'center' },
+  cardBadge:   { paddingHorizontal:9, paddingVertical:3, borderRadius:8 },
+  cardBadgeTxt:{ fontSize:10, fontWeight:'800' },
 
-  // مفضلة / سجل
+  // Bookmarks
   bmList:      { paddingHorizontal:20, paddingTop:4 },
   addBmBtn:    { flexDirection:'row', alignItems:'center', padding:14, borderRadius:16,
                  marginBottom:14, borderWidth:1.5, borderStyle:'dashed', gap:10 },
