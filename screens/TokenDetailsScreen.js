@@ -337,7 +337,7 @@ export default function TokenDetailsScreen() {
             {token.swapAvailable !== false && (
               <TouchableOpacity
                 style={[S.actionBtn, { backgroundColor:C.success }]}
-                onPress={() => navigation.navigate('Trading', { token })}
+                onPress={() => navigation.navigate('QuickTrade', { token })}
               >
                 <Ionicons name="trending-up" size={15} color="#FFF" />
                 <Text style={S.actionTxt}>{t('buy', 'شراء')}</Text>
