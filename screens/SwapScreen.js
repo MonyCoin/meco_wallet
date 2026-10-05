@@ -246,7 +246,6 @@ export default function SwapScreen() {
               );
 
               if (result.success) {
-                // ✅ إرسال إشعار محلي بعد نجاح المبادلة
                 await addNotification({
                   type:       NOTIF_TYPES.SWAP,
                   titleKey:   'notif_swap_title',
@@ -342,23 +341,24 @@ export default function SwapScreen() {
   const renderTokenModal = (visible, onClose, onSelect, selectedToken) => (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       {/* استخدام TouchableOpacity لإغلاق المودال عند الضغط خارج البطاقة */}
-      <TouchableOpacity 
-        style={[styles.modalOverlay, { paddingBottom: Math.max(insets.bottom, 20) }]} 
-        activeOpacity={1} 
+      <TouchableOpacity
+        style={[styles.modalOverlay, { paddingBottom: Math.max(insets.bottom, 20) }]}
+        activeOpacity={1}
         onPress={onClose}
       >
-        <TouchableOpacity 
-          activeOpacity={1} 
+        <TouchableOpacity
+          activeOpacity={1}
           style={[styles.modalContent, { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1 }]}
         >
           <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
-          
+
           <View style={styles.modalHeader}>
             <TouchableOpacity onPress={onClose} style={[styles.closeBtn, { backgroundColor: colors.background }]}>
               <Ionicons name="close" size={18} color={colors.text} />
             </TouchableOpacity>
             <Text style={[styles.modalTitle, { color: colors.text }]}>{t('select_token')}</Text>
-            <View style={{ width: 36 }} /> {/* Spacer لموازنة العنصرين */}
+            {/* Spacer لموازنة العنصرين */}
+            <View style={{ width: 36 }} />
           </View>
 
           <FlatList
@@ -412,7 +412,7 @@ export default function SwapScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background, paddingTop: Platform.OS === 'ios' ? 0 : insets.top }]}>
       <Animated.View style={[styles.mainContent, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
-        
+
         <View style={styles.headerSection}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={[styles.backButton, { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1 }]}>
             <Ionicons name="arrow-back" size={18} color={colors.text} />
@@ -447,7 +447,7 @@ export default function SwapScreen() {
           )}
 
           <View style={[styles.unifiedSwapContainer, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            
+
             <View style={styles.swapInputRow}>
               <View style={styles.swapInputLeft}>
                 <Text style={[styles.rowLabel, { color: colors.textSecondary }]}>{t('swap_from')}</Text>
@@ -664,15 +664,14 @@ const styles = StyleSheet.create({
   },
   executeButtonText: { color: '#FFF', fontSize: 16, fontWeight: '700' },
 
-  // ── تعديلات المودال الاحترافي ──
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'flex-end',
-    paddingHorizontal: 16, // لجعل البطاقة عائمة من الجوانب
+    paddingHorizontal: 16,
   },
   modalContent: {
-    borderRadius: 24, // تدوير جميع الحواف
+    borderRadius: 24,
     padding: 20,
     paddingTop: 12,
     maxHeight: height * 0.75,

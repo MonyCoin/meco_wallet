@@ -8,16 +8,15 @@ export const CORE_TOKENS = [
   { id:'usd-coin',                 symbol:'USDC',   name:'USD Coin',            decimals:6, swapAvailable:true,  image:'https://assets.coingecko.com/coins/images/6319/large/usdc.png',           mint:'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v' },
   { id:'jupiter-exchange-solana',  symbol:'JUP',    name:'Jupiter',             decimals:6, swapAvailable:true,  image:'https://assets.coingecko.com/coins/images/34188/large/jup.png',           mint:'JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbJedZ89LxcQ' },
   { id:'raydium',                  symbol:'RAY',    name:'Raydium',             decimals:6, swapAvailable:true,  image:'https://assets.coingecko.com/coins/images/13928/large/PSigc4ie_400x400.jpg', mint:'4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R' },
-  { id:'jito-governance-token',    symbol:'JTO',    name:'Jito',                decimals:9, swapAvailable:true,  image:'https://assets.coingecko.com/coins/images/33228/large/jto.png',           mint:'jtojtomepa8beP8AuQc6eEq5PG14zwVFmWeaKx1pC8X'  },
   { id:'orca',                     symbol:'ORCA',   name:'Orca',                decimals:6, swapAvailable:true,  image:'https://assets.coingecko.com/coins/images/17547/large/Orca_Logo.png',     mint:'orcaEKTdK7LKz57vaAYr9QeNsVEPfiu6QeMU1kektZE'  },
-  { id:'marinade',                 symbol:'MNDE',   name:'Marinade',            decimals:9, swapAvailable:true,  image:'https://assets.coingecko.com/coins/images/18612/large/mnde.png',          mint:'MNDEFzGvMt87ueuHvVU9VcTqsAP5b3fTGPsHuuPA5ey'  },
   { id:'pyth-network',             symbol:'PYTH',   name:'Pyth Network',        decimals:6, swapAvailable:true,  image:'https://assets.coingecko.com/coins/images/31924/large/pyth.png',          mint:'HZ1JovNiVvGrGNiiYvEozEVgZ58xaU3T7ef8R2mMWBwp'  },
   { id:'helium',                   symbol:'HNT',    name:'Helium',              decimals:8, swapAvailable:true,  image:'https://assets.coingecko.com/coins/images/4284/large/Helium_HNT.png',     mint:'hntyVP6YFm1Hg25TN9WGLqM12b8TQmcknKrdu1oxWux'  },
   { id:'bonk',                     symbol:'BONK',   name:'Bonk',                decimals:5, swapAvailable:true,  image:'https://assets.coingecko.com/coins/images/28600/large/bonk.jpg',          mint:'DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263'  },
   { id:'dogwifcoin',               symbol:'WIF',    name:'dogwifhat',           decimals:6, swapAvailable:true,  image:'https://assets.coingecko.com/coins/images/33566/large/dogwifhat.jpg',     mint:'EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm' },
   { id:'book-of-meme',             symbol:'BOME',   name:'Book of Meme',        decimals:6, swapAvailable:true,  image:'https://assets.coingecko.com/coins/images/36071/large/bome.png',          mint:'ukHH6c7mMyiWCf1b9pnWe25TSpkDDt3H5pQZgZ74J82'   },
-  { id:'popcat',                   symbol:'POPCAT', name:'Popcat',              decimals:9, swapAvailable:true,  image:'https://assets.coingecko.com/coins/images/33706/large/popcat.png',        mint:'7GCihgDB8fe6KNjn2MYtkzZcRjQy3t9GHdC8uHYmW2hr'   },
   { id:'pudgy-penguins',           symbol:'PENGU',  name:'Pudgy Penguins',      decimals:6, swapAvailable:true,  image:'https://assets.coingecko.com/coins/images/52622/large/PUDGY_PENGUINS_PENGU_PFP.png', mint:'2zMMhcVQEXDtdE6vsFS7S7D5oUodfJHE8vd1gnBouauv' },
+  { id:'pump-fun',                 symbol:'PUMP',   name:'Pump.fun',            decimals:6, swapAvailable:true,  image:'https://assets.coingecko.com/coins/images/67164/large/pump.jpg',          mint:'pumpCmXqMfrsAkQ5r49WcJnRayYRqmXz6ae8H7H9Dfn'   },
+  { id:'render-token',             symbol:'RENDER', name:'Render',              decimals:8, swapAvailable:true,  image:'https://assets.coingecko.com/coins/images/11636/large/rndr.png',          mint:'rndrizKT3MK1iimdxRdWabcF7Zg7AR5T4nud4EkHBof'   },
 ];
 
 const MECO_MINT         = 'A5Ln25cfww33kfUSzBb89bMha7j1PnFQTy7H3FsQHN7W';
@@ -32,7 +31,6 @@ const fetchWithTimeout = (url, ms = FETCH_TIMEOUT) => {
 };
 
 // ─── DexScreener ──────────────────────────────────────────────────────────────
-// ✅ نستخرج الآن imageUrl أيضًا — نفس الاستدعاء، صفر طلب شبكة إضافي
 const fetchDexScreener = async (mints) => {
   const result = new Map();
   if (!mints?.length) return result;
@@ -135,10 +133,8 @@ export async function getJupiterMarketData() {
         change24h = dex?.change24h ?? 0;
       }
 
-      // ✅ المصدر المفضّل للأيقونة: DexScreener (روابط شغّالة 100% لرموز Solana)
       const resolvedImage = dex?.imageUrl || token.image;
 
-      // تصحيح Stablecoins
       if (token.symbol === 'USDT' || token.symbol === 'USDC') {
         if (price < 0.95 || price > 1.05 || price === 0) price = 1.00;
         change24h = Math.abs(change24h) > 5 ? 0 : (+(change24h.toFixed(2)) || 0);

@@ -16,14 +16,13 @@ const MINT_TO_SYMBOL = {
   '4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R': 'RAY',
   'DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263': 'BONK',
   'EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm': 'WIF',
-  'jtojtomepa8beP8AuQc6eEq5PG14zwVFmWeaKx1pC8X':  'JTO',
   'HZ1JovNiVvGrGNiiYvEozEVgZ58xaU3T7ef8R2mMWBwp': 'PYTH',
   'hntyVP6YFm1Hg25TN9WGLqM12b8TQmcknKrdu1oxWux':  'HNT',
   'orcaEKTdK7LKz57vaAYr9QeNsVEPfiu6QeMU1kektZE':  'ORCA',
-  'MNDEFzGvMt87ueuHvVU9VcTqsAP5b3fTGPsHuuPA5ey':  'MNDE',
   'ukHH6c7mMyiWCf1b9pnWe25TSpkDDt3H5pQZgZ74J82':  'BOME',
-  '7GCihgDB8fe6KNjn2MYtkzZcRjQy3t9GHdC8uHYmW2hr': 'POPCAT',
   '2zMMhcVQEXDtdE6vsFS7S7D5oUodfJHE8vd1gnBouauv': 'PENGU',
+  'pumpCmXqMfrsAkQ5r49WcJnRayYRqmXz6ae8H7H9Dfn': 'PUMP',
+  'rndrizKT3MK1iimdxRdWabcF7Zg7AR5T4nud4EkHBof': 'RENDER',
 };
 
 // Helper — يُعيد رمز العملة من mint address

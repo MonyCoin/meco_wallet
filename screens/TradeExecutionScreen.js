@@ -19,10 +19,10 @@ const PLATFORM_FEE_SOL = 0.0005;
 
 // عملات التسعير المدعومة — الصور تُحقن ديناميكيًا من getJupiterMarketData
 const QUOTE_TOKENS = [
-  { symbol:'USDC', mint:'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', decimals:6, image:null },
-  { symbol:'USDT', mint:'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11MeCe8BenwNYB', decimals:6, image:null },
-  { symbol:'SOL',  mint:'So11111111111111111111111111111111111111112',   decimals:9, image:null },
-  { symbol:'MECO', mint:'A5Ln25cfww33kfUSzBb89bMha7j1PnFQTy7H3FsQHN7W', decimals:9, image:null },
+  { symbol:'USDC', mint:'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', decimals:6, image:'https://assets.coingecko.com/coins/images/6319/large/usdc.png' },
+  { symbol:'USDT', mint:'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB', decimals:6, image:'https://assets.coingecko.com/coins/images/325/large/Tether.png' },
+  { symbol:'SOL',  mint:'So11111111111111111111111111111111111111112',   decimals:9, image:'https://assets.coingecko.com/coins/images/4128/large/solana.png' },
+  { symbol:'MECO', mint:'A5Ln25cfww33kfUSzBb89bMha7j1PnFQTy7H3FsQHN7W', decimals:9, image: CORE_TOKENS.find(c => c.symbol === 'MECO')?.image || '' },
 ];
 
 const SafeImage = ({ uri, size = 32 }) => {
@@ -543,12 +543,10 @@ const S = StyleSheet.create({
   outputLabel:{ fontSize:12, fontWeight:'700', marginBottom:8 },
   outputRow:{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', gap:10 },
   outputValue:{ fontSize:24, fontWeight:'800', flex:1 },
-
-  feeRow:{ flexDirection:'row', justifyContent:'space-between', alignItems:'center',
+                                                    feeRow:{ flexDirection:'row', justifyContent:'space-between', alignItems:'center',
            marginHorizontal:16, paddingVertical:12, borderTopWidth:1 },
   feeLabel:{ fontSize:12, fontWeight:'600' },
-  feeValue:{ fontSize:12, fontWeight:'800' },
-
+  feeValue:{ fontSize:12, fontWeight:'800' },     
   executeBtn:{ flexDirection:'row', alignItems:'center', justifyContent:'center',
                marginHorizontal:16, marginTop:12, paddingVertical:16, borderRadius:16, gap:8,
                shadowColor:'#000', shadowOpacity:0.15, shadowRadius:10, elevation:4 },

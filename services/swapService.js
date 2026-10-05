@@ -16,14 +16,13 @@ export const TOKEN_MINTS = {
   RAY:    '4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R',
   BONK:   'DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263',
   WIF:    'EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm',
-  JTO:    'jtojtomepa8beP8AuQc6eEq5PG14zwVFmWeaKx1pC8X',
   PYTH:   'HZ1JovNiVvGrGNiiYvEozEVgZ58xaU3T7ef8R2mMWBwp',
   HNT:    'hntyVP6YFm1Hg25TN9WGLqM12b8TQmcknKrdu1oxWux',
   ORCA:   'orcaEKTdK7LKz57vaAYr9QeNsVEPfiu6QeMU1kektZE',
-  MNDE:   'MNDEFzGvMt87ueuHvVU9VcTqsAP5b3fTGPsHuuPA5ey',
   BOME:   'ukHH6c7mMyiWCf1b9pnWe25TSpkDDt3H5pQZgZ74J82',
-  POPCAT: '7GCihgDB8fe6KNjn2MYtkzZcRjQy3t9GHdC8uHYmW2hr',
   PENGU:  '2zMMhcVQEXDtdE6vsFS7S7D5oUodfJHE8vd1gnBouauv',
+  PUMP:   'pumpCmXqMfrsAkQ5r49WcJnRayYRqmXz6ae8H7H9Dfn',
+  RENDER: 'rndrizKT3MK1iimdxRdWabcF7Zg7AR5T4nud4EkHBof',
 };
 
 // ─── TOKEN_DECIMALS ───────────────────────────────────────────────────────────
@@ -36,16 +35,14 @@ export const TOKEN_DECIMALS = {
   RAY:    6,
   BONK:   5,
   WIF:    6,
-  JTO:    9,
   PYTH:   6,
   HNT:    8,
   ORCA:   6,
-  MNDE:   9,
   BOME:   6,
-  POPCAT: 9,
   PENGU:  6,
+  PUMP:   6,
+  RENDER: 8,
 };
-
 // ─── ثوابت ────────────────────────────────────────────────────────────────────
 const FEE_COLLECTOR_ADDRESS = 'BkaJsFAJKPQZgreBFLrY2pPUi44fTJzXhmeBc8LeuF5W';
 const SERVICE_FEE_SOL       = 0.0005;

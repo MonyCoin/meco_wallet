@@ -29,9 +29,12 @@ const TIMEFRAMES = [
 const COINGECKO_IDS = {
   SOL:'solana', USDT:'tether', USDC:'usd-coin',
   JUP:'jupiter-exchange-solana', RAY:'raydium', BONK:'bonk',
-  WIF:'dogwifcoin', PYTH:'pyth-network', JTO:'jito-governance-token',
-  HNT:'helium', ORCA:'orca', MNDE:'marinade',
-  BOME:'book-of-meme', POPCAT:'popcat', MEW:'cat-in-a-dogs-world',
+  WIF:'dogwifcoin', PYTH:'pyth-network',
+  HNT:'helium', ORCA:'orca',
+  BOME:'book-of-meme',
+  PENGU:'pudgy-penguins',
+  PUMP:'pump-fun',
+  RENDER:'render-token',
 };
 
 const fetchWT = (url, ms = FETCH_TIMEOUT) => {
