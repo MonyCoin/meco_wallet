@@ -23,7 +23,7 @@ export const TOKEN_MINTS = {
   MNDE:   'MNDEFzGvMt87ueuHvVU9VcTqsAP5b3fTGPsHuuPA5ey',
   BOME:   'ukHH6c7mMyiWCf1b9pnWe25TSpkDDt3H5pQZgZ74J82',
   POPCAT: '7GCihgDB8fe6KNjn2MYtkzZcRjQy3t9GHdC8uHYmW2hr',
-  MEW:    'MEW1gQWJ3nEXg2qgERiKu7FAFj79PHvQVREQUzScPP5',
+  PENGU:  '2zMMhcVQEXDtdE6vsFS7S7D5oUodfJHE8vd1gnBouauv',
 };
 
 // ─── TOKEN_DECIMALS ───────────────────────────────────────────────────────────
@@ -43,7 +43,7 @@ export const TOKEN_DECIMALS = {
   MNDE:   9,
   BOME:   6,
   POPCAT: 9,
-  MEW:    6,
+  PENGU:  6,
 };
 
 // ─── ثوابت ────────────────────────────────────────────────────────────────────
