@@ -23,7 +23,7 @@ const MINT_TO_SYMBOL = {
   'MNDEFzGvMt87ueuHvVU9VcTqsAP5b3fTGPsHuuPA5ey':  'MNDE',
   'ukHH6c7mMyiWCf1b9pnWe25TSpkDDt3H5pQZgZ74J82':  'BOME',
   '7GCihgDB8fe6KNjn2MYtkzZcRjQy3t9GHdC8uHYmW2hr': 'POPCAT',
-  'MEW1gQWJ3nEXg2qgERiKu7FAFj79PHvQVREQUzScPP5':  'MEW',
+  '2zMMhcVQEXDtdE6vsFS7S7D5oUodfJHE8vd1gnBouauv': 'PENGU',
 };
 
 // Helper — يُعيد رمز العملة من mint address
