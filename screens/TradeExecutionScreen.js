@@ -17,12 +17,12 @@ import { addNotification, NOTIF_TYPES } from '../services/notificationsService';
 
 const PLATFORM_FEE_SOL = 0.0005;
 
-// عملات التسعير المدعومة
+// عملات التسعير المدعومة — الصور تُحقن ديناميكيًا من getJupiterMarketData
 const QUOTE_TOKENS = [
-  { symbol:'USDC', mint:'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', decimals:6, image:'https://assets.coingecko.com/coins/images/6319/large/usdc.png'  },
-  { symbol:'USDT', mint:'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB', decimals:6, image:'https://assets.coingecko.com/coins/images/325/large/Tether.png'   },
-  { symbol:'SOL',  mint:'So11111111111111111111111111111111111111112',   decimals:9, image:'https://assets.coingecko.com/coins/images/4128/large/solana.png'  },
-  { symbol:'MECO', mint:'A5Ln25cfww33kfUSzBb89bMha7j1PnFQTy7H3FsQHN7W', decimals:9, image: CORE_TOKENS.find(c => c.symbol === 'MECO')?.image || '' },
+  { symbol:'USDC', mint:'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', decimals:6, image:null },
+  { symbol:'USDT', mint:'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11MeCe8BenwNYB', decimals:6, image:null },
+  { symbol:'SOL',  mint:'So11111111111111111111111111111111111111112',   decimals:9, image:null },
+  { symbol:'MECO', mint:'A5Ln25cfww33kfUSzBb89bMha7j1PnFQTy7H3FsQHN7W', decimals:9, image:null },
 ];
 
 const SafeImage = ({ uri, size = 32 }) => {
@@ -65,22 +65,19 @@ export default function TradeExecutionScreen() {
   const initialSide = route.params?.side === 'sell' ? 'sell' : 'buy';
 
   const [side,         setSide]         = useState(initialSide);
-  const [quoteToken,   setQuoteToken]   = useState(QUOTE_TOKENS[0]); // USDC
+  const [quoteTokensList, setQuoteTokensList] = useState(QUOTE_TOKENS);
+  const [quoteToken,   setQuoteToken]   = useState(QUOTE_TOKENS[0]);
   const [amount,       setAmount]       = useState('');
   const [quoteModal,   setQuoteModal]   = useState(false);
   const [executing,    setExecuting]    = useState(false);
-  const [baseBalance,  setBaseBalance]  = useState(0);   // رصيد العملة المستهدفة
-  const [quoteBalance, setQuoteBalance] = useState(0);   // رصيد عملة التسعير
-  const [tokenPrice,   setTokenPrice]   = useState(0);   // سعر العملة المستهدفة بالدولار
-  // ✅ سعر عملة التسعير نفسها بالدولار — ناقصة قبل كده، وده سبب الباگ:
-  // الكود كان بيفترض إن عملة التسعير دايمًا = 1 دولار (USDC/USDT)، فلو
-  // المستخدم اختار SOL أو MECO كعملة تسعير كانت المعاينة بتطلع غلط تمامًا
+  const [baseBalance,  setBaseBalance]  = useState(0);
+  const [quoteBalance, setQuoteBalance] = useState(0);
+  const [tokenPrice,   setTokenPrice]   = useState(0);
   const [quoteTokenPrice, setQuoteTokenPrice] = useState(0);
   const [pricesLoading,   setPricesLoading]   = useState(true);
 
   const scrollRef = useRef(null);
 
-  // ── تحديد العملة الداخلة والخارجة بناءً على الجهة ────────────
   const inputToken  = side === 'buy' ? quoteToken : targetToken;
   const outputToken = side === 'buy' ? targetToken : quoteToken;
 
@@ -91,12 +88,10 @@ export default function TradeExecutionScreen() {
   const fetchBalances = useCallback(async () => {
     if (!walletPublicKey) return;
     try {
-      // رصيد العملة المستهدفة
       const baseBal = targetToken.symbol === 'SOL'
         ? await getSolBalance(true, walletPublicKey).catch(() => 0)
         : await getTokenBalance(targetToken.mint, true, walletPublicKey).catch(() => 0);
 
-      // رصيد عملة التسعير
       const quoteBal = quoteToken.symbol === 'SOL'
         ? await getSolBalance(true, walletPublicKey).catch(() => 0)
         : await getTokenBalance(quoteToken.mint, true, walletPublicKey).catch(() => 0);
@@ -108,15 +103,11 @@ export default function TradeExecutionScreen() {
 
   useEffect(() => { fetchBalances(); }, [fetchBalances]);
 
-  // ✅ نجيب سعر العملتين (المستهدفة وعملة التسعير) بالدولار معًا من نفس
-  // الاستدعاء — عشان نقدر نحوّل بين أي زوج عملات صح (الدولار كوسيط دايمًا)،
-  // مش بس لما عملة التسعير تبقى USDC/USDT
+  // ── جلب الأسعار + حقن الأيقونات الديناميكية ────────────────────
   useEffect(() => {
     let mounted = true;
     setPricesLoading(true);
 
-    // ✅ سقف زمني 8 ثوانٍ احتياطي (فوق الحماية الداخلية فى jupiterMarketService
-    // نفسه) — مجرد طبقة أمان إضافية، مش الاعتماد الأساسي بعد إصلاح الاستيراد
     const timeoutPromise = new Promise((_, reject) =>
       setTimeout(() => reject(new Error('price_fetch_timeout')), 8000)
     );
@@ -129,11 +120,18 @@ export default function TradeExecutionScreen() {
         const isStable = quoteToken.symbol === 'USDC' || quoteToken.symbol === 'USDT';
 
         setTokenPrice(targetTk?.current_price || 0);
-        // ✅ fallback آمن: لو ستيبل كوين ومعندناش سعرها من جوبيتر لأي سبب،
-        // نعتبرها ≈ 1 دولار (الوضع الطبيعي الحقيقي) بدل ما تبقى صفر وتوهم
-        // إنها غير متاحة؛ لأي عملة تانية بدون سعر فعلي، نسيبها صفر (نص
-        // المعاينة هيعرض "—" بدل رقم غلط)
         setQuoteTokenPrice(quoteTk?.current_price || (isStable ? 1 : 0));
+
+        // ✅ حقن الأيقونات المُحدَّثة في قائمة عملات التسعير
+        const enriched = QUOTE_TOKENS.map(qt => {
+          const found = list.find(d => d.mint === qt.mint);
+          return { ...qt, image: found?.image || qt.image || null };
+        });
+        setQuoteTokensList(enriched);
+
+        // تحديث الـ quoteToken الحالي بنسخته المُحدَّثة (تحتوي على الصورة)
+        const current = enriched.find(q => q.mint === quoteToken.mint);
+        if (current) setQuoteToken(current);
       })
       .catch(() => {
         if (mounted) { setTokenPrice(0); setQuoteTokenPrice(0); }
@@ -157,9 +155,6 @@ export default function TradeExecutionScreen() {
     setAmount(val > 0 ? val.toFixed(6) : '0');
   };
 
-  // ✅ تقدير الاستلام (تقديري فقط للمعاينة قبل التأكيد — التنفيذ الفعلي
-  // بيعتمد على سعر Jupiter الحي وقت الضغط على تأكيد، مش على الرقم ده خالص)
-  // بنحوّل عن طريق الدولار كوسيط دايمًا، فيشتغل صح أيًا كانت عملة التسعير
   const pricesReady = tokenPrice > 0 && quoteTokenPrice > 0;
 
   const estimateOutput = () => {
@@ -167,10 +162,8 @@ export default function TradeExecutionScreen() {
     const amt = parseFloat(amount) || 0;
     if (amt <= 0) return 0;
     if (side === 'buy') {
-      // amt بعملة التسعير → دولار → عملة الهدف
       return (amt * quoteTokenPrice) / tokenPrice;
     } else {
-      // amt بعملة الهدف → دولار → عملة التسعير
       return (amt * tokenPrice) / quoteTokenPrice;
     }
   };
@@ -181,7 +174,6 @@ export default function TradeExecutionScreen() {
     if (amt <= 0) { Alert.alert(t('error'), t('trade_execution.enter_amount')); return null; }
     if (amt > inputBalance) { Alert.alert(t('error'), t('trading_errors.insufficient_balance')); return null; }
     if (!walletPublicKey)  { Alert.alert(t('error'), t('no_wallet')); return null; }
-    // إذا كانت العملة الداخلة SOL، نحتاج هامش للرسوم
     if (inputToken.symbol === 'SOL' && amt + SOL_RESERVE > inputBalance) {
       Alert.alert(t('error'), t('trading_errors.insufficient_balance'));
       return null;
@@ -406,7 +398,6 @@ export default function TradeExecutionScreen() {
                 <ActivityIndicator size="small" color={primaryColor} />
               ) : (
                 <Text style={[S.outputValue, { color: C.text }]} numberOfLines={1}>
-                  {/* ✅ لو السعر مش متاح، نعرض "—" صراحة بدل رقم ممكن يكون غلط */}
                   {estimatedOutput === null ? '—' : fmtAmount(estimatedOutput)}
                 </Text>
               )}
@@ -488,7 +479,7 @@ export default function TradeExecutionScreen() {
               <View style={{ width: 36 }} />
             </View>
 
-            {QUOTE_TOKENS.map(qt => (
+            {quoteTokensList.map(qt => (
               <TouchableOpacity
                 key={qt.symbol}
                 style={[
