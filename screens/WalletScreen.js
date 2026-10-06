@@ -1,4 +1,4 @@
-// WalletScreen.js
+// screens/WalletScreen.js
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView,
@@ -223,9 +223,12 @@ export default function WalletScreen() {
     }
   }, []);
 
-  useEffect(() => {
-    if (walletPublicKey) loadWalletData(walletPublicKey);
-  }, [walletPublicKey, loadWalletData]);
+  // ✅ إعادة جلب البيانات عند كل دخول للشاشة (بعد Swap/Send/Stake أو تبديل حساب)
+  useFocusEffect(
+    useCallback(() => {
+      if (walletPublicKey) loadWalletData(walletPublicKey);
+    }, [walletPublicKey, loadWalletData])
+  );
 
   const fetchAccountUsdBalances = useCallback(async () => {
     if (loadingAccountBalances) return;
@@ -796,7 +799,7 @@ export default function WalletScreen() {
             )}
           </View>
 
-          {/* ✅ النشاط الأخير — عنوان + زر View فقط */}
+          {/* ✅ النشاط الأخير */}
           <View style={styles.activitySection}>
             <TouchableOpacity
               style={[styles.activityCard, { backgroundColor: colors.card, borderColor: colors.border }]}
@@ -1027,7 +1030,7 @@ const styles = StyleSheet.create({
   dotsButton:   { width:40, height:40, borderRadius:12, justifyContent:'center', alignItems:'center', borderWidth: 1 },
 
   topBarActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  bellButton:    { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center', position: 'relative' },
+  bellButton:    { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center', position: 'relative', borderWidth: 1 },
   bellBadge:     { position: 'absolute', top: -3, right: -3, minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 5, justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: 'transparent' },
   bellBadgeTxt:  { color: '#FFF', fontSize: 10, fontWeight: '800' },
 
@@ -1046,13 +1049,7 @@ const styles = StyleSheet.create({
   tradingSection: { marginTop: 4, marginBottom: 14 },
   tradingHeader:  { flexDirection:'row', justifyContent:'space-between', alignItems:'center', paddingHorizontal: 20, marginBottom: 10 },
   tradingList:    { paddingHorizontal: 20, gap: 10 },
-  tradeCard: {
-    width: 140,
-    padding: 14,
-    borderRadius: 18,
-    borderWidth: 1,
-    gap: 4,
-  },
+  tradeCard:      { width: 140, padding: 14, borderRadius: 18, borderWidth: 1, gap: 4 },
   tradeCardIcon:      { width: 38, height: 38, borderRadius: 19, marginBottom: 6 },
   tradeCardSymbol:    { fontSize: 15, fontWeight: '800' },
   tradeCardPrice:     { fontSize: 12, fontWeight: '600' },
@@ -1067,17 +1064,14 @@ const styles = StyleSheet.create({
   assetItemWrapper:{},
   assetItem:    { flexDirection:'row', alignItems:'center', padding:12, borderBottomWidth:1 },
   assetLeft:    { flexDirection:'row', alignItems:'center', flex:1, gap:10 },
-  assetIcon:   { width:36, height:36, borderRadius:18, justifyContent:'center', alignItems:'center' },
-  tokenIconImg: { width:36, height:36, borderRadius:18 },
-  tokenIconTxt: { fontSize:14, fontWeight:'bold' },
-  assetInfo:   { flex:1 },
-  assetSym:    { fontSize:14, fontWeight:'700' },
-  assetAmt:    { fontSize:11, marginTop:2 },
-  assetRight:  { alignItems:'flex-end' },
-  assetUSD:    { fontSize:14, fontWeight:'700' },
-  pnlRow:      { flexDirection:'row', alignItems:'center', gap:2, marginTop:2 },
-  pnlText:     { fontSize:11, fontWeight:'600' },
-  pnlUSD:      { fontSize:10 },
+  assetIcon:    { width:36, height:36, borderRadius:18, justifyContent:'center', alignItems:'center' },
+  assetInfo:    { flex:1 },
+  assetSymbol:  { fontSize:14, fontWeight:'700' },
+  assetName:    { fontSize:11, marginTop:2 },
+  assetBalance: { fontSize:14, fontWeight:'700' },
+  assetValue:   { fontSize:11, marginTop:2 },
+  assetRight:   { alignItems:'flex-end' },
+  assetChevron: { marginLeft: 6 },
   badgeDot:     { position:'absolute', bottom:0, right:0, width:10, height:10, borderRadius:5, borderWidth:2 },
   leftAction:   { justifyContent:'center' },
   rightAction:  { justifyContent:'center' },
@@ -1086,21 +1080,20 @@ const styles = StyleSheet.create({
   emptyContainer:{ alignItems:'center', paddingVertical:50, gap:8 },
   emptyText:    { fontSize:13, marginTop:4 },
 
-  stakingSection: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 4 },
-  stakingCard:    { borderRadius: 18, borderWidth: 1, padding: 16 },
-  stakingRow:     { flexDirection: 'row', alignItems: 'center' },
-  stakingCol:     { flex: 1 },
-  stakingDivider: { width: 1, height: 36, marginHorizontal: 14 },
-  stakingLabel:   { fontSize: 11, fontWeight: '600', marginBottom: 4 },
-  stakingValue:   { fontSize: 17, fontWeight: '800' },
-  stakingBtn:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 14, paddingVertical: 11, borderRadius: 12 },
-  stakingBtnTxt:  { color: '#FFF', fontSize: 13, fontWeight: '700' },
-  stakingEmptyCard: { flexDirection: 'row', alignItems: 'center', borderRadius: 18, borderWidth: 1.5, borderStyle: 'dashed', padding: 14, gap: 12 },
+  stakingSection:   { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 4 },
+  stakingCard:      { borderRadius: 18, borderWidth: 1, padding: 16 },
+  stakingRow:       { flexDirection: 'row', alignItems: 'center' },
+  stakingCol:       { flex: 1 },
+  stakingDivider:   { width: 1, height: 36, marginHorizontal: 14 },
+  stakingLabel:     { fontSize: 11, fontWeight: '600', marginBottom: 4 },
+  stakingValue:     { fontSize: 17, fontWeight: '800' },
+  stakingBtn:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 14, paddingVertical: 11, borderRadius: 12 },
+  stakingBtnTxt:    { color: '#FFF', fontSize: 13, fontWeight: '700' },
+  stakingEmptyCard: { flexDirection: 'row', alignItems: 'center', borderRadius: 18, borderWidth: 1, borderStyle: 'dashed', padding: 14, gap: 12 },
   stakingEmptyIcon: { width: 44, height: 44, borderRadius: 13, justifyContent: 'center', alignItems: 'center' },
   stakingEmptyTitle:{ fontSize: 14, fontWeight: '700', marginBottom: 2 },
   stakingEmptySub:  { fontSize: 11 },
 
-  // ✅ النشاط الأخير — بطاقة واحدة فيها زر View
   activitySection:  { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 20 },
   activityCard:     { flexDirection: 'row', alignItems: 'center', padding: 14, borderRadius: 18, borderWidth: 1, gap: 12 },
   activityIconWrap: { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
@@ -1110,7 +1103,7 @@ const styles = StyleSheet.create({
   viewPillTxt:      { fontSize: 12, fontWeight: '700' },
 
   menuOverlay:  { flex:1, backgroundColor:'rgba(0,0,0,0.2)', justifyContent:'flex-start', alignItems:'flex-end', paddingTop:Platform.OS==='ios'?100:80, paddingRight:20 },
-  menuCard:     { width:210, borderRadius:16, overflow:'hidden', elevation:10, shadowOffset:{width:0,height:4}, shadowOpacity:0.1, shadowRadius:10 },
+  menuCard:     { width:210, borderRadius:16, overflow:'hidden', elevation:10, shadowOffset:{width:0,height:4}, shadowOpacity:0.1, shadowRadius:10, borderWidth: 1 },
   menuHeader:   { flexDirection:'row', justifyContent:'flex-end', paddingHorizontal:8, paddingTop:8, paddingBottom:4, borderBottomWidth:1 },
   menuCloseBtn: { padding:6, borderRadius:8 },
   menuItem:     { flexDirection:'row', alignItems:'center', padding:12, borderBottomWidth:1, gap:10 },
@@ -1127,20 +1120,20 @@ const styles = StyleSheet.create({
 
   modalOverlay: { flex:1, backgroundColor:'rgba(0,0,0,0.5)', justifyContent:'center', alignItems:'center', padding:20 },
   modalOverlayBottom:{ flex:1, backgroundColor:'rgba(0,0,0,0.5)', justifyContent:'flex-end', paddingHorizontal: 16 },
-  modalContent: { width:'100%', padding:20, borderRadius:20, alignItems:'center' },
+  modalContent: { width:'100%', padding:20, borderRadius:20, alignItems:'center', borderWidth: 1 },
   modalHeader:  { marginBottom:12 },
   modalTitle:   { fontSize:18, fontWeight:'bold', marginBottom:16, textAlign:'center' },
-  input:        { width:'100%', borderWidth:1.5, borderRadius:12, padding:12, fontSize:15, marginBottom:16, textAlign:'center', height:46 },
+  input:        { width:'100%', borderWidth:1, borderRadius:12, padding:12, fontSize:15, marginBottom:16, textAlign:'center', height:46 },
   modalButtons: { flexDirection:'row', gap:10, width:'100%' },
-  modalBtn:     { flex:1, padding:14, borderRadius:12, alignItems:'center', borderWidth:1.5 },
+  modalBtn:     { flex:1, padding:14, borderRadius:12, alignItems:'center', borderWidth:1 },
   modalBtnPrimary:{ flex:1, padding:14, borderRadius:12, alignItems:'center' },
 
-  accountsModalContent:{ width:'100%', maxHeight:height*0.75, padding:20, paddingTop:12, borderRadius:24, flex:1 },
+  accountsModalContent:{ width:'100%', maxHeight:height*0.75, padding:20, paddingTop:12, borderRadius:24, flex:1, borderWidth: 1 },
   modalHandle:  { width:36, height:4, borderRadius:2, alignSelf:'center', marginBottom:16 },
   accountsModalHeader:{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:6 },
   accountsHeaderLeft: { flexDirection:'row', alignItems:'center', gap:8 },
   closeBtn:     { width:36, height:36, borderRadius:10, justifyContent:'center', alignItems:'center' },
-  accountItem:  { flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingVertical:12, paddingHorizontal:12, borderRadius:14 },
+  accountItem:  { flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingVertical:12, paddingHorizontal:12, borderRadius:14, borderWidth: 1 },
   accountActionContainer:{ flexDirection:'row', height:'100%' },
   accountActionBtn:{ justifyContent:'center', alignItems:'center', width:80, height:'100%' },
   accountInfo:  { flexDirection:'row', alignItems:'center', flex:1, gap:10 },
@@ -1152,7 +1145,7 @@ const styles = StyleSheet.create({
   accountBalanceContainer:{ flexDirection:'row', alignItems:'center' },
   accountBalance:{ fontSize:14, fontWeight:'600' },
   addAccountButtons:{ gap:6, marginTop:12, paddingTop:12, borderTopWidth:1, borderTopColor:'rgba(128,128,128,0.15)' },
-  addAccountBtn:{ flexDirection:'row', alignItems:'center', justifyContent:'center', paddingVertical:14, borderWidth:1.5, borderRadius:14, gap:8, marginBottom:2 },
+  addAccountBtn:{ flexDirection:'row', alignItems:'center', justifyContent:'center', paddingVertical:14, borderWidth:1, borderRadius:14, gap:8, marginBottom:2 },
   addAccountText:{ fontSize:14, fontWeight:'600' },
   actionText:   { color:'#FFF', fontSize:11, fontWeight:'600', marginTop:4 },
 });
