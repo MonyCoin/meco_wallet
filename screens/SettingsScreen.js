@@ -1,7 +1,7 @@
 // screens/SettingsScreen.js
 import React, { useEffect, useState } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, Alert, Switch,
+  View, Text, TouchableOpacity, StyleSheet, Alert,
   ScrollView, Modal, Dimensions, Animated, Platform, ActivityIndicator,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
@@ -28,23 +28,22 @@ export default function SettingsScreen() {
   const navigation  = useNavigation();
   const insets      = useSafeAreaInsets();
 
-  const theme          = useAppStore(s => s.theme);
-  const toggleTheme    = useAppStore(s => s.toggleTheme);
   const language       = useAppStore(s => s.language);
   const setLanguage    = useAppStore(s => s.setLanguage);
   const logout         = useAppStore(s => s.logout);
   const primaryColor   = useAppStore(s => s.primaryColor);
   const setPrimaryColor= useAppStore(s => s.setPrimaryColor);
 
-  const isDark = theme === 'dark';
+  // ✅ الوضع الغامق إلزامي — لا يوجد تبديل للنمط
+  const isDark = true;
   const C = {
-    background:    isDark ? '#07070F' : '#F4F5F9',
-    card:          isDark ? '#111122' : '#FFFFFF',
-    card2:         isDark ? '#171730' : '#ECECF4',
-    text:          isDark ? '#EEEEFF' : '#1C1C24',
-    textSecondary: isDark ? '#7E7EAA' : '#8A8A9E',
-    border:        isDark ? '#1E1E38' : '#E8E8F2',
-    border2:       isDark ? '#2D2D4F' : '#DDDDF0',
+    background:    '#07070F',
+    card:          '#111122',
+    card2:         '#171730',
+    text:          '#EEEEFF',
+    textSecondary: '#7E7EAA',
+    border:        '#1E1E38',
+    border2:       '#2D2D4F',
     danger:        '#EF4444',
     success:       '#10B981',
     warning:       '#F59E0B',
@@ -113,7 +112,6 @@ export default function SettingsScreen() {
     }
   };
 
-  // ✅ مقارنة الإصدارات النصية (Semantic Versioning) بدلاً من buildNumber
   const isNewerVersion = (remote, current) => {
     const r = String(remote).split('.').map(n => parseInt(n, 10) || 0);
     const c = String(current).split('.').map(n => parseInt(n, 10) || 0);
@@ -128,12 +126,10 @@ export default function SettingsScreen() {
     try {
       setCheckingUpdate(true);
 
-      // ✅ إضافة cache-buster لتفادي قراءة نسخة قديمة
       const cacheBuster = Date.now();
       const res  = await fetch(`https://raw.githubusercontent.com/MonyCoin/meco_wallet-app/main/version.json?t=${cacheBuster}`);
       const data = await res.json();
 
-      // ✅ قراءة الإصدار الحقيقي من app.json
       const currentVersion = Constants.expoConfig?.version || '0.0.0';
 
       if (isNewerVersion(data.latestVersion, currentVersion)) {
@@ -214,23 +210,6 @@ export default function SettingsScreen() {
     </TouchableOpacity>
   );
 
-  const SwitchItem = ({ icon, title, subtitle, value, onValueChange }) => (
-    <View style={styles.item}>
-      <View style={styles.itemLeft}>
-        <View style={[styles.iconWrap, { backgroundColor:primaryColor+'12' }]}>{icon}</View>
-        <View style={styles.itemText}>
-          <Text style={[styles.itemTitle, { color:C.text }]}>{title}</Text>
-          {subtitle && <Text style={[styles.itemSub, { color:C.textSecondary }]}>{subtitle}</Text>}
-        </View>
-      </View>
-      <Switch value={value} onValueChange={onValueChange}
-        trackColor={{ false:C.border, true:primaryColor+'80' }}
-        thumbColor={value ? primaryColor : C.textSecondary}
-        ios_backgroundColor={C.border}
-      />
-    </View>
-  );
-
   const Chevron = () => <Ionicons name="chevron-forward" size={16} color={C.textSecondary} />;
 
   return (
@@ -277,12 +256,6 @@ export default function SettingsScreen() {
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color:C.textSecondary }]}>{t('appearance').toUpperCase()}</Text>
           <View style={[styles.groupContainer, { backgroundColor: C.card, borderColor: C.border }]}>
-            <SwitchItem
-              icon={<Ionicons name="moon-outline" size={20} color={primaryColor} />}
-              title={t('dark_mode')} subtitle={isDark?t('enabled'):t('disabled')}
-              value={theme==='dark'} onValueChange={toggleTheme}
-            />
-            <View style={[styles.innerDivider, { backgroundColor: C.border }]} />
             <SettingItem
               icon={<Ionicons name="color-palette-outline" size={20} color={primaryColor} />}
               title={t('accent_color')} subtitle={t('choose_your_theme_color')}

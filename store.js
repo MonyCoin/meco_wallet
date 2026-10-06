@@ -19,8 +19,8 @@ const OLD_PUBLIC_KEY  = 'wallet_public_key';
 const OLD_MNEMONIC    = 'wallet_mnemonic';
 
 export const useAppStore = create((set, get) => ({
-  theme: 'dark',
-  toggleTheme: () => set((state) => ({ theme: state.theme === 'light' ? 'dark' : 'light' })),
+   theme: 'dark',
+   toggleTheme: () => {},   // ✅ الوضع الغامق إلزامي — الزر أُزيل من الإعدادات
 
   language: 'ar',
   setLanguage: async (lang) => {
