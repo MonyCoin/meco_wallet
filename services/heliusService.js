@@ -28,6 +28,10 @@ const MINT_TO_SYMBOL = {
 // Helper — يُعيد رمز العملة من mint address
 const getMintSymbol = (mint) => MINT_TO_SYMBOL[mint] || 'TOKEN';
 
+// ✅ ثوابت برامج الرموز — SPL Token القديم + Token-2022 الجديد
+const TOKEN_PROGRAM_ID      = new web3.PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
+const TOKEN_2022_PROGRAM_ID = new web3.PublicKey('TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb');
+
 const RPC_ENDPOINTS = [
   ...(HELIUS_URL ? [{ url: HELIUS_URL, priority: 1 }] : []),
   { url: 'https://api.mainnet-beta.solana.com', priority: 2 },
@@ -262,6 +266,10 @@ export async function getSolBalance(forceRefresh = false, address = null) {
   }
 }
 
+/**
+ * ✅ يجلب رصيد عملة واحدة مع دعم كامل لـ SPL Token و Token-2022
+ * (PUMP مثلاً على Token-2022، والكود القديم كان يتجاهله تمامًا)
+ */
 export async function getTokenBalance(mintAddress, forceRefresh = false, address = null) {
   try {
     const pubKeyStr = address || await SecureStore.getItemAsync('wallet_public_key');
@@ -273,37 +281,50 @@ export async function getTokenBalance(mintAddress, forceRefresh = false, address
 
     const pubKey = new web3.PublicKey(pubKeyStr);
     const mint   = new web3.PublicKey(mintAddress);
-    const ata    = await splToken.getAssociatedTokenAddress(mint, pubKey);
 
-    try {
-      const accountInfo = await rpcManager.execute('getAccountInfo', ata);
-      if (!accountInfo) { CACHE.tokens.set(cacheKey, 0); return 0; }
-      const tokenAccount = splToken.AccountLayout.decode(accountInfo.data);
-      const mintInfo     = await splToken.getMint(await rpcManager.getConnection(), mint);
-      const balance      = Number(tokenAccount.amount) / Math.pow(10, mintInfo.decimals);
-      CACHE.tokens.set(cacheKey, balance);
-      return balance;
-    } catch (_) {
-      CACHE.tokens.set(cacheKey, 0);
-      return 0;
+    // ✅ نجرب كلا البرنامجين — SPL Token القديم ثم Token-2022
+    for (const programId of [TOKEN_PROGRAM_ID, TOKEN_2022_PROGRAM_ID]) {
+      try {
+        const ata = await splToken.getAssociatedTokenAddress(mint, pubKey, false, programId);
+        const accountInfo = await rpcManager.execute('getAccountInfo', ata);
+        if (!accountInfo) continue;
+
+        const tokenAccount = splToken.AccountLayout.decode(accountInfo.data);
+        const connection   = await rpcManager.getConnection();
+        const mintInfo     = await splToken.getMint(connection, mint, 'confirmed', programId);
+        const balance      = Number(tokenAccount.amount) / Math.pow(10, mintInfo.decimals);
+        CACHE.tokens.set(cacheKey, balance);
+        return balance;
+      } catch (_) {}
     }
+
+    CACHE.tokens.set(cacheKey, 0);
+    return 0;
   } catch (_) {
     return CACHE.tokens.get(`${address || ''}_${mintAddress}`) || 0;
   }
 }
 
+/**
+ * ✅ يجلب كل حسابات الرموز للمحفظة — من كلا البرنامجين (SPL + Token-2022)
+ */
 export async function getTokenAccounts(address = null) {
   try {
     const pubKeyStr = address || await SecureStore.getItemAsync('wallet_public_key');
     if (!pubKeyStr) return [];
 
     const pubKey = new web3.PublicKey(pubKeyStr);
-    const tokenAccounts = await withRetry(
-      () => rpcManager.execute('getParsedTokenAccountsByOwner', pubKey, { programId: splToken.TOKEN_PROGRAM_ID }),
-      'getTokenAccounts'
-    );
 
-    return tokenAccounts.value.map(account => ({
+    const [legacyRes, t22Res] = await Promise.all([
+      rpcManager.execute('getParsedTokenAccountsByOwner', pubKey, { programId: TOKEN_PROGRAM_ID })
+        .catch(() => ({ value: [] })),
+      rpcManager.execute('getParsedTokenAccountsByOwner', pubKey, { programId: TOKEN_2022_PROGRAM_ID })
+        .catch(() => ({ value: [] })),
+    ]);
+
+    const all = [...(legacyRes?.value || []), ...(t22Res?.value || [])];
+
+    return all.map(account => ({
       pubkey:   account.pubkey.toBase58(),
       mint:     account.account.data.parsed.info.mint,
       owner:    account.account.data.parsed.info.owner,
@@ -370,9 +391,17 @@ export async function sendTokenTransaction(fromKeypair, toAddress, mintAddress, 
     const connection    = await rpcManager.getConnection();
     const { blockhash } = await getLatestBlockhash(true);
     const mint          = new web3.PublicKey(mintAddress);
-    const fromATA       = await splToken.getAssociatedTokenAddress(mint, fromKeypair.publicKey);
-    const toATA         = await splToken.getAssociatedTokenAddress(mint, new web3.PublicKey(toAddress));
-    const mintInfo      = await splToken.getMint(connection, mint);
+
+    // ✅ كشف برنامج الرمز (SPL أو Token-2022)
+    const mintAccountInfo = await connection.getAccountInfo(mint);
+    if (!mintAccountInfo) throw new Error('TOKEN_NOT_FOUND');
+    const programId = mintAccountInfo.owner.equals(TOKEN_2022_PROGRAM_ID)
+      ? TOKEN_2022_PROGRAM_ID
+      : TOKEN_PROGRAM_ID;
+
+    const fromATA       = await splToken.getAssociatedTokenAddress(mint, fromKeypair.publicKey, false, programId);
+    const toATA         = await splToken.getAssociatedTokenAddress(mint, new web3.PublicKey(toAddress), false, programId);
+    const mintInfo      = await splToken.getMint(connection, mint, 'confirmed', programId);
     const amountRaw     = BigInt(Math.floor(amount * Math.pow(10, mintInfo.decimals)));
     if (amountRaw === 0n) throw new Error('AMOUNT_TOO_SMALL');
 
@@ -385,11 +414,11 @@ export async function sendTokenTransaction(fromKeypair, toAddress, mintAddress, 
     if (!toAccountInfo) {
       instructions.push(
         splToken.createAssociatedTokenAccountInstruction(
-          fromKeypair.publicKey, toATA, new web3.PublicKey(toAddress), mint
+          fromKeypair.publicKey, toATA, new web3.PublicKey(toAddress), mint, programId
         )
       );
     }
-    instructions.push(splToken.createTransferInstruction(fromATA, toATA, fromKeypair.publicKey, amountRaw));
+    instructions.push(splToken.createTransferInstruction(fromATA, toATA, fromKeypair.publicKey, amountRaw, [], programId));
 
     const transaction       = new web3.Transaction().add(...instructions);
     transaction.recentBlockhash = blockhash;
@@ -413,7 +442,7 @@ export async function heliusRpcRequest(method, params = []) {
       case 'getBalance':
         return await connection.getBalance(new web3.PublicKey(params[0]));
       case 'getTokenAccountsByOwner':
-        return await connection.getTokenAccountsByOwner(new web3.PublicKey(params[0]), params[1] || { programId: splToken.TOKEN_PROGRAM_ID });
+        return await connection.getTokenAccountsByOwner(new web3.PublicKey(params[0]), params[1] || { programId: TOKEN_PROGRAM_ID });
       case 'getAccountInfo':
         return await connection.getAccountInfo(new web3.PublicKey(params[0]), params[1] || {});
       default:
@@ -436,12 +465,6 @@ export function clearBalanceCache(mintAddress) {
   CACHE.blockhashTime = 0;
 }
 
-/**
- * ✅ جلب سجل المعاملات مع دعم Pagination
- * @param {number} limit   - عدد المعاملات المطلوبة (افتراضي 20)
- * @param {string} address - عنوان المحفظة (اختياري، يستخدم المحفظة النشطة افتراضيًا)
- * @param {string} before  - signature لآخر معاملة تم تحميلها (للصفحة التالية)
- */
 export async function getTransactionHistory(limit = 20, address = null, before = null) {
   try {
     const pubKeyStr = address || await SecureStore.getItemAsync('wallet_public_key');
@@ -450,7 +473,6 @@ export async function getTransactionHistory(limit = 20, address = null, before =
     const connection = await rpcManager.getConnection();
     const pubKey     = new web3.PublicKey(pubKeyStr);
 
-    // ✅ خيارات getSignaturesForAddress — تُضاف before عند التصفح للأمام
     const sigOptions = { limit, commitment: 'confirmed' };
     if (before) sigOptions.before = before;
 
@@ -501,7 +523,8 @@ export async function getTransactionHistory(limit = 20, address = null, before =
             }
           }
 
-          if (ix.program === 'spl-token' && (ix.parsed?.type === 'transfer' || ix.parsed?.type === 'transferChecked')) {
+          if ((ix.program === 'spl-token' || ix.program === 'spl-token-2022') &&
+              (ix.parsed?.type === 'transfer' || ix.parsed?.type === 'transferChecked')) {
             const parsedInfo    = ix.parsed.info;
             const from          = parsedInfo.authority || parsedInfo.owner || pubKeyStr;
             const destinationAta= parsedInfo.destination;
