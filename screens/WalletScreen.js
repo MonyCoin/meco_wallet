@@ -150,11 +150,12 @@ export default function WalletScreen() {
     }
   }, [accounts, activeAccountIndex]);
 
-  const loadWalletData = useCallback(async (publicKey) => {
+  // ✅ silent = true → تحديث في الخلفية بدون Spinner وبدون رمشة بصرية
+  const loadWalletData = useCallback(async (publicKey, silent = false) => {
     try {
       if (!publicKey) { setLoadingInitial(false); setIsSwitchingAccount(false); return; }
-      clearBalanceCache();                          // ✅ تفريغ الكاش — لضمان ظهور أرصدة حديثة بعد Swap/Send/Receive
-      setIsSwitchingAccount(true);
+      clearBalanceCache();
+      if (!silent) setIsSwitchingAccount(true);
       const addr = typeof publicKey === 'string' ? publicKey : publicKey.toString();
 
       const [solBal, tokenAccounts, marketData, customTokensList, stakingInfo] = await Promise.all([
@@ -224,10 +225,10 @@ export default function WalletScreen() {
     }
   }, []);
 
-  // ✅ إعادة تحميل البيانات كل مرة تُفتح الشاشة أو يُعاد إليها (بعد Swap/Send/Stake)
+  // ✅ إعادة تحميل صامتة عند كل دخول للشاشة — بدون Spinner
   useFocusEffect(
     useCallback(() => {
-      if (walletPublicKey) loadWalletData(walletPublicKey);
+      if (walletPublicKey) loadWalletData(walletPublicKey, true);
     }, [walletPublicKey, loadWalletData])
   );
 
