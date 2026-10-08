@@ -29,7 +29,6 @@ const OPERATION_STYLES = {
   transfer:         { icon: 'paper-plane',     color: '#10B981' },
 };
 
-// ✅ ربط كل نوع عملية بمفتاح ترجمة — لازم تتضاف فى i18n.js تحت walletConnect.* (موجودة تحت الرد)
 const OPERATION_LABEL_KEYS = {
   create_pool:      'walletConnect.op_initialize_pool',
   open_position:    'walletConnect.op_open_position',
@@ -117,9 +116,30 @@ export default function WalletConnectSignModal() {
     }
   };
 
-  const opLabelKey   = operation?.type && OPERATION_LABEL_KEYS[operation.type];
-  const heroTitle     = operation?.title || (opLabelKey ? t(opLabelKey) : null) || getMethodLabel();
-  const summaryRows  = operation?.summary?.length ? operation.summary : null;
+  const opLabelKey  = operation?.type && OPERATION_LABEL_KEYS[operation.type];
+  const heroTitle    = operation?.title || (opLabelKey ? t(opLabelKey) : null) || getMethodLabel();
+  const summaryRows = operation?.summary?.length ? operation.summary : null;
+
+  // ✅ كشف نوع العرض تلقائيًا — 3 حالات + fallback
+  const sentLabel     = t('walletConnect.amount_sent');
+  const receivedLabel = t('walletConnect.amount_received');
+
+  let viewMode = null;
+  if (summaryRows) {
+    if (summaryRows.length === 1) {
+      viewMode = 'hero';
+    } else if (summaryRows.length === 2) {
+      const allSent     = summaryRows.every(r => r.label === sentLabel);
+      const allReceived = summaryRows.every(r => r.label === receivedLabel);
+      if (allSent || allReceived) {
+        viewMode = 'pair';     // صفان بنفس الاتجاه (add_liquidity / remove_liquidity)
+      } else {
+        viewMode = 'flow';     // صفان متعاكسان (swap)
+      }
+    } else {
+      viewMode = 'list';       // 3+ صفوف
+    }
+  }
 
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={handleReject}>
@@ -128,6 +148,7 @@ export default function WalletConnectSignModal() {
 
           <View style={[S.handle, { backgroundColor: C.border }]} />
 
+          {/* ── بطاقة dApp ── */}
           <View style={[S.appRow, { backgroundColor: C.card, borderColor: C.border }]}>
             <View style={[S.appIconWrap, { backgroundColor: heroColor + '20' }]}>
               {request.appIcon
@@ -146,6 +167,7 @@ export default function WalletConnectSignModal() {
             </View>
           </View>
 
+          {/* ── Hero: أيقونة + عنوان ── */}
           <View style={S.heroWrap}>
             <View style={[S.heroIconWrap, { backgroundColor: heroColor + '18', borderColor: heroColor + '40' }]}>
               <Ionicons name={heroIcon} size={30} color={heroColor} />
@@ -156,7 +178,86 @@ export default function WalletConnectSignModal() {
             </Text>
           </View>
 
-          {summaryRows ? (
+          {/* ── الحالة 1: Hero Amount (صف واحد) ── */}
+          {viewMode === 'hero' && (
+            <View style={[S.heroAmountCard, { backgroundColor: heroColor + '10', borderColor: heroColor + '30' }]}>
+              <Text style={[S.heroAmountLabel, { color: C.secondary }]}>
+                {summaryRows[0].label}
+              </Text>
+              <Text style={[S.heroAmountValue, { color: heroColor }]}>
+                {summaryRows[0].value}
+              </Text>
+            </View>
+          )}
+
+          {/* ── الحالة 2: Pair (صفان بنفس الاتجاه) ── */}
+          {viewMode === 'pair' && (
+            <View style={[S.pairCard, { backgroundColor: C.card, borderColor: C.border }]}>
+              <View style={S.pairSide}>
+                <View style={[S.pairIcon, {
+                  backgroundColor: (summaryRows[0].label === sentLabel ? C.error : C.success) + '18',
+                }]}>
+                  <Ionicons
+                    name={summaryRows[0].label === sentLabel ? 'arrow-up' : 'arrow-down'}
+                    size={14}
+                    color={summaryRows[0].label === sentLabel ? C.error : C.success}
+                  />
+                </View>
+                <Text style={[S.pairValue, { color: C.text }]} numberOfLines={1}>
+                  {summaryRows[0].value}
+                </Text>
+              </View>
+
+              <View style={[S.pairDivider, { backgroundColor: C.border }]} />
+
+              <View style={S.pairSide}>
+                <View style={[S.pairIcon, {
+                  backgroundColor: (summaryRows[1].label === sentLabel ? C.error : C.success) + '18',
+                }]}>
+                  <Ionicons
+                    name={summaryRows[1].label === sentLabel ? 'arrow-up' : 'arrow-down'}
+                    size={14}
+                    color={summaryRows[1].label === sentLabel ? C.error : C.success}
+                  />
+                </View>
+                <Text style={[S.pairValue, { color: C.text }]} numberOfLines={1}>
+                  {summaryRows[1].value}
+                </Text>
+              </View>
+            </View>
+          )}
+
+          {/* ── الحالة 3: Flow (صفان متعاكسان) ── */}
+          {viewMode === 'flow' && (
+            <View style={[S.flowCard, { backgroundColor: C.card, borderColor: C.border }]}>
+              <View style={S.flowSide}>
+                <View style={[S.flowIcon, { backgroundColor: C.error + '18' }]}>
+                  <Ionicons name="arrow-up" size={14} color={C.error} />
+                </View>
+                <Text style={[S.flowLabel, { color: C.secondary }]}>{sentLabel}</Text>
+                <Text style={[S.flowValue, { color: C.text }]} numberOfLines={1}>
+                  {summaryRows.find(r => r.label === sentLabel)?.value}
+                </Text>
+              </View>
+
+              <View style={[S.flowArrow, { backgroundColor: C.cardAlt, borderColor: C.border }]}>
+                <Ionicons name="arrow-forward" size={16} color={heroColor} />
+              </View>
+
+              <View style={S.flowSide}>
+                <View style={[S.flowIcon, { backgroundColor: C.success + '18' }]}>
+                  <Ionicons name="arrow-down" size={14} color={C.success} />
+                </View>
+                <Text style={[S.flowLabel, { color: C.secondary }]}>{receivedLabel}</Text>
+                <Text style={[S.flowValue, { color: C.text }]} numberOfLines={1}>
+                  {summaryRows.find(r => r.label === receivedLabel)?.value}
+                </Text>
+              </View>
+            </View>
+          )}
+
+          {/* ── الحالة 4: List (3+ صفوف) ── */}
+          {viewMode === 'list' && (
             <View style={[S.detailsCard, { backgroundColor: C.card, borderColor: C.border }]}>
               {summaryRows.map((row, i) => (
                 <View
@@ -171,7 +272,10 @@ export default function WalletConnectSignModal() {
                 </View>
               ))}
             </View>
-          ) : request.details?.instructionCount > 0 && (
+          )}
+
+          {/* ── Fallback: تعليمات عامة ── */}
+          {!summaryRows && request.details?.instructionCount > 0 && (
             <View style={[S.detailsCard, { backgroundColor: C.card, borderColor: C.border }]}>
               <View style={S.detailRow}>
                 <Text style={[S.detailLabel, { color: C.secondary }]}>
@@ -196,15 +300,22 @@ export default function WalletConnectSignModal() {
             </View>
           )}
 
+          {/* ── رسوم الشبكة ── */}
           {request.details?.estimatedFee != null && (
             <View style={[S.feeRow, { backgroundColor: C.cardAlt, borderColor: C.border }]}>
-              <Text style={[S.detailLabel, { color: C.secondary }]}>
-                <Ionicons name="flash-outline" size={13} /> {t('walletConnect.estimated_fee')}
+              <View style={S.feeLeft}>
+                <Ionicons name="flash-outline" size={13} color={C.secondary} />
+                <Text style={[S.detailLabel, { color: C.secondary, marginLeft: 6 }]}>
+                  {t('walletConnect.estimated_fee')}
+                </Text>
+              </View>
+              <Text style={[S.detailValue, { color: C.text }]}>
+                {request.details.estimatedFee} SOL
               </Text>
-              <Text style={[S.detailValue, { color: C.text }]}>{request.details.estimatedFee} SOL</Text>
             </View>
           )}
 
+          {/* ── تحذير الثقة ── */}
           <View style={[S.warningRow, { backgroundColor: C.warning + '12', borderColor: C.warning + '30' }]}>
             <Ionicons name="warning-outline" size={16} color={C.warning} />
             <Text style={[S.warningTxt, { color: C.warning }]}>
@@ -212,6 +323,7 @@ export default function WalletConnectSignModal() {
             </Text>
           </View>
 
+          {/* ── الأزرار ── */}
           <View style={S.buttonsRow}>
             <TouchableOpacity
               style={[S.rejectBtn, { borderColor: C.error + '60' }]}
@@ -247,6 +359,7 @@ const S = StyleSheet.create({
   sheet:   { borderTopLeftRadius: 32, borderTopRightRadius: 32, padding: 24, paddingTop: 12, paddingBottom: 40 },
   handle:  { width: 44, height: 5, borderRadius: 3, alignSelf: 'center', marginBottom: 20 },
 
+  // dApp row
   appRow:      { flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 16, borderWidth: 1, marginBottom: 20, gap: 10 },
   appIconWrap: { width: 44, height: 44, borderRadius: 13, justifyContent: 'center', alignItems: 'center' },
   appIcon:     { width: 34, height: 34, borderRadius: 10 },
@@ -257,11 +370,33 @@ const S = StyleSheet.create({
   appBadgeDot: { width: 6, height: 6, borderRadius: 3 },
   appBadgeTxt: { fontSize: 11, fontWeight: '700' },
 
+  // Hero
   heroWrap:     { alignItems: 'center', marginBottom: 20 },
   heroIconWrap: { width: 64, height: 64, borderRadius: 20, borderWidth: 1.5, justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
   heroTitle:    { fontSize: 21, fontWeight: '900', textAlign: 'center' },
   heroSubtitle: { fontSize: 13, marginTop: 4, textAlign: 'center' },
 
+  // Hero Amount (صف واحد)
+  heroAmountCard:  { alignItems: 'center', paddingVertical: 20, paddingHorizontal: 16, borderRadius: 18, borderWidth: 1.5, marginBottom: 12 },
+  heroAmountLabel: { fontSize: 12, fontWeight: '600', marginBottom: 8 },
+  heroAmountValue: { fontSize: 28, fontWeight: '900', letterSpacing: -0.5, textAlign: 'center' },
+
+  // Pair (صفان بنفس الاتجاه)
+  pairCard:    { flexDirection: 'row', alignItems: 'center', padding: 16, borderRadius: 18, borderWidth: 1, marginBottom: 12 },
+  pairSide:    { flex: 1, alignItems: 'center' },
+  pairIcon:    { width: 30, height: 30, borderRadius: 10, justifyContent: 'center', alignItems: 'center', marginBottom: 8 },
+  pairValue:   { fontSize: 15, fontWeight: '800', textAlign: 'center' },
+  pairDivider: { width: 1, height: 40, marginHorizontal: 8 },
+
+  // Flow (صفان متعاكسان)
+  flowCard:  { flexDirection: 'row', alignItems: 'center', padding: 16, borderRadius: 18, borderWidth: 1, marginBottom: 12, gap: 10 },
+  flowSide:  { flex: 1, alignItems: 'center' },
+  flowIcon:  { width: 30, height: 30, borderRadius: 10, justifyContent: 'center', alignItems: 'center', marginBottom: 8 },
+  flowLabel: { fontSize: 11, fontWeight: '600', marginBottom: 4 },
+  flowValue: { fontSize: 15, fontWeight: '800', textAlign: 'center' },
+  flowArrow: { width: 32, height: 32, borderRadius: 16, borderWidth: 1, justifyContent: 'center', alignItems: 'center' },
+
+  // Details list
   detailsCard: { padding: 14, borderRadius: 16, borderWidth: 1, marginBottom: 12 },
   detailRow:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   detailLabel: { fontSize: 13 },
@@ -272,11 +407,15 @@ const S = StyleSheet.create({
   chip:     { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10, borderWidth: 1, maxWidth: 160 },
   chipText: { fontSize: 11, fontWeight: '600' },
 
-  feeRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 12, borderRadius: 12, borderWidth: 1, marginBottom: 12 },
+  // Fee
+  feeRow:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 12, borderRadius: 12, borderWidth: 1, marginBottom: 12 },
+  feeLeft: { flexDirection: 'row', alignItems: 'center' },
 
+  // Warning
   warningRow: { flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 12, borderWidth: 1, marginBottom: 22, gap: 8 },
   warningTxt: { flex: 1, fontSize: 13, fontWeight: '600' },
 
+  // Buttons
   buttonsRow: { flexDirection: 'row', gap: 12 },
   rejectBtn:  { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 18, borderRadius: 18, borderWidth: 1.5, gap: 8 },
   rejectTxt:  { fontSize: 16, fontWeight: '700' },
