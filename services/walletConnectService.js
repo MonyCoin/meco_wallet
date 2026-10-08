@@ -1,3 +1,4 @@
+// services/walletConnectService.js
 import { Core } from '@walletconnect/core';
 import { Web3Wallet } from '@walletconnect/web3wallet';
 import { buildApprovedNamespaces, getSdkError } from '@walletconnect/utils';
@@ -35,37 +36,33 @@ async function getLookupTables(vTx, connection) {
 
 // ✅ Anchor instruction discriminators لبرنامج Orca Whirlpool
 // كل قيمة = أول 8 بايت من sha256("global:<اسم التعليمة بصيغة snake_case>")
-// دي نفس آلية الـ sighash القياسية اللي بيستخدمها Anchor لكل برامجه، محسوبة يدويًا هنا
-// بدل ما نضيف مكتبة IDL/anchor كاملة عشان تعليمة واحدة بس محتاجينها: تحديد نوع العملية
 const WHIRLPOOL_DISCRIMINATORS = {
-  '87802f4d0f98f031': 'open_position',        // open_position
-  'f21d86303a6e0e3c': 'open_position',        // open_position_with_metadata
-  'd42f5f5c726683fa': 'open_position',        // open_position_with_token_extensions
-  '2e9cf3760dcdfbb2': 'add_liquidity',        // increase_liquidity
-  '851d59df45eeb00a': 'add_liquidity',        // increase_liquidity_v2
-  'a026d06f685b2c01': 'remove_liquidity',     // decrease_liquidity
-  '3a7fbc3e4f52c460': 'remove_liquidity',     // decrease_liquidity_v2
-  'a498cf631eba13b6': 'collect_fees',         // collect_fees
-  'cf755fbfe5b4e20f': 'collect_fees',         // collect_fees_v2
-  '4605845756ebb122': 'collect_reward',       // collect_reward
-  'b16b25b4a01331d1': 'collect_reward',       // collect_reward_v2
-  '7b86510031446262': 'close_position',       // close_position
-  'f8c69e91e17587c8': 'swap',                 // swap
-  '2b04ed0b1ac91e62': 'swap',                 // swap_v2
-  'c360ed6c44a2dbe6': 'swap',                 // two_hop_swap
-  'ba8fd11dfe02c275': 'swap',                 // two_hop_swap_v2
-  '5fb40aac54aee828': 'create_pool',          // initialize_pool
-  'cf2d57f21b3fcc43': 'create_pool',          // initialize_pool_v2
+  '87802f4d0f98f031': 'open_position',
+  'f21d86303a6e0e3c': 'open_position',
+  'd42f5f5c726683fa': 'open_position',
+  '2e9cf3760dcdfbb2': 'add_liquidity',
+  '851d59df45eeb00a': 'add_liquidity',
+  'a026d06f685b2c01': 'remove_liquidity',
+  '3a7fbc3e4f52c460': 'remove_liquidity',
+  'a498cf631eba13b6': 'collect_fees',
+  'cf755fbfe5b4e20f': 'collect_fees',
+  '4605845756ebb122': 'collect_reward',
+  'b16b25b4a01331d1': 'collect_reward',
+  '7b86510031446262': 'close_position',
+  'f8c69e91e17587c8': 'swap',
+  '2b04ed0b1ac91e62': 'swap',
+  'c360ed6c44a2dbe6': 'swap',
+  'ba8fd11dfe02c275': 'swap',
+  '5fb40aac54aee828': 'create_pool',
+  'cf2d57f21b3fcc43': 'create_pool',
 };
 
-// لو المعاملة فيها أكتر من تعليمة Whirlpool، دي أولوية العرض (الأهم للمستخدم يعرفه الأول)
 const OPERATION_PRIORITY = [
   'create_pool', 'open_position', 'close_position',
   'add_liquidity', 'remove_liquidity',
   'collect_fees', 'collect_reward', 'swap',
 ];
 
-// ✅ بيدور على تعليمات Orca Whirlpool جوه المعاملة ويرجع نوع العملية الرئيسي (أو null لو مفيش)
 function detectWhirlpoolOperation(instructions) {
   const found = new Set();
   for (const ix of instructions) {
@@ -82,7 +79,6 @@ function detectWhirlpoolOperation(instructions) {
   return { type: primary };
 }
 
-// ✅ نفس مجموعة العملات الأساسية المدعومة فعليًا فى SendScreen (SOL, USDC, USDT) + MECO
 const KNOWN_TOKENS = {
   'So11111111111111111111111111111111111111112': 'SOL',
   'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v': 'USDC',
@@ -90,9 +86,6 @@ const KNOWN_TOKENS = {
   'A5Ln25cfww33kfUSzBb89bMha7j1PnFQTy7H3FsQHN7W': 'MECO',
 };
 
-// ✅ عدد الخانات العشرية بنجيبه من حساب الـ mint نفسه على السلسلة، مش بنخمنه —
-// أي غلطة فى عدد الخانات بتخلي الرقم المعروض غلط بمضاعفات كاملة (×10, ×1000..)
-// فمفيش داعي نخاطر ونثبّته يدويًا، والقيمة بتتخزن (cache) عشان منسألش عليها كل مرة
 const decimalsCache = {};
 async function getMintDecimals(connection, mint) {
   if (decimalsCache[mint] != null) return decimalsCache[mint];
@@ -101,10 +94,6 @@ async function getMintDecimals(connection, mint) {
   return info.decimals;
 }
 
-// ✅ بيحسب الفرق الحقيقي (قبل/بعد) فى رصيد SOL + كل توكن معروف لصاحب المحفظة
-// عن طريق محاكاة المعاملة (simulateTransaction) بدل ما نحاول نفك تشفير أرقام المبالغ
-// من جوه بيانات التعليمة نفسها — لأن تعليمات زي collectFees أصلاً مالهاش "amount" كـ argument،
-// المبلغ بيتحسب on-chain وقت التنفيذ، فمفيش طريقة نقرأه غير إننا نحاكي التنفيذ فعليًا
 async function getBalanceChanges(connection, ownerPubkey, txForSim) {
   try {
     const owner = new web3.PublicKey(ownerPubkey);
@@ -130,7 +119,7 @@ async function getBalanceChanges(connection, ownerPubkey, txForSim) {
     if (Math.abs(solDelta) > 0.000001) changes.push({ symbol: 'SOL', amount: solDelta });
 
     mints.forEach((mint, i) => {
-      if (decimalsList[i] == null) return; // فشلنا نجيب decimals حقيقية — منعرضش رقم ممكن يكون غلط
+      if (decimalsList[i] == null) return;
       const preAmt  = preInfos[i] ? AccountLayout.decode(preInfos[i].data).amount : 0n;
       const postRaw = postTokenAccs[i]?.data?.[0];
       let    postAmt = preAmt;
@@ -144,11 +133,10 @@ async function getBalanceChanges(connection, ownerPubkey, txForSim) {
     return changes.length ? changes : null;
   } catch (e) {
     console.warn('⚠️ [getBalanceChanges] رجعنا للعرض العام:', e.message);
-    return null; // أي فشل هنا يرجعنا تلقائيًا للعرض العام القديم، مش هيوقف التوقيع أبدًا
+    return null;
   }
 }
 
-// ✅ رسوم الشبكة الفعلية (مش تخمين) عن طريق getFeeForMessage القياسية فى web3.js
 async function getNetworkFee(connection, message) {
   try {
     const { value } = await connection.getFeeForMessage(message, 'confirmed');
@@ -189,11 +177,16 @@ async function parseTransactionDetails(method, params) {
       const pid = ix.programId?.toBase58?.();
       return KNOWN[pid] || (pid ? pid.slice(0,6)+'...' : '?');
     }))];
-    const operation = detectWhirlpoolOperation(instructions);
 
-    // ✅ لو عرفنا نوع العملية (سيولة/رسوم..)، نجيب المبالغ الحقيقية + رسوم الشبكة
+    let operation = detectWhirlpoolOperation(instructions);
+
+    // ✅ حتى لو لم نعرف نوع العملية بالتحديد (مثلاً Orca حدّثت الـ discriminator)،
+    // طالما Orca Whirlpool موجودة ضمن البرامج، نجيب التغييرات الفعلية في الأرصدة
+    // هذا يضمن ظهور بطاقة واضحة (Pair / Hero / Flow) بدل العرض العام الخام.
+    const hasOrcaProgram = programs.includes('Orca Whirlpool');
+
     let estimatedFee = null;
-    if (operation) {
+    if (operation || hasOrcaProgram) {
       const ownerPubkey = useAppStore.getState().walletPublicKey;
       const [changes, fee] = await Promise.all([
         ownerPubkey ? getBalanceChanges(connection, ownerPubkey, txForSim) : null,
@@ -201,10 +194,16 @@ async function parseTransactionDetails(method, params) {
       ]);
       estimatedFee = fee;
       if (changes) {
-        operation.summary = changes.map(c => ({
+        const summary = changes.map(c => ({
           label: c.amount < 0 ? i18n.t('walletConnect.amount_sent') : i18n.t('walletConnect.amount_received'),
           value: `${Math.abs(c.amount).toLocaleString('en-US', { maximumFractionDigits: 6 })} ${c.symbol}`,
         }));
+        if (operation) {
+          operation.summary = summary;
+        } else {
+          // ⚠️ عملية Orca غير معروفة النوع — نُنشئ عملية اصطناعية تحتوي على الملخص فقط
+          operation = { type: null, summary };
+        }
       }
     }
 
@@ -349,33 +348,32 @@ async function handleRequestApproval(event) {
     }
 
     else if (request.method === 'solana_signTransaction') {
-  const buffer = Buffer.from(request.params.transaction, 'base64');
-  let signedBase64;
+      const buffer = Buffer.from(request.params.transaction, 'base64');
+      let signedBase64;
 
-  try {
-    const vTx          = web3.VersionedTransaction.deserialize(buffer);
-    const lookupTables = await getLookupTables(vTx, connection);
-    const msg          = web3.TransactionMessage.decompile(vTx.message, { addressLookupTableAccounts: lookupTables });
-    const { blockhash } = await connection.getLatestBlockhash('confirmed');
-    msg.recentBlockhash = blockhash;
-    const rebuilt = new web3.VersionedTransaction(msg.compileToV0Message(lookupTables));
-    rebuilt.sign([keypair]);
-    signedBase64 = Buffer.from(rebuilt.serialize()).toString('base64');
-  } catch (vErr) {
-    if (vErr.message?.includes('Versioned') || vErr.message?.includes('deserialize')) {
-      throw vErr;
+      try {
+        const vTx          = web3.VersionedTransaction.deserialize(buffer);
+        const lookupTables = await getLookupTables(vTx, connection);
+        const msg          = web3.TransactionMessage.decompile(vTx.message, { addressLookupTableAccounts: lookupTables });
+        const { blockhash } = await connection.getLatestBlockhash('confirmed');
+        msg.recentBlockhash = blockhash;
+        const rebuilt = new web3.VersionedTransaction(msg.compileToV0Message(lookupTables));
+        rebuilt.sign([keypair]);
+        signedBase64 = Buffer.from(rebuilt.serialize()).toString('base64');
+      } catch (vErr) {
+        if (vErr.message?.includes('Versioned') || vErr.message?.includes('deserialize')) {
+          throw vErr;
+        }
+        const tx = web3.Transaction.from(buffer);
+        tx.partialSign(keypair);
+        signedBase64 = tx.serialize({ requireAllSignatures: false, verifySignatures: false }).toString('base64');
+      }
+      result = { transaction: signedBase64 };
     }
-    const tx = web3.Transaction.from(buffer);
-    tx.partialSign(keypair);
-    signedBase64 = tx.serialize({ requireAllSignatures: false, verifySignatures: false }).toString('base64');
-  }
-  result = { transaction: signedBase64 };
-}
     else if (request.method === 'solana_signAndSendTransaction') {
       const buffer = Buffer.from(request.params.transaction, 'base64');
       let signature;
       try {
-        // ✅ Versioned أولاً دائماً
         const vTx          = web3.VersionedTransaction.deserialize(buffer);
         const lookupTables = await getLookupTables(vTx, connection);
         const msg          = web3.TransactionMessage.decompile(vTx.message, { addressLookupTableAccounts: lookupTables });
@@ -388,7 +386,6 @@ async function handleRequestApproval(event) {
           preflightCommitment: 'confirmed',
         });
       } catch (vErr) {
-        // ✅ Legacy فقط إذا لم يكن Versioned
         if (vErr.message?.includes('Versioned') || vErr.message?.includes('deserialize')) throw vErr;
         const tx = web3.Transaction.from(buffer);
         tx.partialSign(keypair);
