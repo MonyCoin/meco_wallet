@@ -150,7 +150,6 @@ export default function WalletScreen() {
     }
   }, [accounts, activeAccountIndex]);
 
-  // ✅ silent = true → تحديث في الخلفية بدون Spinner وبدون رمشة بصرية
   const loadWalletData = useCallback(async (publicKey, silent = false) => {
     try {
       if (!publicKey) { setLoadingInitial(false); setIsSwitchingAccount(false); return; }
@@ -225,7 +224,6 @@ export default function WalletScreen() {
     }
   }, []);
 
-  // ✅ إعادة تحميل صامتة عند كل دخول للشاشة — بدون Spinner
   useFocusEffect(
     useCallback(() => {
       if (walletPublicKey) loadWalletData(walletPublicKey, true);
@@ -801,8 +799,14 @@ export default function WalletScreen() {
             )}
           </View>
 
-          {/* ✅ النشاط الأخير */}
+          {/* ✅ سجل العمليات */}
           <View style={styles.activitySection}>
+            <View style={styles.assetsHeader}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                {t('activity.section_title')}
+              </Text>
+            </View>
+
             <TouchableOpacity
               style={[styles.activityCard, { backgroundColor: colors.card, borderColor: colors.border }]}
               onPress={() => navigation.navigate('ActivityHistory')}

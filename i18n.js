@@ -1755,6 +1755,7 @@ i18n.addResourceBundle('en', 'translation', {
 i18n.addResourceBundle('ar', 'translation', {
   activity: {
     title:         'النشاط الأخير',
+    section_title: 'سجل العمليات',
     subtitle:      'اعرض كل معاملاتك',
     view:          'عرض',
     history_title: 'سجل العمليات',
@@ -1772,6 +1773,7 @@ i18n.addResourceBundle('ar', 'translation', {
 i18n.addResourceBundle('en', 'translation', {
   activity: {
     title:         'Recent Activity',
+    section_title: 'Transaction History',
     subtitle:      'View all your transactions',
     view:          'View',
     history_title: 'Activity History',
