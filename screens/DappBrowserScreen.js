@@ -10,7 +10,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { useAppStore } from '../store';
 import { useTranslation } from 'react-i18next';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { pairWalletConnect } from '../services/walletConnectService'; // ✅ استيراد دالة الربط
+import { pairWalletConnect } from '../services/walletConnectService';
 
 const BOOKMARKS_KEY = '@meco_bookmarks';
 const HISTORY_KEY   = '@meco_browsing_history';
@@ -49,7 +49,7 @@ export default function DappBrowserScreen() {
   const [newBookmark,      setNewBookmark]     = useState({ name: '', url: '', iconUrl: '' });
 
   const webviewRefs = useRef({});
-  const historyDebounceRef = useRef({}); // ✅ مؤقتات سجل التصفح فقط — منفصلة تمامًا عن WalletConnect
+  const historyDebounceRef = useRef({});
 
   // 1. فتح التبويب الأول عند تشغيل المتصفح برابط خارجي
   useEffect(() => {
@@ -61,16 +61,12 @@ export default function DappBrowserScreen() {
     }
   }, [initialUrl, initialName]);
 
-  // ⚠️ منطق حساس — حلقة الوصل الأساسية لربط المحفظة بأي dApp خارجي عبر
-  // WalletConnect. لم يُعدَّل أي سطر هنا إطلاقًا أثناء إضافة سجل التصفح.
-  // ✅ 2. الاستماع لكود الـ QR بعد العودة من كاميرا الكود أو اختيار لقطة شاشة
+  // 2. الاستماع لكود الـ QR بعد العودة من كاميرا الكود أو اختيار لقطة شاشة
   useEffect(() => {
     const scanned = route.params?.scannedAddress;
     if (scanned?.startsWith('wc:')) {
-      // تفريغ البيانات حتى لا تتكرر العملية عند تدوير الشاشة أو إعادة فتحها
       navigation.setParams({ scannedAddress: undefined });
-      
-      // تنفيذ عملية الربط مباشرة بينما المتصفح مفتوح!
+
       pairWalletConnect(scanned)
         .then(() => {
           console.log('✅ WalletConnect paired inside browser successfully!');
@@ -123,7 +119,7 @@ export default function DappBrowserScreen() {
     else if (!url.startsWith('http'))
       url = `https://${url}`;
     Keyboard.dismiss();
-    
+
     if (activeTabId) {
       setTabs(prev => prev.map(t => t.id === activeTabId ? { ...t, url } : t));
     } else {
@@ -148,13 +144,12 @@ export default function DappBrowserScreen() {
     setAddModalVisible(false);
   };
 
-  // ✅ تسجيل سجل التصفح — منفصلة تمامًا عن منطق WalletConnect أعلاه، بلا أي تأثير عليه
   const recordHistoryEntry = async (url, title) => {
     if (!url) return;
     try {
       const s = await AsyncStorage.getItem(HISTORY_KEY);
       const list = s ? JSON.parse(s) : [];
-      if (list[0]?.url === url) return; // نفس آخر رابط مسجّل، تجاهل لتفادي التكرار
+      if (list[0]?.url === url) return;
       const updated = [
         { id: Date.now().toString(), url, name: title || url, visitedAt: Date.now() },
         ...list,
@@ -165,7 +160,6 @@ export default function DappBrowserScreen() {
 
   const activeTab = tabs.find(t => t.id === activeTabId);
 
-  // تحديث عنوان شريط الهيدر بذكاء بناءً على الصفحة المفتوحة
   useEffect(() => {
     if (activeTab) {
       navigation.setOptions({ title: activeTab.title });
@@ -174,8 +168,8 @@ export default function DappBrowserScreen() {
 
   return (
     <View style={[S.root, { backgroundColor: C.bg }]}>
-      
-      {/* ── شريط تحكم متصفح Web3 العلوي المعدل ── */}
+
+      {/* ── شريط تحكم متصفح Web3 العلوي ── */}
       <View style={[S.addrRow, { borderBottomColor: C.border }]}>
         <TouchableOpacity style={[S.homeBtn, { backgroundColor: C.inputBg, borderColor: C.border }]} onPress={() => navigation.goBack()}>
           <Ionicons name="close-outline" size={22} color={C.text} />
@@ -205,7 +199,6 @@ export default function DappBrowserScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* ✅ زر الـ QR كود مدمج مباشرة بالمتصفح، يرسل المستخدم لـ QRScanner ثم يعود تلقائياً هنا */}
         <TouchableOpacity
           style={[S.qrBtn, { backgroundColor: C.accent + '20', borderColor: C.accent + '50' }]}
           onPress={() => navigation.navigate('QRScanner', { returnTo: 'DappBrowser' })}
@@ -239,6 +232,10 @@ export default function DappBrowserScreen() {
               thirdPartyCookiesEnabled={true}
               sharedCookiesEnabled={true}
               startInLoadingState={true}
+              // ✅ دعم dApps التي تفتح نوافذ منبثقة (مثل Raydium Connect Wallet)
+              // بدل إنشاء WebView جديد، تُحمَّل النافذة في نفس الصفحة الحالية
+              setSupportMultipleWindows={false}
+              onShouldStartLoadWithRequest={() => true}
               renderLoading={() => (
                 <View style={S.webLoader}>
                   <ActivityIndicator size="large" color={C.accent} />
@@ -254,8 +251,6 @@ export default function DappBrowserScreen() {
                 ));
                 if (tab.id === activeTabId) {
                   setInputUrl(nav.url);
-                  // ✅ تسجيل السجل بعد استقرار الرابط فقط (تأخير 1.5 ثانية) لتفادي
-                  // عشرات الإدخالات المكررة أثناء تنقل الـSPA الداخلي — إضافة معزولة
                   if (historyDebounceRef.current[tab.id]) clearTimeout(historyDebounceRef.current[tab.id]);
                   historyDebounceRef.current[tab.id] = setTimeout(() => {
                     if (!nav.loading) recordHistoryEntry(nav.url, nav.title);
@@ -267,7 +262,7 @@ export default function DappBrowserScreen() {
         ))}
       </View>
 
-      {/* ── باقي نوافذ الـ Modal (القائمة، التبويبات، والمفضلة) ── */}
+      {/* ── باقي نوافذ الـ Modal ── */}
       <Modal visible={menuVisible} transparent animationType="fade" onRequestClose={() => setMenuVisible(false)}>
         <TouchableWithoutFeedback onPress={() => setMenuVisible(false)}>
           <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.1)' }}>
