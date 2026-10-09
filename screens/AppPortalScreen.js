@@ -24,7 +24,7 @@ const DAPPS = [
   { id:'marinade', name:'Marinade', icon:'https://assets.coingecko.com/coins/images/18612/large/mnde.png', url:'https://marinade.finance/app/staking', category:'staking', badge:'8.5% APY' },
   { id:'jito',     name:'Jito',     icon:'https://assets.coingecko.com/coins/images/33228/large/jto.png',  url:'https://jito.network/staking',         category:'staking', badge:'9.2% APY' },
   { id:'orca',     name:'Orca',     icon:'https://assets.coingecko.com/coins/images/17547/large/Orca_Logo.png', url:'https://www.orca.so/pools',       category:'pools',   badge:'Pools' },
-  { id:'raydium',  name:'Raydium',  icon:'https://assets.coingecko.com/coins/images/13928/large/PSigc4ie_400x400.jpg', url:'https://raydium.io/liquidity/pools/', category:'pools', badge:'15.5% APY' },
+  { id:'raydium', name:'Raydium', icon:'https://assets.coingecko.com/coins/images/13928/large/PSigc4ie_400x400.jpg', url:'https://raydium.io/liquidity-pools/', category:'pools', badge:'15.5% APY' },
   { id:'meteora',  name:'Meteora',  icon:'https://www.meteora.ag/favicon.ico',                              url:'https://app.meteora.ag',               category:'defi',    badge:'20% APY' },
   { id:'kamino',   name:'Kamino',   icon:'https://www.kamino.finance/favicon.ico',                          url:'https://app.kamino.finance/lend',      category:'defi',    badge:'8% APY' },
   { id:'drift',    name:'Drift',    icon:'https://www.drift.trade/favicon.ico',                              url:'https://app.drift.trade',              category:'trading', badge:'Perps' },
