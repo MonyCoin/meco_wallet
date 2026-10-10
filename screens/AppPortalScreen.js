@@ -20,7 +20,7 @@ const GAP     = 12;
 const CARD_W  = (width - 40 - GAP) / 2;
 
 const DAPPS = [
-  { id:'jupiter',  name:'Jupiter',  icon:'https://assets.coingecko.com/coins/images/34188/large/jup.png',  url:'https://jup.ag',                       category:'trading', badge:'DEX',      featured:true, desc:'أفضل أسعار التبادل على Solana' },
+  { id:'jupiter',  name:'Jupiter',  icon:'https://assets.coingecko.com/coins/images/34188/large/jup.png',  url:'https://jup.ag',  category:'trading', badge:'DEX',  featured:true },
   { id:'marinade', name:'Marinade', icon:'https://assets.coingecko.com/coins/images/18612/large/mnde.png', url:'https://marinade.finance/app/staking', category:'staking', badge:'8.5% APY' },
   { id:'jito',     name:'Jito',     icon:'https://assets.coingecko.com/coins/images/33228/large/jto.png',  url:'https://jito.network/staking',         category:'staking', badge:'9.2% APY' },
   { id:'orca',     name:'Orca',     icon:'https://assets.coingecko.com/coins/images/17547/large/Orca_Logo.png', url:'https://www.orca.so/pools',       category:'pools',   badge:'Pools' },
@@ -213,7 +213,7 @@ export default function AppPortalScreen() {
             </View>
           </View>
           <Text style={[S.heroDesc, { color:C.muted }]} numberOfLines={1}>
-            {item.desc || t('featured_app', 'تطبيق مميز')}
+            {t(`desc_${item.id}`, { defaultValue: t('featured_app', 'تطبيق مميز') })}
           </Text>
           <View style={S.heroOpen}>
             <Text style={[S.heroOpenTxt, { color }]}>
