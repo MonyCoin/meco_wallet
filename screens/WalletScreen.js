@@ -21,6 +21,11 @@ import { getUnreadCount } from '../services/notificationsService';
 
 const { width, height } = Dimensions.get('window');
 
+// ✅ Quick Trade — بطاقتان بالضبط مع محاذاة بطاقة الهيرو
+const TRADE_CARD_PADDING = 20; // = marginHorizontal للهيرو
+const TRADE_CARD_GAP     = 20; // مسافة بين البطاقتين
+const TRADE_CARD_WIDTH   = (width - TRADE_CARD_PADDING * 2 - TRADE_CARD_GAP) / 2;
+
 const ACCOUNT_EMOJIS = [
   '🦁','🐯','🦊','🐺','🐻','🦝','🦄','🐲','🦅','🦋',
   '🌟','⚡','🔥','💎','🚀','🌙','☀️','🌊','🏔️','🎯',
@@ -732,6 +737,7 @@ export default function WalletScreen() {
                 <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
               </View>
 
+              {/* ✅ FlatList محسّن: بطاقتان بالضبط + Snap عند التمرير */}
               <FlatList
                 data={tradableTokens}
                 renderItem={renderTradeCard}
@@ -739,6 +745,10 @@ export default function WalletScreen() {
                 horizontal
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.tradingList}
+                snapToInterval={TRADE_CARD_WIDTH + TRADE_CARD_GAP}
+                snapToAlignment="start"
+                decelerationRate="fast"
+                disableIntervalMomentum
               />
             </View>
           )}
@@ -1107,11 +1117,12 @@ const styles = StyleSheet.create({
   actionCircle: { width:48, height:48, borderRadius:24, justifyContent:'center', alignItems:'center', shadowColor:'#000', shadowOffset:{width:0,height:2}, shadowOpacity:0.05, shadowRadius:6, elevation:2 },
   actionLabel:  { fontSize:12, fontWeight:'600' },
 
+  // ✅ Quick Trade — بطاقتان بالضبط مع محاذاة الهيرو
   tradingSection: { marginTop: 4, marginBottom: 14 },
   tradingHeader:  { flexDirection:'row', justifyContent:'space-between', alignItems:'center', paddingHorizontal: 20, marginBottom: 10 },
-  tradingList:    { paddingHorizontal: 20, gap: 10 },
+  tradingList:    { paddingHorizontal: TRADE_CARD_PADDING, gap: TRADE_CARD_GAP },
   tradeCard: {
-    width: 155,
+    width: TRADE_CARD_WIDTH,   // ✅ ديناميكي — بطاقتان بالضبط
     padding: 14,
     borderRadius: 18,
     borderWidth: 1,
