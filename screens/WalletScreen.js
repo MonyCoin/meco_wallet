@@ -591,92 +591,119 @@ export default function WalletScreen() {
             />
           }
         >
-          <Animated.View style={[styles.headerCard, {
-            backgroundColor: colors.card,
-            opacity: fadeAnim,
-            transform: [{ translateY: slideAnim }],
-            borderColor: colors.border,
-            borderWidth: 1,
-            borderRadius: 24,
-            marginHorizontal: 20,
-            paddingTop: 18
-          }]}>
-            <View style={styles.topBar}>
-              <View style={styles.walletInfoRow}>
-                <TouchableOpacity
-                  onPress={() => setAccountsModalVisible(true)}
-                  style={[styles.walletIconWrapper, { backgroundColor: primaryColor + '15', borderColor: colors.border, borderWidth: 1 }]}
-                  activeOpacity={0.7}
-                >
-                  {activeEmoji
-                    ? <Text style={styles.walletIconEmoji}>{activeEmoji}</Text>
-                    : <Ionicons name="wallet-outline" size={20} color={primaryColor} />
-                  }
-                </TouchableOpacity>
-                <View style={{ alignItems:'flex-start' }}>
-                  <View style={styles.walletNameRow}>
-                    <Text style={[styles.walletName, { color: colors.text }]}>{walletName}</Text>
-                    <TouchableOpacity onPress={() => copyAddress()} style={styles.inlineCopyBtn}>
-                      <Ionicons
-                        name={copyFeedback ? 'checkmark-circle' : 'copy-outline'}
-                        size={14}
-                        color={copyFeedback ? colors.success : primaryColor}
-                      />
-                    </TouchableOpacity>
+          {/* ✅ بطاقة الهيرو — بحلقة خارجية احترافية */}
+          <Animated.View
+            style={[
+              styles.headerCardRing,
+              {
+                backgroundColor: primaryColor + '55',
+                opacity: fadeAnim,
+                transform: [{ translateY: slideAnim }],
+                marginHorizontal: 20,
+              },
+            ]}
+          >
+            <View
+              style={[
+                styles.headerCard,
+                {
+                  backgroundColor: colors.card,
+                  borderColor: colors.border,
+                  borderWidth: 1,
+                  borderRadius: 22,
+                  paddingTop: 18,
+                },
+              ]}
+            >
+              <View style={styles.topBar}>
+                <View style={styles.walletInfoRow}>
+                  <TouchableOpacity
+                    onPress={() => setAccountsModalVisible(true)}
+                    style={[
+                      styles.walletIconWrapper,
+                      {
+                        backgroundColor: primaryColor + '18',
+                        borderColor: primaryColor + '80',
+                        borderWidth: 1.5,
+                        shadowColor: primaryColor,
+                        shadowOffset: { width: 0, height: 2 },
+                        shadowOpacity: 0.15,
+                        shadowRadius: 4,
+                        elevation: 2,
+                      },
+                    ]}
+                    activeOpacity={0.7}
+                  >
+                    {activeEmoji
+                      ? <Text style={styles.walletIconEmoji}>{activeEmoji}</Text>
+                      : <Ionicons name="wallet-outline" size={20} color={primaryColor} />
+                    }
+                  </TouchableOpacity>
+                  <View style={{ alignItems:'flex-start' }}>
+                    <View style={styles.walletNameRow}>
+                      <Text style={[styles.walletName, { color: colors.text }]}>{walletName}</Text>
+                      <TouchableOpacity onPress={() => copyAddress()} style={styles.inlineCopyBtn}>
+                        <Ionicons
+                          name={copyFeedback ? 'checkmark-circle' : 'copy-outline'}
+                          size={14}
+                          color={copyFeedback ? colors.success : primaryColor}
+                        />
+                      </TouchableOpacity>
+                    </View>
+                    <Text style={[styles.accountsCount, { color: colors.textSecondary }]}>
+                      {walletAddress.slice(0,6)}...{walletAddress.slice(-4)}
+                    </Text>
                   </View>
-                  <Text style={[styles.accountsCount, { color: colors.textSecondary }]}>
-                    {walletAddress.slice(0,6)}...{walletAddress.slice(-4)}
-                  </Text>
+                </View>
+
+                <View style={styles.topBarActions}>
+                  <TouchableOpacity
+                    onPress={handleOpenNotifications}
+                    style={[styles.bellButton, { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1 }]}
+                  >
+                    <Ionicons name="notifications-outline" size={18} color={colors.text} />
+                    {unreadCount > 0 && (
+                      <View style={[styles.bellBadge, { backgroundColor: primaryColor }]}>
+                        <Text style={styles.bellBadgeTxt}>
+                          {unreadCount > 99 ? '99+' : unreadCount}
+                        </Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    onPress={() => setMenuVisible(true)}
+                    style={[styles.dotsButton, { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1 }]}
+                  >
+                    <Ionicons name="ellipsis-vertical" size={18} color={colors.text} />
+                  </TouchableOpacity>
                 </View>
               </View>
 
-              <View style={styles.topBarActions}>
-                <TouchableOpacity
-                  onPress={handleOpenNotifications}
-                  style={[styles.bellButton, { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1 }]}
-                >
-                  <Ionicons name="notifications-outline" size={18} color={colors.text} />
-                  {unreadCount > 0 && (
-                    <View style={[styles.bellBadge, { backgroundColor: primaryColor }]}>
-                      <Text style={styles.bellBadgeTxt}>
-                        {unreadCount > 99 ? '99+' : unreadCount}
-                      </Text>
-                    </View>
-                  )}
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  onPress={() => setMenuVisible(true)}
-                  style={[styles.dotsButton, { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1 }]}
-                >
-                  <Ionicons name="ellipsis-vertical" size={18} color={colors.text} />
-                </TouchableOpacity>
+              <View style={styles.balanceSection}>
+                <View style={styles.balanceLabelRow}>
+                  <Text style={[styles.balanceLabel, { color: colors.textSecondary }]}>{t('total_balance')}</Text>
+                  <TouchableOpacity onPress={toggleHideBalance} style={styles.eyeBtn}>
+                    <Ionicons
+                      name={hideBalance ? 'eye-off-outline' : 'eye-outline'}
+                      size={16}
+                      color={colors.textSecondary}
+                    />
+                  </TouchableOpacity>
+                </View>
+                {loadingInitial || isSwitchingAccount ? (
+                  <View style={styles.loadingBalance}><ActivityIndicator color={primaryColor} /></View>
+                ) : (
+                  <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+                    <Text style={[styles.balanceAmount, { color: colors.text }]}>
+                      {hideBalance
+                        ? '$ ••••••'
+                        : `$${totalBalanceUSD.toLocaleString('en-US', { minimumFractionDigits:2, maximumFractionDigits:2 })}`
+                      }
+                    </Text>
+                  </Animated.View>
+                )}
               </View>
-            </View>
-
-            <View style={styles.balanceSection}>
-              <View style={styles.balanceLabelRow}>
-                <Text style={[styles.balanceLabel, { color: colors.textSecondary }]}>{t('total_balance')}</Text>
-                <TouchableOpacity onPress={toggleHideBalance} style={styles.eyeBtn}>
-                  <Ionicons
-                    name={hideBalance ? 'eye-off-outline' : 'eye-outline'}
-                    size={16}
-                    color={colors.textSecondary}
-                  />
-                </TouchableOpacity>
-              </View>
-              {loadingInitial || isSwitchingAccount ? (
-                <View style={styles.loadingBalance}><ActivityIndicator color={primaryColor} /></View>
-              ) : (
-                <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
-                  <Text style={[styles.balanceAmount, { color: colors.text }]}>
-                    {hideBalance
-                      ? '$ ••••••'
-                      : `$${totalBalanceUSD.toLocaleString('en-US', { minimumFractionDigits:2, maximumFractionDigits:2 })}`
-                    }
-                  </Text>
-                </Animated.View>
-              )}
             </View>
           </Animated.View>
 
@@ -900,7 +927,7 @@ export default function WalletScreen() {
 
         <Modal visible={emojiPickerVisible} transparent animationType="slide" onRequestClose={() => setEmojiPickerVisible(false)}>
           <View style={styles.modalOverlayBottom}>
-            <View style={[styles.emojiPickerContent, { backgroundColor: colors.card }]}>
+            <View style={[styles.emojiPickerContent, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
               <View style={styles.emojiPickerHeader}>
                 <Text style={[styles.modalTitle, { color: colors.text, marginBottom: 0 }]}>🎨 {t('change')}</Text>
@@ -927,14 +954,27 @@ export default function WalletScreen() {
               )}
               <FlatList
                 data={ACCOUNT_EMOJIS}
-                numColumns={8}
+                numColumns={6}
                 keyExtractor={(item, index) => index.toString()}
                 contentContainerStyle={styles.emojiGrid}
+                columnWrapperStyle={styles.emojiRow}
                 renderItem={({ item }) => {
                   const isSelected = activeAccount && accountEmojis[activeAccount.publicKey] === item;
                   return (
                     <TouchableOpacity
-                      style={[styles.emojiItem, isSelected && { backgroundColor: primaryColor + '20', borderRadius: 12 }]}
+                      style={[
+                        styles.emojiItem,
+                        {
+                          backgroundColor: colors.background,
+                          borderColor: colors.border,
+                        },
+                        isSelected && {
+                          backgroundColor: primaryColor + '20',
+                          borderColor: primaryColor,
+                          borderWidth: 1.5,
+                        },
+                      ]}
+                      activeOpacity={0.7}
                       onPress={async () => {
                         if (activeAccount) await saveEmoji(activeAccount.publicKey, item);
                         setEmojiPickerVisible(false);
@@ -1024,10 +1064,25 @@ export default function WalletScreen() {
 
 const styles = StyleSheet.create({
   container:    { flex:1 },
-  headerCard:   { borderBottomLeftRadius:28, borderBottomRightRadius:28, paddingHorizontal:20, paddingBottom:20, elevation:4, shadowColor:'#000', shadowOffset:{width:0,height:4}, shadowOpacity:0.04, shadowRadius:10, zIndex:10, borderWidth: 1 },
+
+  // ✅ الإطار الخارجي (الحلقة) حول بطاقة الهيرو
+  headerCardRing: {
+    borderRadius: 24,          // = 22 (الداخلية) + 2 (سماكة الحلقة)
+    padding: 2,                // سماكة الحلقة
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 5,
+    zIndex: 10,
+  },
+
+  // البطاقة الداخلية (بدون ظل/حواف خارجية — تأتي inline)
+  headerCard:   { paddingHorizontal:20, paddingBottom:20 },
+
   topBar:       { flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:18 },
   walletInfoRow:{ flexDirection:'row', alignItems:'center', gap:10, flex: 1 },
-  walletIconWrapper: { width:40, height:40, borderRadius:12, justifyContent:'center', alignItems:'center', borderWidth: 1 },
+  walletIconWrapper: { width:40, height:40, borderRadius:12, justifyContent:'center', alignItems:'center' },
   walletIconEmoji:   { fontSize:22 },
   walletNameRow:{ flexDirection:'row', alignItems:'center', gap:4 },
   walletName:   { fontSize:18, fontWeight:'800' },
@@ -1125,11 +1180,29 @@ const styles = StyleSheet.create({
   menuItemIcon: { width:34, height:34, borderRadius:10, justifyContent:'center', alignItems:'center' },
   menuItemText: { flex:1, fontSize:14, fontWeight:'600' },
 
-  emojiPickerContent:{ borderTopLeftRadius:24, borderTopRightRadius:24, padding:20, paddingTop:12, maxHeight:height*0.55 },
+  // ✅ Emoji Picker — بطاقات واضحة
+  emojiPickerContent:{
+    borderTopLeftRadius:24,
+    borderTopRightRadius:24,
+    padding:20,
+    paddingTop:12,
+    maxHeight:height*0.55,
+    borderWidth:1,
+  },
   emojiPickerHeader: { flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:12 },
-  emojiGrid:    { paddingBottom:16 },
-  emojiItem:    { flex:1, aspectRatio:1, justifyContent:'center', alignItems:'center', margin:4 },
-  emojiText:    { fontSize:26 },
+  emojiGrid:    { paddingBottom:16, paddingTop:4 },
+  emojiRow:     { justifyContent:'space-between', marginBottom:8 },
+  emojiItem:    {
+    flex:1,
+    aspectRatio:1,
+    marginHorizontal:4,
+    borderRadius:14,
+    borderWidth:1,
+    justifyContent:'center',
+    alignItems:'center',
+    overflow:'hidden',
+  },
+  emojiText:    { fontSize:24, textAlign:'center', includeFontPadding:false },
   removeEmojiBtn:{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:6, paddingVertical:8, borderRadius:10, borderWidth:1, marginBottom:12 },
   removeEmojiText:{ fontSize:13, fontWeight:'600' },
 
