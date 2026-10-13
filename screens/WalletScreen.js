@@ -449,6 +449,7 @@ export default function WalletScreen() {
     );
   };
 
+  // ✅ بطاقة تداول بأسلوب Solflare (نفس التصميم، ارتفاع مضغوط، محتوى left-aligned)
   const renderTradeCard = ({ item }) => {
     const up = (item.price_change_percentage_24h || 0) >= 0;
     return (
@@ -457,20 +458,29 @@ export default function WalletScreen() {
         onPress={() => handleOpenQuickTrade(item)}
         activeOpacity={0.85}
       >
+        {/* الأيقونة صغيرة + إلى اليسار */}
         <Image source={{ uri: item.image }} style={styles.tradeCardIcon} />
-        <Text style={[styles.tradeCardSymbol, { color: colors.text }]}>{item.symbol}</Text>
-        <Text style={[styles.tradeCardPrice, { color: colors.text }]} numberOfLines={1}>
-          {fmtTradePrice(item.current_price)}
+
+        {/* الرمز — إلى اليسار */}
+        <Text style={[styles.tradeCardSymbol, { color: colors.text }]} numberOfLines={1}>
+          {item.symbol}
         </Text>
-        <View style={styles.tradeCardChangeRow}>
-          <Ionicons
-            name={up ? 'trending-up' : 'trending-down'}
-            size={11}
-            color={up ? colors.success : colors.error}
-          />
-          <Text style={[styles.tradeCardChange, { color: up ? colors.success : colors.error }]}>
-            {up ? '+' : ''}{(item.price_change_percentage_24h || 0).toFixed(2)}%
+
+        {/* السطر السفلي: السعر يسار + النسبة يمين */}
+        <View style={styles.tradeCardBottomRow}>
+          <Text style={[styles.tradeCardPrice, { color: colors.text }]} numberOfLines={1}>
+            {fmtTradePrice(item.current_price)}
           </Text>
+          <View style={styles.tradeCardChangeRow}>
+            <Ionicons
+              name={up ? 'trending-up' : 'trending-down'}
+              size={12}
+              color={up ? colors.success : colors.error}
+            />
+            <Text style={[styles.tradeCardChange, { color: up ? colors.success : colors.error }]}>
+              {Math.abs(item.price_change_percentage_24h || 0).toFixed(2)}%
+            </Text>
+          </View>
         </View>
       </TouchableOpacity>
     );
@@ -737,7 +747,7 @@ export default function WalletScreen() {
                 <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
               </View>
 
-              {/* ✅ FlatList محسّن: بطاقتان بالضبط + Snap عند التمرير */}
+              {/* ✅ FlatList: بطاقتان بالضبط + Snap عند التمرير */}
               <FlatList
                 data={tradableTokens}
                 renderItem={renderTradeCard}
@@ -1077,8 +1087,8 @@ const styles = StyleSheet.create({
 
   // ✅ الإطار الخارجي (الحلقة) حول بطاقة الهيرو
   headerCardRing: {
-    borderRadius: 24,          // = 22 (الداخلية) + 2 (سماكة الحلقة)
-    padding: 2,                // سماكة الحلقة
+    borderRadius: 24,
+    padding: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.08,
@@ -1087,7 +1097,6 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
 
-  // البطاقة الداخلية (بدون ظل/حواف خارجية — تأتي inline)
   headerCard:   { paddingHorizontal:20, paddingBottom:20 },
 
   topBar:       { flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:18 },
@@ -1117,22 +1126,49 @@ const styles = StyleSheet.create({
   actionCircle: { width:48, height:48, borderRadius:24, justifyContent:'center', alignItems:'center', shadowColor:'#000', shadowOffset:{width:0,height:2}, shadowOpacity:0.05, shadowRadius:6, elevation:2 },
   actionLabel:  { fontSize:12, fontWeight:'600' },
 
-  // ✅ Quick Trade — بطاقتان بالضبط مع محاذاة الهيرو
+  // ✅ Quick Trade — بطاقات بأسلوب Solflare (left-aligned, مضغوطة)
   tradingSection: { marginTop: 4, marginBottom: 14 },
   tradingHeader:  { flexDirection:'row', justifyContent:'space-between', alignItems:'center', paddingHorizontal: 20, marginBottom: 10 },
   tradingList:    { paddingHorizontal: TRADE_CARD_PADDING, gap: TRADE_CARD_GAP },
   tradeCard: {
-    width: TRADE_CARD_WIDTH,   // ✅ ديناميكي — بطاقتان بالضبط
-    padding: 14,
+    width: TRADE_CARD_WIDTH,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
     borderRadius: 18,
     borderWidth: 1,
-    gap: 4,
+    gap: 10,
   },
-  tradeCardIcon:      { width: 48, height: 48, borderRadius: 24, marginBottom: 6 },
-  tradeCardSymbol:    { fontSize: 15, fontWeight: '800' },
-  tradeCardPrice:     { fontSize: 12, fontWeight: '600' },
-  tradeCardChangeRow: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 2 },
-  tradeCardChange:    { fontSize: 11, fontWeight: '700' },
+  tradeCardIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+  },
+  tradeCardSymbol: {
+    fontSize: 15,
+    fontWeight: '800',
+    textAlign: 'left',
+  },
+  tradeCardBottomRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 6,
+  },
+  tradeCardPrice: {
+    fontSize: 12,
+    fontWeight: '600',
+    flexShrink: 1,
+  },
+  tradeCardChangeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    flexShrink: 0,
+  },
+  tradeCardChange: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
 
   assetsSection:{ paddingHorizontal:20, paddingTop:4, paddingBottom: 8 },
   assetsHeader: { flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:12 },
@@ -1191,7 +1227,6 @@ const styles = StyleSheet.create({
   menuItemIcon: { width:34, height:34, borderRadius:10, justifyContent:'center', alignItems:'center' },
   menuItemText: { flex:1, fontSize:14, fontWeight:'600' },
 
-  // ✅ Emoji Picker — بطاقات واضحة
   emojiPickerContent:{
     borderTopLeftRadius:24,
     borderTopRightRadius:24,
