@@ -1,12 +1,12 @@
 // services/marketDataService.js
-import { API_KEYS } from '../config/apiKeys';
+
 
 const FINNHUB_BASE   = 'https://finnhub.io/api/v1';
 const YAHOO_BASE     = 'https://query1.finance.yahoo.com/v8/finance/chart';
 const FETCH_TIMEOUT  = 8000;
 const CACHE_DURATION = 120000;
 
-const FINNHUB_KEY = API_KEYS?.FINNHUB_KEY || '';
+const FINNHUB_KEY = process.env.EXPO_PUBLIC_FINNHUB_KEY || '';
 
 const CACHE = {
   commodities:     null,
