@@ -1788,6 +1788,31 @@ i18n.addResourceBundle('en', 'translation', {
   },
 }, true, true);
 
+// ═════════════════════════════════════════════════════════════════════════════
+// ✅ قسم الأسواق المتقدمة — Top Movers + Commodities + US Stocks
+// ═════════════════════════════════════════════════════════════════════════════
+i18n.addResourceBundle('ar', 'translation', {
+  top_gainers_section_title: 'الأكثر صعودًا',
+  top_gainers_section_desc:  'أفضل العملات أداءً خلال 24 ساعة',
+  top_losers_section_title:  'الأكثر هبوطًا',
+  top_losers_section_desc:   'أسوأ العملات أداءً خلال 24 ساعة',
+  commodities_section_title: 'السلع والمعادن',
+  commodities_section_desc:  'أسعار الذهب والفضة والنفط العالمية',
+  us_stocks_section_title:   'الأسهم الأمريكية',
+  us_stocks_section_desc:    'أسهم الشركات التقنية الكبرى',
+}, true, true);
+
+i18n.addResourceBundle('en', 'translation', {
+  top_gainers_section_title: 'Top Gainers',
+  top_gainers_section_desc:  'Best performing tokens in the last 24 hours',
+  top_losers_section_title:  'Top Losers',
+  top_losers_section_desc:   'Worst performing tokens in the last 24 hours',
+  commodities_section_title: 'Commodities',
+  commodities_section_desc:  'Global gold, silver and oil prices',
+  us_stocks_section_title:   'US Stocks',
+  us_stocks_section_desc:    'Major tech company stocks',
+}, true, true);
+
 export const changeLanguage = (lng) => {
   i18n.changeLanguage(lng);
   SecureStore.setItemAsync('app_language', lng);

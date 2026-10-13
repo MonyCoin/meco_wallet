@@ -15,14 +15,15 @@ import {
   getJupiterMarketData, CORE_TOKENS,
   fetchCustomTokenByMint, saveCustomToken, deleteCustomToken,
 } from '../services/jupiterMarketService';
-import { getGlobalMarketData } from '../services/marketOverviewService';
+import { getGlobalMarketData, getTopMovers } from '../services/marketOverviewService';
+import { getCommodities, getUSStocks } from '../services/marketDataService';
 
 const WATCHLIST_KEY = '@meco_watchlist';
 const REFRESH_MS    = 60000;
 
 const { width } = require('react-native').Dimensions.get('window');
 
-// ✅ بطاقات الأسواق العالمية — بطاقتان بالضبط + محاذاة مع بقية الأقسام
+// ✅ كل البطاقات الأفقية — بطاقتان بالضبط + محاذاة مع بقية الأقسام
 const EXT_CARD_PADDING = 20;
 const EXT_CARD_GAP     = 20;
 const EXT_CARD_WIDTH   = (width - EXT_CARD_PADDING * 2 - EXT_CARD_GAP) / 2;
@@ -41,7 +42,7 @@ const EXTERNAL_TOKENS = [
   { id:'polkadot',   symbol:'DOT',  name:'Polkadot', image:'https://assets.coingecko.com/coins/images/12171/large/polkadot.jpg',                       coingeckoId:'polkadot',   mint:'external:polkadot',   swapAvailable:false },
 ];
 
-// ─── تنسيق السعر ──────────────────────────────────────────────────────────────
+// ─── تنسيق السعر — موحّد مع WalletScreen ──────────────────────────────────────
 const fmtPrice = (p) => {
   if (!p) return '$0.00';
   if (p >= 1) return `$${p.toLocaleString('en-US', { minimumFractionDigits:2, maximumFractionDigits:2 })}`;
@@ -125,7 +126,7 @@ const TokenIconImg = ({ uri, size, symbol, bg, color }) => {
   );
 };
 
-// ─── عنصر عملة ────────────────────────────────────────────────────────────────
+// ─── عنصر عملة (قائمة عمودية) ─────────────────────────────────────────────────
 const TokenListItem = React.memo(({ token, onPress, onLongPress, isDark, primaryColor }) => {
   const C = {
     text: isDark?'#EEEEFF':'#1C1C24',
@@ -171,46 +172,49 @@ const TokenListItem = React.memo(({ token, onPress, onLongPress, isDark, primary
   );
 });
 
-// ─── بطاقة عملة عالمية — بنفس تصميم Quick Trade في WalletScreen ──────────────
-const ExternalTokenCard = ({ item, data, isDark, onPress }) => {
+// ─── بطاقة موحّدة لكل الأقسام الأفقية (عملات عالمية / رابحين / خاسرين / سلع / أسهم)
+const GlobalMarketCard = ({ item, isDark, onPress }) => {
   const C = {
     card: isDark?'#111122':'#FFFFFF',
     text: isDark?'#EEEEFF':'#1C1C24',
-    muted: isDark?'#7E7EAA':'#8A8A9E',
     border: isDark?'#1E1E38':'#E8E8F2',
     success:'#10B981', error:'#EF4444',
   };
-  const price  = data?.usd           || 0;
-  const change = data?.usd_24h_change || 0;
+  const price  = item.current_price || 0;
+  const change = item.price_change_percentage_24h || 0;
   const up     = change >= 0;
 
-  const tokenForNav = {
-    ...item,
-    current_price: price,
-    price_change_percentage_24h: change,
-    name: item.name,
-    symbol: item.symbol,
-    image: item.image,
-    mint: item.mint,
-    isExternal: true,
+  // أيقونة موحّدة: صورة إن وُجدت — وإلا إيموجي — وإلا حرف
+  const renderIcon = () => {
+    if (item.image) {
+      return <TokenIconImg uri={item.image} size={32} symbol={item.symbol} bg={C.border} color={C.text} />;
+    }
+    if (item.emoji) {
+      return (
+        <View style={[S.extEmojiIcon, { backgroundColor: (item.color || '#888') + '22' }]}>
+          <Text style={{ fontSize: 18 }}>{item.emoji}</Text>
+        </View>
+      );
+    }
+    return (
+      <View style={[S.extEmojiIcon, { backgroundColor: C.border }]}>
+        <Text style={{ fontSize: 14, fontWeight:'800', color: C.text }}>
+          {item.symbol?.charAt(0) || '?'}
+        </Text>
+      </View>
+    );
   };
 
   return (
     <TouchableOpacity
-      style={[S.extCard, { backgroundColor:C.card, borderColor:C.border }]}
-      onPress={() => onPress(tokenForNav)}
+      style={[S.extCard, { backgroundColor: C.card, borderColor: C.border }]}
+      onPress={onPress}
       activeOpacity={0.85}
     >
-      <TokenIconImg uri={item.image} size={32} symbol={item.symbol} bg={C.border} color={C.text} />
-
-      <Text style={[S.extSym, { color:C.text }]} numberOfLines={1}>
-        {item.symbol}
-      </Text>
-
+      {renderIcon()}
+      <Text style={[S.extSym, { color: C.text }]} numberOfLines={1}>{item.symbol}</Text>
       <View style={S.extBottomRow}>
-        <Text style={[S.extPrice, { color:C.text }]} numberOfLines={1}>
-          {fmtPrice(price)}
-        </Text>
+        <Text style={[S.extPrice, { color: C.text }]} numberOfLines={1}>{fmtPrice(price)}</Text>
         <View style={S.extChg}>
           <Ionicons name={up?'trending-up':'trending-down'} size={12} color={up?C.success:C.error} />
           <Text style={[S.extChgTxt, { color: up?C.success:C.error }]}>
@@ -219,6 +223,39 @@ const ExternalTokenCard = ({ item, data, isDark, onPress }) => {
         </View>
       </View>
     </TouchableOpacity>
+  );
+};
+
+// ─── قسم أفقي قابل لإعادة الاستخدام ──────────────────────────────────────────
+const HorizontalMarketSection = ({ titleKey, descKey, data, isDark, primaryColor, onPressItem, t }) => {
+  const C = {
+    text: isDark?'#EEEEFF':'#1C1C24',
+    muted: isDark?'#7E7EAA':'#8A8A9E',
+  };
+  if (!data || data.length === 0) return null;
+  return (
+    <View style={S.extSection}>
+      <View style={S.extHeader}>
+        <View style={[S.extHeaderDot, { backgroundColor:primaryColor }]} />
+        <Text style={[S.extHeaderTitle, { color:C.text }]}>{t(titleKey)}</Text>
+        <Ionicons name="chevron-forward" size={16} color={C.muted} />
+      </View>
+      <Text style={[S.extHeaderSub, { color:C.muted }]}>{t(descKey)}</Text>
+      <FlatList
+        data={data}
+        keyExtractor={item => item.id || item.mint || item.symbol}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={S.extList}
+        snapToInterval={EXT_CARD_WIDTH + EXT_CARD_GAP}
+        snapToAlignment="start"
+        decelerationRate="fast"
+        disableIntervalMomentum
+        renderItem={({ item }) => (
+          <GlobalMarketCard item={item} isDark={isDark} onPress={() => onPressItem(item)} />
+        )}
+      />
+    </View>
   );
 };
 
@@ -256,6 +293,12 @@ export default function MarketScreen() {
   const [fetchErr,     setFetchErr]     = useState('');
   const [extPrices,    setExtPrices]    = useState({});
 
+  // 🆕 أقسام جديدة
+  const [gainers,      setGainers]      = useState([]);
+  const [losers,       setLosers]       = useState([]);
+  const [commodities,  setCommodities]  = useState([]);
+  const [stocks,       setStocks]       = useState([]);
+
   const firstLoad = useRef(true);
 
   useEffect(() => {
@@ -276,13 +319,34 @@ export default function MarketScreen() {
 
   const fetchAll = useCallback(async () => {
     try {
-      const [tokenData, ovData] = await Promise.all([
+   const [tokenData, ovData] = await Promise.all([
         getJupiterMarketData(),
         getGlobalMarketData(),
       ]);
       setTokens(tokenData);
       setOverview(ovData);
       fetchExtPrices();
+
+      // 🆕 جلب الأقسام الجديدة في الخلفية (لا تعطّل الواجهة)
+       const normalizeMover = (m) => ({
+  id:                          m.id,
+  symbol:                      m.symbol,
+  name:                        m.name,
+  image:                       m.image,
+  current_price:               m.price     || 0,
+  price_change_percentage_24h: m.change24h || 0,
+});
+
+Promise.all([
+  getTopMovers(5).catch(() => ({ gainers: [], losers: [] })),
+  getCommodities().catch(() => []),
+  getUSStocks().catch(() => []),
+]).then(([movers, comm, stk]) => {
+  setGainers((movers?.gainers || []).map(normalizeMover));
+  setLosers((movers?.losers  || []).map(normalizeMover));
+  setCommodities(comm || []);
+  setStocks(stk || []);
+});
     } catch (err) {
       if (!tokens.length)
         setTokens(CORE_TOKENS.map((tk, i) => ({ ...tk, current_price:0, price_change_percentage_24h:0, rank:i+1 })));
@@ -346,6 +410,7 @@ export default function MarketScreen() {
 
   const closeModal = () => { setAddModal(false); setMintInput(''); setPreviewToken(null); setFetchErr(''); };
 
+  // ── الضغط على أي بطاقة أفقية ──
   const handleExtPress = (extToken) => {
     navigation.navigate('TokenDetails', { token: extToken });
   };
@@ -368,6 +433,23 @@ export default function MarketScreen() {
     });
     return list;
   }, [tokens, searchQuery, activeTab, watchlist, sortBy]);
+
+  // 🆕 تجهيز العملات العالمية بنفس صيغة البطاقات
+  const normalizedExternal = useMemo(() => (
+    EXTERNAL_TOKENS.map(item => {
+      const data = extPrices[item.coingeckoId];
+      return {
+        id:     item.id,
+        symbol: item.symbol,
+        name:   item.name,
+        image:  item.image,
+        mint:   item.mint,
+        isExternal: true,
+        current_price:               data?.usd            || 0,
+        price_change_percentage_24h: data?.usd_24h_change || 0,
+      };
+    })
+  ), [extPrices]);
 
   const TABS  = [
     { id:'all',       labelKey:'all_tokens'    },
@@ -505,40 +587,64 @@ export default function MarketScreen() {
           ))}
         </View>
 
-        {/* ── الأسواق العالمية — تمرير أفقي مثل Wallet Quick Trade ── */}
+        {/* ── الأقسام الأفقية — تظهر فقط عند عدم البحث ── */}
         {!searchQuery && (
-          <View style={S.extSection}>
-            <View style={S.extHeader}>
-              <View style={[S.extHeaderDot, { backgroundColor:primaryColor }]} />
-              <Text style={[S.extHeaderTitle, { color:C.text }]}>
-                {t('global_markets', 'الأسواق العالمية')}
-              </Text>
-              <Ionicons name="chevron-forward" size={16} color={C.muted} />
-            </View>
-            <Text style={[S.extHeaderSub, { color:C.muted }]}>
-              {t('global_markets_desc', 'أسعار العملات الرقمية الكبرى')}
-            </Text>
-
-            <FlatList
-              data={EXTERNAL_TOKENS}
-              keyExtractor={item => item.id}
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={S.extList}
-              snapToInterval={EXT_CARD_WIDTH + EXT_CARD_GAP}
-              snapToAlignment="start"
-              decelerationRate="fast"
-              disableIntervalMomentum
-              renderItem={({ item }) => (
-                <ExternalTokenCard
-                  item={item}
-                  data={extPrices[item.coingeckoId]}
-                  isDark={isDark}
-                  onPress={handleExtPress}
-                />
-              )}
+          <>
+            {/* 🌍 الأسواق العالمية (عملات رقمية) */}
+            <HorizontalMarketSection
+              titleKey="global_markets"
+              descKey="global_markets_desc"
+              data={normalizedExternal}
+              isDark={isDark}
+              primaryColor={primaryColor}
+              onPressItem={handleExtPress}
+              t={t}
             />
-          </View>
+
+            {/* 🚀 الأكثر صعودًا */}
+            <HorizontalMarketSection
+              titleKey="top_gainers_section_title"
+              descKey="top_gainers_section_desc"
+              data={gainers}
+              isDark={isDark}
+              primaryColor={primaryColor}
+              onPressItem={handleExtPress}
+              t={t}
+            />
+
+            {/* 📉 الأكثر هبوطًا */}
+            <HorizontalMarketSection
+              titleKey="top_losers_section_title"
+              descKey="top_losers_section_desc"
+              data={losers}
+              isDark={isDark}
+              primaryColor={primaryColor}
+              onPressItem={handleExtPress}
+              t={t}
+            />
+
+            {/* 🥇 السلع والمعادن */}
+            <HorizontalMarketSection
+              titleKey="commodities_section_title"
+              descKey="commodities_section_desc"
+              data={commodities}
+              isDark={isDark}
+              primaryColor={primaryColor}
+              onPressItem={handleExtPress}
+              t={t}
+            />
+
+            {/* 📈 الأسهم الأمريكية */}
+            <HorizontalMarketSection
+              titleKey="us_stocks_section_title"
+              descKey="us_stocks_section_desc"
+              data={stocks}
+              isDark={isDark}
+              primaryColor={primaryColor}
+              onPressItem={handleExtPress}
+              t={t}
+            />
+          </>
         )}
       </ScrollView>
 
@@ -666,7 +772,7 @@ const S = StyleSheet.create({
   empty:       { alignItems:'center', justifyContent:'center', paddingVertical:40, gap:8 },
   emptyTxt:    { fontSize:14 },
 
-  // ✅ الأسواق العالمية — تمرير أفقي مثل Wallet
+  // ✅ الأقسام الأفقية — موحّدة لكل البطاقات
   extSection:    { marginBottom:16 },
   extHeader:     { flexDirection:'row', alignItems:'center', gap:8, marginBottom:4 },
   extHeaderDot:  { width:6, height:6, borderRadius:3 },
@@ -680,6 +786,10 @@ const S = StyleSheet.create({
     borderRadius: 18,
     borderWidth: 1,
     gap: 10,
+  },
+  extEmojiIcon: {
+    width: 32, height: 32, borderRadius: 16,
+    justifyContent: 'center', alignItems: 'center',
   },
   extSym:        { fontSize: 15, fontWeight: '800', textAlign: 'left' },
   extBottomRow: {
