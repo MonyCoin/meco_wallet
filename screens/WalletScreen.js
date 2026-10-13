@@ -22,8 +22,8 @@ import { getUnreadCount } from '../services/notificationsService';
 const { width, height } = Dimensions.get('window');
 
 // ✅ Quick Trade — بطاقتان بالضبط مع محاذاة بطاقة الهيرو
-const TRADE_CARD_PADDING = 20; // = marginHorizontal للهيرو
-const TRADE_CARD_GAP     = 20; // مسافة بين البطاقتين
+const TRADE_CARD_PADDING = 20;
+const TRADE_CARD_GAP     = 20;
 const TRADE_CARD_WIDTH   = (width - TRADE_CARD_PADDING * 2 - TRADE_CARD_GAP) / 2;
 
 const ACCOUNT_EMOJIS = [
@@ -36,11 +36,20 @@ const ACCOUNT_EMOJIS = [
 const EMOJIS_STORAGE_KEY  = '@meco_account_emojis';
 const HIDE_BALANCE_KEY    = '@meco_hide_balance';
 
+// ✅ موحّدة ١:١ مع MarketScreen.fmtPrice — نفس المنطق تمامًا لضمان الاتساق البصري
 const fmtTradePrice = (p) => {
-  if (!p || p <= 0) return '$0.00';
-  if (p >= 1) return `$${p.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  if (!p) return '$0.00';
+  if (p >= 1) return `$${p.toLocaleString('en-US', { minimumFractionDigits:2, maximumFractionDigits:2 })}`;
   if (p >= 0.001) return `$${p.toFixed(4)}`;
-  return `$${p.toFixed(8).replace(/0+$/, '').replace(/\.$/, '')}`;
+  const s = p.toFixed(12);
+  const m = s.match(/^0\.(0+)/);
+  if (m && m[1].length >= 4) {
+    const subs = ['₀','₁','₂','₃','₄','₅','₆','₇','₈','₉'];
+    const sub  = m[1].length.toString().split('').map(d => subs[+d]).join('');
+    const sig  = s.slice(2 + m[1].length).slice(0,4).replace(/0+$/,'');
+    return `$0.0${sub}${sig}`;
+  }
+  return `$${p.toFixed(8).replace(/\.?0+$/,'')}`;
 };
 
 export default function WalletScreen() {
@@ -449,7 +458,7 @@ export default function WalletScreen() {
     );
   };
 
-  // ✅ بطاقة تداول بأسلوب Solflare (نفس التصميم، ارتفاع مضغوط، محتوى left-aligned)
+  // ✅ بطاقة تداول بأسلوب Solflare
   const renderTradeCard = ({ item }) => {
     const up = (item.price_change_percentage_24h || 0) >= 0;
     return (
@@ -458,15 +467,12 @@ export default function WalletScreen() {
         onPress={() => handleOpenQuickTrade(item)}
         activeOpacity={0.85}
       >
-        {/* الأيقونة صغيرة + إلى اليسار */}
         <Image source={{ uri: item.image }} style={styles.tradeCardIcon} />
 
-        {/* الرمز — إلى اليسار */}
         <Text style={[styles.tradeCardSymbol, { color: colors.text }]} numberOfLines={1}>
           {item.symbol}
         </Text>
 
-        {/* السطر السفلي: السعر يسار + النسبة يمين */}
         <View style={styles.tradeCardBottomRow}>
           <Text style={[styles.tradeCardPrice, { color: colors.text }]} numberOfLines={1}>
             {fmtTradePrice(item.current_price)}
@@ -606,7 +612,6 @@ export default function WalletScreen() {
             />
           }
         >
-          {/* ✅ بطاقة الهيرو — بحلقة خارجية احترافية */}
           <Animated.View
             style={[
               styles.headerCardRing,
@@ -747,7 +752,6 @@ export default function WalletScreen() {
                 <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
               </View>
 
-              {/* ✅ FlatList: بطاقتان بالضبط + Snap عند التمرير */}
               <FlatList
                 data={tradableTokens}
                 renderItem={renderTradeCard}
@@ -785,7 +789,6 @@ export default function WalletScreen() {
             </View>
           </View>
 
-          {/* ✅ ملخص التخزين */}
           <View style={styles.stakingSection}>
             <View style={styles.assetsHeader}>
               <Text style={[styles.sectionTitle, { color: colors.text }]}>
@@ -846,7 +849,6 @@ export default function WalletScreen() {
             )}
           </View>
 
-          {/* ✅ سجل العمليات */}
           <View style={styles.activitySection}>
             <View style={styles.assetsHeader}>
               <Text style={[styles.sectionTitle, { color: colors.text }]}>
@@ -1085,7 +1087,6 @@ export default function WalletScreen() {
 const styles = StyleSheet.create({
   container:    { flex:1 },
 
-  // ✅ الإطار الخارجي (الحلقة) حول بطاقة الهيرو
   headerCardRing: {
     borderRadius: 24,
     padding: 2,
@@ -1126,7 +1127,6 @@ const styles = StyleSheet.create({
   actionCircle: { width:48, height:48, borderRadius:24, justifyContent:'center', alignItems:'center', shadowColor:'#000', shadowOffset:{width:0,height:2}, shadowOpacity:0.05, shadowRadius:6, elevation:2 },
   actionLabel:  { fontSize:12, fontWeight:'600' },
 
-  // ✅ Quick Trade — بطاقات بأسلوب Solflare (left-aligned, مضغوطة)
   tradingSection: { marginTop: 4, marginBottom: 14 },
   tradingHeader:  { flexDirection:'row', justifyContent:'space-between', alignItems:'center', paddingHorizontal: 20, marginBottom: 10 },
   tradingList:    { paddingHorizontal: TRADE_CARD_PADDING, gap: TRADE_CARD_GAP },

@@ -3,7 +3,7 @@ import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   Image, RefreshControl, ActivityIndicator,
-  TextInput, Modal, Alert, Platform,
+  TextInput, Modal, Alert, Platform, FlatList,
 } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useAppStore } from '../store';
@@ -19,6 +19,13 @@ import { getGlobalMarketData } from '../services/marketOverviewService';
 
 const WATCHLIST_KEY = '@meco_watchlist';
 const REFRESH_MS    = 60000;
+
+const { width } = require('react-native').Dimensions.get('window');
+
+// ✅ بطاقات الأسواق العالمية — بطاقتان بالضبط + محاذاة مع بقية الأقسام
+const EXT_CARD_PADDING = 20;
+const EXT_CARD_GAP     = 20;
+const EXT_CARD_WIDTH   = (width - EXT_CARD_PADDING * 2 - EXT_CARD_GAP) / 2;
 
 // ─── عملات خارجية شهيرة ───────────────────────────────────────────────────────
 const EXTERNAL_TOKENS = [
@@ -93,7 +100,7 @@ const MarketOverviewCard = React.memo(({ data, isDark, primaryColor }) => {
   );
 });
 
-// ─── صورة عملة آمنة — تتحول تلقائيًا لحرف أول الرمز عند رابط مكسور أو فشل تحميل ──
+// ─── صورة عملة آمنة ───────────────────────────────────────────────────────────
 const TokenIconImg = ({ uri, size, symbol, bg, color }) => {
   const [failed, setFailed] = useState(false);
   if (failed || !uri) {
@@ -164,7 +171,7 @@ const TokenListItem = React.memo(({ token, onPress, onLongPress, isDark, primary
   );
 });
 
-// ─── بطاقة عملة خارجية (عرض فقط — بدون تداول) ─────────────────────────────
+// ─── بطاقة عملة عالمية — بنفس تصميم Quick Trade في WalletScreen ──────────────
 const ExternalTokenCard = ({ item, data, isDark, onPress }) => {
   const C = {
     card: isDark?'#111122':'#FFFFFF',
@@ -192,19 +199,20 @@ const ExternalTokenCard = ({ item, data, isDark, onPress }) => {
     <TouchableOpacity
       style={[S.extCard, { backgroundColor:C.card, borderColor:C.border }]}
       onPress={() => onPress(tokenForNav)}
-      activeOpacity={0.7}
+      activeOpacity={0.85}
     >
-      <View style={S.extTop}>
-        <TokenIconImg uri={item.image} size={40} symbol={item.symbol} bg={C.border} color={C.text} />
-        <View style={{ flex:1, marginLeft:8 }}>
-          <Text style={[S.extSym, { color:C.text }]}>{item.symbol}</Text>
-          <Text style={[S.extName, { color:C.muted }]}>{item.name}</Text>
-        </View>
-      </View>
-      <View style={{ marginTop:10 }}>
-        <Text style={[S.extPrice, { color:C.text }]}>{fmtPrice(price)}</Text>
+      <TokenIconImg uri={item.image} size={32} symbol={item.symbol} bg={C.border} color={C.text} />
+
+      <Text style={[S.extSym, { color:C.text }]} numberOfLines={1}>
+        {item.symbol}
+      </Text>
+
+      <View style={S.extBottomRow}>
+        <Text style={[S.extPrice, { color:C.text }]} numberOfLines={1}>
+          {fmtPrice(price)}
+        </Text>
         <View style={S.extChg}>
-          <Ionicons name={up?'caret-up':'caret-down'} size={12} color={up?C.success:C.error} />
+          <Ionicons name={up?'trending-up':'trending-down'} size={12} color={up?C.success:C.error} />
           <Text style={[S.extChgTxt, { color: up?C.success:C.error }]}>
             {Math.abs(change).toFixed(2)}%
           </Text>
@@ -338,7 +346,6 @@ export default function MarketScreen() {
 
   const closeModal = () => { setAddModal(false); setMintInput(''); setPreviewToken(null); setFetchErr(''); };
 
-  // الانتقال إلى تفاصيل العملة (عند الضغط على البطاقة)
   const handleExtPress = (extToken) => {
     navigation.navigate('TokenDetails', { token: extToken });
   };
@@ -386,7 +393,7 @@ export default function MarketScreen() {
   return (
     <View style={[S.root, { backgroundColor:C.bg }]}>
 
-      {/* ── Header مع مسافة أمان ── */}
+      {/* ── Header ── */}
       <View style={[S.header, { paddingTop: insets.top + 12 }]}>
         <View>
           <Text style={[S.headerTitle, { color:C.text }]}>{t('market_title')}</Text>
@@ -498,7 +505,7 @@ export default function MarketScreen() {
           ))}
         </View>
 
-        {/* ── عملات عالمية شهيرة (شبكة 2×5) ── */}
+        {/* ── الأسواق العالمية — تمرير أفقي مثل Wallet Quick Trade ── */}
         {!searchQuery && (
           <View style={S.extSection}>
             <View style={S.extHeader}>
@@ -506,26 +513,36 @@ export default function MarketScreen() {
               <Text style={[S.extHeaderTitle, { color:C.text }]}>
                 {t('global_markets', 'الأسواق العالمية')}
               </Text>
+              <Ionicons name="chevron-forward" size={16} color={C.muted} />
             </View>
             <Text style={[S.extHeaderSub, { color:C.muted }]}>
               {t('global_markets_desc', 'أسعار العملات الرقمية الكبرى')}
             </Text>
-            <View style={S.extGrid}>
-              {EXTERNAL_TOKENS.map(item => (
+
+            <FlatList
+              data={EXTERNAL_TOKENS}
+              keyExtractor={item => item.id}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={S.extList}
+              snapToInterval={EXT_CARD_WIDTH + EXT_CARD_GAP}
+              snapToAlignment="start"
+              decelerationRate="fast"
+              disableIntervalMomentum
+              renderItem={({ item }) => (
                 <ExternalTokenCard
-                  key={item.id}
                   item={item}
                   data={extPrices[item.coingeckoId]}
                   isDark={isDark}
                   onPress={handleExtPress}
                 />
-              ))}
-            </View>
+              )}
+            />
           </View>
         )}
       </ScrollView>
 
-      {/* ── نافذة إضافة عملة ─ـ */}
+      {/* ── نافذة إضافة عملة ── */}
       <Modal visible={addModal} transparent animationType="slide" onRequestClose={closeModal}>
         <View style={S.modalOverlay}>
           <View style={[S.modalBox, { backgroundColor:C.card }]}>
@@ -601,7 +618,6 @@ const S = StyleSheet.create({
   loadWrap:    { flex:1, justifyContent:'center', alignItems:'center', gap:12 },
   loadTxt:     { fontSize:14 },
 
-  // Header
   header:      { flexDirection:'row', justifyContent:'space-between', alignItems:'center',
                  paddingHorizontal:20, paddingBottom:14 },
   headerTitle: { fontSize:28, fontWeight:'800', letterSpacing:-0.5 },
@@ -609,7 +625,6 @@ const S = StyleSheet.create({
   headerBtn:   { width:40, height:40, borderRadius:12, justifyContent:'center',
                  alignItems:'center', borderWidth:1 },
 
-  // Search
   searchRow:   { flexDirection:'row', alignItems:'center', paddingHorizontal:20, paddingBottom:12 },
   searchWrap:  { flex:1, flexDirection:'row', alignItems:'center', borderWidth:1, borderRadius:12, height:44 },
   searchInput: { flex:1, paddingHorizontal:10, fontSize:14, paddingVertical:0 },
@@ -618,7 +633,6 @@ const S = StyleSheet.create({
 
   scroll:      { paddingHorizontal:20 },
 
-  // Overview
   overviewCard:  { borderRadius:18, padding:16, marginBottom:14, borderWidth:1 },
   overviewRow:   { flexDirection:'row', justifyContent:'space-between' },
   overviewItem:  { flex:1, alignItems:'center' },
@@ -628,16 +642,13 @@ const S = StyleSheet.create({
                    marginTop:12, paddingVertical:6, borderRadius:12, gap:6 },
   overviewBarTxt:{ fontSize:13, fontWeight:'600' },
 
-  // Tabs
   tab:         { paddingHorizontal:14, paddingVertical:6, borderRadius:12, borderWidth:1 },
   tabTxt:      { fontSize:13, fontWeight:'600' },
 
-  // Sort
   sortRow:     { flexDirection:'row', marginBottom:12, gap:6 },
   sortBtn:     { paddingHorizontal:10, paddingVertical:5, borderRadius:8, borderWidth:1 },
   sortTxt:     { fontSize:12, fontWeight:'600' },
 
-  // Token List
   listContainer:{ borderRadius:18, borderWidth:1, overflow:'hidden', paddingVertical:4, marginBottom:20 },
   tokenRow:    { flexDirection:'row', alignItems:'center', padding:12, borderBottomWidth:1 },
   tokenLeft:   { flexDirection:'row', alignItems:'center', flex:1, gap:10 },
@@ -655,23 +666,31 @@ const S = StyleSheet.create({
   empty:       { alignItems:'center', justifyContent:'center', paddingVertical:40, gap:8 },
   emptyTxt:    { fontSize:14 },
 
-  // External Tokens (شبكة 2×5 محسنة)
+  // ✅ الأسواق العالمية — تمرير أفقي مثل Wallet
   extSection:    { marginBottom:16 },
   extHeader:     { flexDirection:'row', alignItems:'center', gap:8, marginBottom:4 },
   extHeaderDot:  { width:6, height:6, borderRadius:3 },
   extHeaderTitle:{ fontSize:16, fontWeight:'800' },
   extHeaderSub:  { fontSize:12, marginBottom:12 },
-  extGrid:       { flexDirection:'row', flexWrap:'wrap', justifyContent:'space-between' },
-  extCard:       { width:'48%', borderRadius:18, padding:14, borderWidth:1, marginBottom:12,
-                   shadowColor:'#000', shadowOffset:{width:0,height:2},
-                   shadowOpacity:0.04, shadowRadius:6, elevation:2, justifyContent:'space-between' },
-  extTop:        { flexDirection:'row', alignItems:'center', marginBottom:10 },
-  extIcon:       { width:40, height:40, borderRadius:20 },
-  extSym:        { fontSize:16, fontWeight:'800' },
-  extName:       { fontSize:12, marginTop:2 },
-  extChg:        { flexDirection:'row', alignItems:'center', gap:4, marginTop:4 },
-  extChgTxt:     { fontSize:12, fontWeight:'700' },
-  extPrice:      { fontSize:18, fontWeight:'800', marginBottom:2 },
+  extList:       { paddingHorizontal: EXT_CARD_PADDING - 20, gap: EXT_CARD_GAP },
+  extCard: {
+    width: EXT_CARD_WIDTH,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    borderRadius: 18,
+    borderWidth: 1,
+    gap: 10,
+  },
+  extSym:        { fontSize: 15, fontWeight: '800', textAlign: 'left' },
+  extBottomRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 6,
+  },
+  extPrice:      { fontSize: 12, fontWeight: '600', flexShrink: 1 },
+  extChg:        { flexDirection: 'row', alignItems: 'center', gap: 2, flexShrink: 0 },
+  extChgTxt:     { fontSize: 11, fontWeight: '700' },
 
   // Modal
   modalOverlay:{ flex:1, backgroundColor:'rgba(0,0,0,0.5)', justifyContent:'flex-end' },
