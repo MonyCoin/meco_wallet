@@ -31,6 +31,6 @@ jobs:
 
       - name: Publish OTA Update
         run: |
-          eas update --branch production --platform android --message "${{ github.event.head_commit.message }}" --non-interactive
+          eas update --branch production --environment production --platform android --message "${{ github.event.head_commit.message }}" --non-interactive
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
