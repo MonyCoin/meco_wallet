@@ -3,7 +3,7 @@ import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   Image, RefreshControl, ActivityIndicator,
-  TextInput, Modal, Alert, Platform, FlatList,
+  TextInput, Modal, Alert, Platform, FlatList, Animated, Easing,
 } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useAppStore } from '../store';
@@ -16,17 +16,23 @@ import {
   fetchCustomTokenByMint, saveCustomToken, deleteCustomToken,
 } from '../services/jupiterMarketService';
 import { getGlobalMarketData, getTopMovers } from '../services/marketOverviewService';
-import { getCommodities, getUSStocks } from '../services/marketDataService';
+import { getCommodities, getUSStocks, getForexRates } from '../services/marketDataService';
 
 const WATCHLIST_KEY = '@meco_watchlist';
 const REFRESH_MS    = 60000;
 
 const { width } = require('react-native').Dimensions.get('window');
 
-// ✅ كل البطاقات الأفقية — بطاقتان بالضبط + محاذاة مع بقية الأقسام
 const EXT_CARD_PADDING = 20;
 const EXT_CARD_GAP     = 20;
 const EXT_CARD_WIDTH   = (width - EXT_CARD_PADDING * 2 - EXT_CARD_GAP) / 2;
+
+// ✅ شريط الفوركس — سرعة ثابتة بالبكسل/ثانية، يبدأ دائمًا من أول عملة
+// فى القائمة، يكمل حتى آخر عملة، ثم يقف وقفة قصيرة ويعيد الدورة من
+// البداية من جديد — تمامًا كما فى شرائط الأسعار المعروفة
+const TICKER_ITEM_WIDTH       = 160;
+const TICKER_SPEED_PX_PER_SEC = 55;
+const TICKER_PAUSE_MS         = 1500; // وقفة بين نهاية الدورة وبداية التالية
 
 // ─── عملات خارجية شهيرة ───────────────────────────────────────────────────────
 const EXTERNAL_TOKENS = [
@@ -42,7 +48,6 @@ const EXTERNAL_TOKENS = [
   { id:'polkadot',   symbol:'DOT',  name:'Polkadot', image:'https://assets.coingecko.com/coins/images/12171/large/polkadot.jpg',                       coingeckoId:'polkadot',   mint:'external:polkadot',   swapAvailable:false },
 ];
 
-// ─── تنسيق السعر — موحّد مع WalletScreen ──────────────────────────────────────
 const fmtPrice = (p) => {
   if (!p) return '$0.00';
   if (p >= 1) return `$${p.toLocaleString('en-US', { minimumFractionDigits:2, maximumFractionDigits:2 })}`;
@@ -64,6 +69,105 @@ const fmtBig = (n) => {
   if (n>=1e9)  return `$${(n/1e9).toFixed(2)}B`;
   if (n>=1e6)  return `$${(n/1e6).toFixed(2)}M`;
   return `$${n.toLocaleString()}`;
+};
+
+// ─── شريط الفوركس المتحرك (بدون خلفية) ───────────────────────────────────────
+const ForexTicker = ({ data, isDark }) => {
+  const C = {
+    text: isDark?'#EEEEFF':'#1C1C24',
+    muted: isDark?'#7E7EAA':'#8A8A9E',
+    success:'#10B981', error:'#EF4444',
+  };
+  const scrollX  = useRef(new Animated.Value(0)).current;
+  const loopRef  = useRef(null);
+  const isPaused = useRef(false);
+
+  const dataLength = data?.length || 0;
+  const totalWidth = dataLength * TICKER_ITEM_WIDTH;
+
+  // المدة تُحسب من عرض المحتوى الكامل ÷ السرعة الثابتة، فتبقى سرعة
+  // التمرير ثابتة بصريًا مهما زاد عدد أزواج الفوركس المعروضة
+  const fullDuration = (totalWidth / TICKER_SPEED_PX_PER_SEC) * 1000;
+
+  // دورة واحدة: من البداية (0) إلى النهاية (1) ثم وقفة قصيرة.
+  // Animated.loop يعيد ضبط القيمة لنقطة البداية تلقائيًا قبل كل تكرار،
+  // فيبدأ الشريط من أول عملة فى كل مرة بدلاً من التجمد أو القفز من المنتصف.
+  const buildLoop = useCallback(() => {
+    scrollX.setValue(0);
+    return Animated.loop(
+      Animated.sequence([
+        Animated.timing(scrollX, {
+          toValue: 1,
+          duration: fullDuration,
+          easing: Easing.linear,
+          useNativeDriver: true,
+        }),
+        Animated.delay(TICKER_PAUSE_MS),
+      ])
+    );
+  }, [scrollX, fullDuration]);
+
+  useEffect(() => {
+    if (!dataLength || fullDuration <= 0) return;
+    loopRef.current?.stop();
+    loopRef.current = buildLoop();
+    loopRef.current.start();
+    return () => loopRef.current?.stop();
+  }, [dataLength, buildLoop]);
+
+  const pause = () => {
+    isPaused.current = true;
+    loopRef.current?.stop();
+  };
+
+  const resume = () => {
+    if (!isPaused.current) return;
+    isPaused.current = false;
+    // استئناف دورة جديدة كاملة من البداية بدل استكمال موضع غير دقيق
+    loopRef.current = buildLoop();
+    loopRef.current.start();
+  };
+
+  if (!dataLength) return null;
+
+  const translateX = scrollX.interpolate({
+    inputRange:  [0, 1],
+    outputRange: [0, -totalWidth],
+  });
+
+  // نكرر القائمة 4 مرات لضمان لوب بلا فجوات
+  const loopData = [...data, ...data, ...data, ...data];
+
+  return (
+    <View
+      style={S.tickerWrap}
+      onStartShouldSetResponder={() => true}
+      onResponderGrant={pause}
+      onResponderRelease={resume}
+      onResponderTerminate={resume}
+    >
+      <Animated.View style={[S.tickerRow, { transform: [{ translateX }] }]}>
+        {loopData.map((item, i) => {
+          const up = (item.price_change_percentage_24h || 0) >= 0;
+          const digits = item.digits ?? 4;
+          return (
+            <View key={`${item.id}-${i}`} style={S.tickerItem}>
+              <Text style={[S.tickerPair, { color: C.muted }]} numberOfLines={1}>
+                {item.symbol}
+              </Text>
+              <Text style={[S.tickerPrice, { color: C.text }]} numberOfLines={1}>
+                {Number(item.current_price || 0).toFixed(digits)}
+              </Text>
+              <Text style={[S.tickerChg, { color: up ? C.success : C.error }]}>
+                {up ? '▲' : '▼'} {Math.abs(item.price_change_percentage_24h || 0).toFixed(2)}%
+              </Text>
+              <View style={[S.tickerSep, { backgroundColor: C.border || 'rgba(128,128,128,0.2)' }]} />
+            </View>
+          );
+        })}
+      </Animated.View>
+    </View>
+  );
 };
 
 // ─── بطاقة إحصائيات السوق ─────────────────────────────────────────────────────
@@ -101,7 +205,6 @@ const MarketOverviewCard = React.memo(({ data, isDark, primaryColor }) => {
   );
 });
 
-// ─── صورة عملة آمنة ───────────────────────────────────────────────────────────
 const TokenIconImg = ({ uri, size, symbol, bg, color }) => {
   const [failed, setFailed] = useState(false);
   if (failed || !uri) {
@@ -126,7 +229,6 @@ const TokenIconImg = ({ uri, size, symbol, bg, color }) => {
   );
 };
 
-// ─── عنصر عملة (قائمة عمودية) ─────────────────────────────────────────────────
 const TokenListItem = React.memo(({ token, onPress, onLongPress, isDark, primaryColor }) => {
   const C = {
     text: isDark?'#EEEEFF':'#1C1C24',
@@ -172,7 +274,6 @@ const TokenListItem = React.memo(({ token, onPress, onLongPress, isDark, primary
   );
 });
 
-// ─── بطاقة موحّدة لكل الأقسام الأفقية (عملات عالمية / رابحين / خاسرين / سلع / أسهم)
 const GlobalMarketCard = ({ item, isDark, onPress }) => {
   const C = {
     card: isDark?'#111122':'#FFFFFF',
@@ -184,7 +285,6 @@ const GlobalMarketCard = ({ item, isDark, onPress }) => {
   const change = item.price_change_percentage_24h || 0;
   const up     = change >= 0;
 
-  // أيقونة موحّدة: صورة إن وُجدت — وإلا إيموجي — وإلا حرف
   const renderIcon = () => {
     if (item.image) {
       return <TokenIconImg uri={item.image} size={32} symbol={item.symbol} bg={C.border} color={C.text} />;
@@ -226,7 +326,6 @@ const GlobalMarketCard = ({ item, isDark, onPress }) => {
   );
 };
 
-// ─── قسم أفقي قابل لإعادة الاستخدام ──────────────────────────────────────────
 const HorizontalMarketSection = ({ titleKey, descKey, data, isDark, primaryColor, onPressItem, t }) => {
   const C = {
     text: isDark?'#EEEEFF':'#1C1C24',
@@ -259,7 +358,6 @@ const HorizontalMarketSection = ({ titleKey, descKey, data, isDark, primaryColor
   );
 };
 
-// ═══════════════════════════════════════════════════════════════════════════════
 export default function MarketScreen() {
   const navigation   = useNavigation();
   const { t }        = useTranslation();
@@ -293,11 +391,11 @@ export default function MarketScreen() {
   const [fetchErr,     setFetchErr]     = useState('');
   const [extPrices,    setExtPrices]    = useState({});
 
-  // 🆕 أقسام جديدة
   const [gainers,      setGainers]      = useState([]);
   const [losers,       setLosers]       = useState([]);
   const [commodities,  setCommodities]  = useState([]);
   const [stocks,       setStocks]       = useState([]);
+  const [forex,        setForex]        = useState([]);
 
   const firstLoad = useRef(true);
 
@@ -319,7 +417,7 @@ export default function MarketScreen() {
 
   const fetchAll = useCallback(async () => {
     try {
-   const [tokenData, ovData] = await Promise.all([
+      const [tokenData, ovData] = await Promise.all([
         getJupiterMarketData(),
         getGlobalMarketData(),
       ]);
@@ -327,26 +425,27 @@ export default function MarketScreen() {
       setOverview(ovData);
       fetchExtPrices();
 
-      // 🆕 جلب الأقسام الجديدة في الخلفية (لا تعطّل الواجهة)
-       const normalizeMover = (m) => ({
-  id:                          m.id,
-  symbol:                      m.symbol,
-  name:                        m.name,
-  image:                       m.image,
-  current_price:               m.price     || 0,
-  price_change_percentage_24h: m.change24h || 0,
-});
+      const normalizeMover = (m) => ({
+        id:                          m.id,
+        symbol:                      m.symbol,
+        name:                        m.name,
+        image:                       m.image,
+        current_price:               m.price     || 0,
+        price_change_percentage_24h: m.change24h || 0,
+      });
 
-Promise.all([
-  getTopMovers(5).catch(() => ({ gainers: [], losers: [] })),
-  getCommodities().catch(() => []),
-  getUSStocks().catch(() => []),
-]).then(([movers, comm, stk]) => {
-  setGainers((movers?.gainers || []).map(normalizeMover));
-  setLosers((movers?.losers  || []).map(normalizeMover));
-  setCommodities(comm || []);
-  setStocks(stk || []);
-});
+      Promise.all([
+        getTopMovers(5).catch(() => ({ gainers: [], losers: [] })),
+        getCommodities().catch(() => []),
+        getUSStocks().catch(() => []),
+        getForexRates().catch(() => []),
+      ]).then(([movers, comm, stk, fx]) => {
+        setGainers((movers?.gainers || []).map(normalizeMover));
+        setLosers((movers?.losers  || []).map(normalizeMover));
+        setCommodities(comm || []);
+        setStocks(stk || []);
+        setForex(fx || []);
+      });
     } catch (err) {
       if (!tokens.length)
         setTokens(CORE_TOKENS.map((tk, i) => ({ ...tk, current_price:0, price_change_percentage_24h:0, rank:i+1 })));
@@ -410,7 +509,6 @@ Promise.all([
 
   const closeModal = () => { setAddModal(false); setMintInput(''); setPreviewToken(null); setFetchErr(''); };
 
-  // ── الضغط على أي بطاقة أفقية ──
   const handleExtPress = (extToken) => {
     navigation.navigate('TokenDetails', { token: extToken });
   };
@@ -434,7 +532,6 @@ Promise.all([
     return list;
   }, [tokens, searchQuery, activeTab, watchlist, sortBy]);
 
-  // 🆕 تجهيز العملات العالمية بنفس صيغة البطاقات
   const normalizedExternal = useMemo(() => (
     EXTERNAL_TOKENS.map(item => {
       const data = extPrices[item.coingeckoId];
@@ -489,7 +586,9 @@ Promise.all([
         </TouchableOpacity>
       </View>
 
-      {/* ── البحث ── */}
+      {/* ── شريط الفوركس المتحرك (صافٍ) ── */}
+      <ForexTicker data={forex} isDark={isDark} />
+
       {searchActive && (
         <View style={S.searchRow}>
           <View style={[S.searchWrap, { backgroundColor:C.card, borderColor:C.border }]}>
@@ -525,12 +624,10 @@ Promise.all([
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={primaryColor} colors={[primaryColor]} />}
         showsVerticalScrollIndicator={false}
       >
-        {/* ── إحصائيات السوق ── */}
         {!searchActive && (
           <MarketOverviewCard data={overview} isDark={isDark} primaryColor={primaryColor} />
         )}
 
-        {/* ── التبويبات ── */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap:6, paddingBottom:12 }}>
           {TABS.map(tab => (
             <TouchableOpacity
@@ -548,7 +645,6 @@ Promise.all([
           ))}
         </ScrollView>
 
-        {/* ── الفرز ── */}
         <View style={S.sortRow}>
           {SORTS.map(opt => (
             <TouchableOpacity
@@ -566,7 +662,6 @@ Promise.all([
           ))}
         </View>
 
-        {/* ── قائمة العملات ── */}
         <View style={[S.listContainer, { backgroundColor:C.card, borderColor:C.border }]}>
           {filtered.length === 0 ? (
             <View style={S.empty}>
@@ -587,10 +682,8 @@ Promise.all([
           ))}
         </View>
 
-        {/* ── الأقسام الأفقية — تظهر فقط عند عدم البحث ── */}
         {!searchQuery && (
           <>
-            {/* 🌍 الأسواق العالمية (عملات رقمية) */}
             <HorizontalMarketSection
               titleKey="global_markets"
               descKey="global_markets_desc"
@@ -601,7 +694,6 @@ Promise.all([
               t={t}
             />
 
-            {/* 🚀 الأكثر صعودًا */}
             <HorizontalMarketSection
               titleKey="top_gainers_section_title"
               descKey="top_gainers_section_desc"
@@ -612,7 +704,6 @@ Promise.all([
               t={t}
             />
 
-            {/* 📉 الأكثر هبوطًا */}
             <HorizontalMarketSection
               titleKey="top_losers_section_title"
               descKey="top_losers_section_desc"
@@ -623,7 +714,6 @@ Promise.all([
               t={t}
             />
 
-            {/* 🥇 السلع والمعادن */}
             <HorizontalMarketSection
               titleKey="commodities_section_title"
               descKey="commodities_section_desc"
@@ -634,7 +724,6 @@ Promise.all([
               t={t}
             />
 
-            {/* 📈 الأسهم الأمريكية */}
             <HorizontalMarketSection
               titleKey="us_stocks_section_title"
               descKey="us_stocks_section_desc"
@@ -648,7 +737,6 @@ Promise.all([
         )}
       </ScrollView>
 
-      {/* ── نافذة إضافة عملة ── */}
       <Modal visible={addModal} transparent animationType="slide" onRequestClose={closeModal}>
         <View style={S.modalOverlay}>
           <View style={[S.modalBox, { backgroundColor:C.card }]}>
@@ -731,7 +819,29 @@ const S = StyleSheet.create({
   headerBtn:   { width:40, height:40, borderRadius:12, justifyContent:'center',
                  alignItems:'center', borderWidth:1 },
 
-  searchRow:   { flexDirection:'row', alignItems:'center', paddingHorizontal:20, paddingBottom:12 },
+  // ✅ شريط الفوركس — بدون خلفية ولا حدود
+  tickerWrap: {
+    height: 32,
+    overflow: 'hidden',
+    justifyContent: 'center',
+    marginBottom: 10,
+  },
+  tickerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  tickerItem: {
+    width: TICKER_ITEM_WIDTH,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+  },
+  tickerPair:  { fontSize: 11, fontWeight: '700', width: 60 },
+  tickerPrice: { fontSize: 12, fontWeight: '800', marginHorizontal: 4, flex: 1 },
+  tickerChg:   { fontSize: 11, fontWeight: '700', marginLeft: 2 },
+  tickerSep:   { position:'absolute', right:0, top:6, bottom:6, width:1, opacity:0.3 },
+
+  searchRow:   { flexDirection:'row', alignItems:'center', paddingHorizontal:20, paddingTop:12, paddingBottom:12 },
   searchWrap:  { flex:1, flexDirection:'row', alignItems:'center', borderWidth:1, borderRadius:12, height:44 },
   searchInput: { flex:1, paddingHorizontal:10, fontSize:14, paddingVertical:0 },
   addBtn:      { width:32, height:32, borderRadius:8, justifyContent:'center', alignItems:'center', marginRight:4 },
@@ -772,7 +882,6 @@ const S = StyleSheet.create({
   empty:       { alignItems:'center', justifyContent:'center', paddingVertical:40, gap:8 },
   emptyTxt:    { fontSize:14 },
 
-  // ✅ الأقسام الأفقية — موحّدة لكل البطاقات
   extSection:    { marginBottom:16 },
   extHeader:     { flexDirection:'row', alignItems:'center', gap:8, marginBottom:4 },
   extHeaderDot:  { width:6, height:6, borderRadius:3 },
@@ -802,7 +911,6 @@ const S = StyleSheet.create({
   extChg:        { flexDirection: 'row', alignItems: 'center', gap: 2, flexShrink: 0 },
   extChgTxt:     { fontSize: 11, fontWeight: '700' },
 
-  // Modal
   modalOverlay:{ flex:1, backgroundColor:'rgba(0,0,0,0.5)', justifyContent:'flex-end' },
   modalBox:    { borderTopLeftRadius:24, borderTopRightRadius:24, padding:20, paddingTop:12,
                  paddingBottom:Platform.OS==='ios'?36:20 },
