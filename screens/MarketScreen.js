@@ -27,14 +27,10 @@ const EXT_CARD_PADDING = 20;
 const EXT_CARD_GAP     = 20;
 const EXT_CARD_WIDTH   = (width - EXT_CARD_PADDING * 2 - EXT_CARD_GAP) / 2;
 
-// ✅ شريط الفوركس — سرعة ثابتة بالبكسل/ثانية، يبدأ دائمًا من أول عملة
-// فى القائمة، يكمل حتى آخر عملة، ثم يقف وقفة قصيرة ويعيد الدورة من
-// البداية من جديد — تمامًا كما فى شرائط الأسعار المعروفة
+// ✅ شريط الفوركس — حركة دائمة بلا توقف، وسلوك موحّد في اللغتين
 const TICKER_ITEM_WIDTH       = 160;
 const TICKER_SPEED_PX_PER_SEC = 55;
-const TICKER_PAUSE_MS         = 1500; // وقفة بين نهاية الدورة وبداية التالية
 
-// ─── عملات خارجية شهيرة ───────────────────────────────────────────────────────
 const EXTERNAL_TOKENS = [
   { id:'bitcoin',    symbol:'BTC',  name:'Bitcoin',  image:'https://assets.coingecko.com/coins/images/1/large/bitcoin.png',                           coingeckoId:'bitcoin',    mint:'external:bitcoin',    swapAvailable:false },
   { id:'ethereum',   symbol:'ETH',  name:'Ethereum', image:'https://assets.coingecko.com/coins/images/279/large/ethereum.png',                        coingeckoId:'ethereum',   mint:'external:ethereum',   swapAvailable:false },
@@ -71,62 +67,47 @@ const fmtBig = (n) => {
   return `$${n.toLocaleString()}`;
 };
 
-// ─── شريط الفوركس المتحرك (بدون خلفية) ───────────────────────────────────────
+// ─── شريط الفوركس المتحرك — حركة دائمة، لا يتوقف، سلوك ثابت في كل اللغات ───
 const ForexTicker = ({ data, isDark }) => {
+  const { i18n } = useTranslation();
+  const language = i18n.language;
+
   const C = {
     text: isDark?'#EEEEFF':'#1C1C24',
     muted: isDark?'#7E7EAA':'#8A8A9E',
     success:'#10B981', error:'#EF4444',
+    sep: 'rgba(128,128,128,0.3)',
   };
-  const scrollX  = useRef(new Animated.Value(0)).current;
-  const loopRef  = useRef(null);
-  const isPaused = useRef(false);
+
+  const scrollX = useRef(new Animated.Value(0)).current;
+  const animRef = useRef(null);
 
   const dataLength = data?.length || 0;
   const totalWidth = dataLength * TICKER_ITEM_WIDTH;
+  const fullDuration = totalWidth > 0
+    ? (totalWidth / TICKER_SPEED_PX_PER_SEC) * 1000
+    : 0;
 
-  // المدة تُحسب من عرض المحتوى الكامل ÷ السرعة الثابتة، فتبقى سرعة
-  // التمرير ثابتة بصريًا مهما زاد عدد أزواج الفوركس المعروضة
-  const fullDuration = (totalWidth / TICKER_SPEED_PX_PER_SEC) * 1000;
-
-  // دورة واحدة: من البداية (0) إلى النهاية (1) ثم وقفة قصيرة.
-  // Animated.loop يعيد ضبط القيمة لنقطة البداية تلقائيًا قبل كل تكرار،
-  // فيبدأ الشريط من أول عملة فى كل مرة بدلاً من التجمد أو القفز من المنتصف.
-  const buildLoop = useCallback(() => {
-    scrollX.setValue(0);
-    return Animated.loop(
-      Animated.sequence([
-        Animated.timing(scrollX, {
-          toValue: 1,
-          duration: fullDuration,
-          easing: Easing.linear,
-          useNativeDriver: true,
-        }),
-        Animated.delay(TICKER_PAUSE_MS),
-      ])
-    );
-  }, [scrollX, fullDuration]);
-
+  // إعادة بناء اللوب بالكامل عند تغيّر اللغة أو البيانات
+  // → القيمة تُصفّر وتنطلق الدورة من جديد، فلا قفزات ولا فجوات
   useEffect(() => {
     if (!dataLength || fullDuration <= 0) return;
-    loopRef.current?.stop();
-    loopRef.current = buildLoop();
-    loopRef.current.start();
-    return () => loopRef.current?.stop();
-  }, [dataLength, buildLoop]);
 
-  const pause = () => {
-    isPaused.current = true;
-    loopRef.current?.stop();
-  };
+    animRef.current?.stop();
+    scrollX.setValue(0);
 
-  const resume = () => {
-    if (!isPaused.current) return;
-    isPaused.current = false;
-    // استئناف دورة جديدة كاملة من البداية بدل استكمال موضع غير دقيق
-    loopRef.current = buildLoop();
-    loopRef.current.start();
-  };
+    animRef.current = Animated.loop(
+      Animated.timing(scrollX, {
+        toValue: 1,
+        duration: fullDuration,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      })
+    );
+    animRef.current.start();
+
+    return () => animRef.current?.stop();
+  }, [dataLength, fullDuration, language, scrollX]);
 
   if (!dataLength) return null;
 
@@ -135,17 +116,11 @@ const ForexTicker = ({ data, isDark }) => {
     outputRange: [0, -totalWidth],
   });
 
-  // نكرر القائمة 4 مرات لضمان لوب بلا فجوات
-  const loopData = [...data, ...data, ...data, ...data];
+  // نسخ متعددة لضمان لوب متصل بلا فجوات
+  const loopData = [...data, ...data, ...data, ...data, ...data, ...data];
 
   return (
-    <View
-      style={S.tickerWrap}
-      onStartShouldSetResponder={() => true}
-      onResponderGrant={pause}
-      onResponderRelease={resume}
-      onResponderTerminate={resume}
-    >
+    <View style={S.tickerWrap}>
       <Animated.View style={[S.tickerRow, { transform: [{ translateX }] }]}>
         {loopData.map((item, i) => {
           const up = (item.price_change_percentage_24h || 0) >= 0;
@@ -161,7 +136,7 @@ const ForexTicker = ({ data, isDark }) => {
               <Text style={[S.tickerChg, { color: up ? C.success : C.error }]}>
                 {up ? '▲' : '▼'} {Math.abs(item.price_change_percentage_24h || 0).toFixed(2)}%
               </Text>
-              <View style={[S.tickerSep, { backgroundColor: C.border || 'rgba(128,128,128,0.2)' }]} />
+              <View style={[S.tickerSep, { backgroundColor: C.sep }]} />
             </View>
           );
         })}
@@ -170,7 +145,6 @@ const ForexTicker = ({ data, isDark }) => {
   );
 };
 
-// ─── بطاقة إحصائيات السوق ─────────────────────────────────────────────────────
 const MarketOverviewCard = React.memo(({ data, isDark, primaryColor }) => {
   const { t } = useTranslation();
   const C = {
@@ -572,7 +546,6 @@ export default function MarketScreen() {
   return (
     <View style={[S.root, { backgroundColor:C.bg }]}>
 
-      {/* ── Header ── */}
       <View style={[S.header, { paddingTop: insets.top + 12 }]}>
         <View>
           <Text style={[S.headerTitle, { color:C.text }]}>{t('market_title')}</Text>
@@ -586,7 +559,6 @@ export default function MarketScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* ── شريط الفوركس المتحرك (صافٍ) ── */}
       <ForexTicker data={forex} isDark={isDark} />
 
       {searchActive && (
@@ -819,26 +791,29 @@ const S = StyleSheet.create({
   headerBtn:   { width:40, height:40, borderRadius:12, justifyContent:'center',
                  alignItems:'center', borderWidth:1 },
 
-  // ✅ شريط الفوركس — بدون خلفية ولا حدود
+  // ✅ شريط الفوركس — نثبّت الاتجاه LTR حتى لا يقلبه RTL عند تغيير اللغة
   tickerWrap: {
     height: 32,
     overflow: 'hidden',
     justifyContent: 'center',
     marginBottom: 10,
+    direction: 'ltr',
   },
   tickerRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    direction: 'ltr',
   },
   tickerItem: {
     width: TICKER_ITEM_WIDTH,
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 8,
+    direction: 'ltr',
   },
-  tickerPair:  { fontSize: 11, fontWeight: '700', width: 60 },
-  tickerPrice: { fontSize: 12, fontWeight: '800', marginHorizontal: 4, flex: 1 },
-  tickerChg:   { fontSize: 11, fontWeight: '700', marginLeft: 2 },
+  tickerPair:  { fontSize: 11, fontWeight: '700', width: 60, textAlign: 'left' },
+  tickerPrice: { fontSize: 12, fontWeight: '800', marginHorizontal: 4, flex: 1, textAlign: 'left' },
+  tickerChg:   { fontSize: 11, fontWeight: '700', marginLeft: 2, textAlign: 'left' },
   tickerSep:   { position:'absolute', right:0, top:6, bottom:6, width:1, opacity:0.3 },
 
   searchRow:   { flexDirection:'row', alignItems:'center', paddingHorizontal:20, paddingTop:12, paddingBottom:12 },
