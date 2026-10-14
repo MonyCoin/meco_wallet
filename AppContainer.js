@@ -1,3 +1,4 @@
+// AppContainer.js
 import React, { useEffect, useState, useRef } from 'react';
 import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
@@ -31,6 +32,7 @@ import BackupScreen             from './screens/BackupScreen';
 import MarketScreen              from './screens/MarketScreen';
 import AppPortalScreen          from './screens/AppPortalScreen';
 import TokenDetailsScreen       from './screens/TokenDetailsScreen';
+import AssetDetailsScreen       from './screens/AssetDetailsScreen';
 import QRScannerScreen          from './screens/QRScannerScreen';
 import SwapScreen               from './screens/SwapScreen';
 import StakingScreen            from './screens/StakingScreen';
@@ -262,6 +264,7 @@ export default function AppContainer() {
           <Stack.Screen name="Staking"            component={StakingScreen}            options={{ title: t('staking.title')||'تخزين السيولة', headerBackTitle: t('back')||'رجوع' }} />
           <Stack.Screen name="QRScanner"          component={QRScannerScreen}          options={{ headerShown:false }} />
           <Stack.Screen name="TokenDetails"       component={TokenDetailsScreen}       options={{ title: t('token_details'), headerBackTitle: t('back') }} />
+          <Stack.Screen name="AssetDetails"       component={AssetDetailsScreen}       options={{ headerShown: false }} />
           <Stack.Screen name="AppPortal"          component={AppPortalScreen}          options={{ title: t('explore')||'استكشف' }} />
           <Stack.Screen name="Settings"           component={SettingsScreen}           options={{ headerShown:false }} />
           <Stack.Screen name="Portfolio"          component={PortfolioScreen}          options={{ headerShown:false }} />

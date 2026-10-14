@@ -1813,6 +1813,25 @@ i18n.addResourceBundle('en', 'translation', {
   us_stocks_section_desc:    'Major tech company stocks',
 }, true, true);
 
+// ═════════════════════════════════════════════════════════════════════════════
+// ✅ قسم AssetDetailsScreen — تفاصيل الأصول الخارجية
+// ═════════════════════════════════════════════════════════════════════════════
+i18n.addResourceBundle('ar', 'translation', {
+  trade_not_available_for_asset: 'التداول غير متاح لهذا النوع من الأصول حاليًا.',
+  latest_news:                   'آخر الأخبار',
+  industry:                      'القطاع',
+  exchange:                      'البورصة',
+  country:                       'الدولة',
+}, true, true);
+
+i18n.addResourceBundle('en', 'translation', {
+  trade_not_available_for_asset: 'Trading is not available for this asset type yet.',
+  latest_news:                   'Latest News',
+  industry:                      'Industry',
+  exchange:                      'Exchange',
+  country:                       'Country',
+}, true, true);
+
 export const changeLanguage = (lng) => {
   i18n.changeLanguage(lng);
   SecureStore.setItemAsync('app_language', lng);

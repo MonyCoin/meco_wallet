@@ -67,11 +67,8 @@ const fmtBig = (n) => {
   return `$${n.toLocaleString()}`;
 };
 
-// ─── شريط الفوركس المتحرك — حركة دائمة، لا يتوقف، سلوك ثابت في كل اللغات ───
+// ─── شريط الفوركس المتحرك — حركة دائمة بلا ومضة ───────────────────────────────
 const ForexTicker = ({ data, isDark }) => {
-  const { i18n } = useTranslation();
-  const language = i18n.language;
-
   const C = {
     text: isDark?'#EEEEFF':'#1C1C24',
     muted: isDark?'#7E7EAA':'#8A8A9E',
@@ -81,6 +78,7 @@ const ForexTicker = ({ data, isDark }) => {
 
   const scrollX = useRef(new Animated.Value(0)).current;
   const animRef = useRef(null);
+  const lenRef  = useRef(0);
 
   const dataLength = data?.length || 0;
   const totalWidth = dataLength * TICKER_ITEM_WIDTH;
@@ -88,10 +86,11 @@ const ForexTicker = ({ data, isDark }) => {
     ? (totalWidth / TICKER_SPEED_PX_PER_SEC) * 1000
     : 0;
 
-  // إعادة بناء اللوب بالكامل عند تغيّر اللغة أو البيانات
-  // → القيمة تُصفّر وتنطلق الدورة من جديد، فلا قفزات ولا فجوات
+  // ✅ لا يُعاد تشغيل الأنيميشن عند تحديث الأسعار (نفس عدد الأزواج) — فقط عند تغيّر فعلي
   useEffect(() => {
     if (!dataLength || fullDuration <= 0) return;
+    if (lenRef.current === dataLength && animRef.current) return;
+    lenRef.current = dataLength;
 
     animRef.current?.stop();
     scrollX.setValue(0);
@@ -107,7 +106,7 @@ const ForexTicker = ({ data, isDark }) => {
     animRef.current.start();
 
     return () => animRef.current?.stop();
-  }, [dataLength, fullDuration, language, scrollX]);
+  }, [dataLength, fullDuration, scrollX]);
 
   if (!dataLength) return null;
 
@@ -116,7 +115,6 @@ const ForexTicker = ({ data, isDark }) => {
     outputRange: [0, -totalWidth],
   });
 
-  // نسخ متعددة لضمان لوب متصل بلا فجوات
   const loopData = [...data, ...data, ...data, ...data, ...data, ...data];
 
   return (
@@ -406,6 +404,7 @@ export default function MarketScreen() {
         image:                       m.image,
         current_price:               m.price     || 0,
         price_change_percentage_24h: m.change24h || 0,
+        type:                        'external_crypto',
       });
 
       Promise.all([
@@ -416,8 +415,8 @@ export default function MarketScreen() {
       ]).then(([movers, comm, stk, fx]) => {
         setGainers((movers?.gainers || []).map(normalizeMover));
         setLosers((movers?.losers  || []).map(normalizeMover));
-        setCommodities(comm || []);
-        setStocks(stk || []);
+        setCommodities((comm || []).map(x => ({ ...x, type: 'commodity' })));
+        setStocks((stk  || []).map(x => ({ ...x, type: 'stock' })));
         setForex(fx || []);
       });
     } catch (err) {
@@ -483,8 +482,14 @@ export default function MarketScreen() {
 
   const closeModal = () => { setAddModal(false); setMintInput(''); setPreviewToken(null); setFetchErr(''); };
 
-  const handleExtPress = (extToken) => {
-    navigation.navigate('TokenDetails', { token: extToken });
+  // ✅ توجيه ذكي: TokenDetails لعملات Solana الحقيقية — AssetDetails للأصول الخارجية
+  const handleExtPress = (item) => {
+    const isRealSolana = item.mint && !String(item.mint).startsWith('external:') && !item.isExternal;
+    if (isRealSolana) {
+      navigation.navigate('TokenDetails', { token: item });
+    } else {
+      navigation.navigate('AssetDetails', { asset: item });
+    }
   };
 
   const filtered = useMemo(() => {
@@ -516,6 +521,8 @@ export default function MarketScreen() {
         image:  item.image,
         mint:   item.mint,
         isExternal: true,
+        type:   'external_crypto',
+        coingeckoId: item.coingeckoId,
         current_price:               data?.usd            || 0,
         price_change_percentage_24h: data?.usd_24h_change || 0,
       };
@@ -791,7 +798,6 @@ const S = StyleSheet.create({
   headerBtn:   { width:40, height:40, borderRadius:12, justifyContent:'center',
                  alignItems:'center', borderWidth:1 },
 
-  // ✅ شريط الفوركس — نثبّت الاتجاه LTR حتى لا يقلبه RTL عند تغيير اللغة
   tickerWrap: {
     height: 32,
     overflow: 'hidden',
