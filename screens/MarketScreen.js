@@ -15,7 +15,7 @@ import {
   getJupiterMarketData, CORE_TOKENS,
   fetchCustomTokenByMint, saveCustomToken, deleteCustomToken,
 } from '../services/jupiterMarketService';
-import { getGlobalMarketData, getTopMovers } from '../services/marketOverviewService';
+import { getGlobalMarketData } from '../services/marketOverviewService';
 import { getCommodities, getUSStocks, getForexRates } from '../services/marketDataService';
 
 const WATCHLIST_KEY = '@meco_watchlist';
@@ -65,6 +65,18 @@ const fmtBig = (n) => {
   if (n>=1e9)  return `$${(n/1e9).toFixed(2)}B`;
   if (n>=1e6)  return `$${(n/1e6).toFixed(2)}M`;
   return `$${n.toLocaleString()}`;
+};
+
+// ✅ أعلام عملات الفوركس — للعرض فقط داخل الشريط المتحرك
+const CURRENCY_FLAGS = {
+  USD: '🇺🇸', EUR: '🇪🇺', GBP: '🇬🇧', JPY: '🇯🇵', CHF: '🇨🇭',
+  AUD: '🇦🇺', CAD: '🇨🇦', NZD: '🇳🇿', AED: '🇦🇪', SAR: '🇸🇦',
+  EGP: '🇪🇬', TRY: '🇹🇷', INR: '🇮🇳', CNY: '🇨🇳', ZAR: '🇿🇦',
+  MXN: '🇲🇽',
+};
+const getPairFlags = (symbol) => {
+  const [base, quote] = String(symbol || '').split('/');
+  return `${CURRENCY_FLAGS[base] || ''}${CURRENCY_FLAGS[quote] || ''}`;
 };
 
 // ─── شريط الفوركس المتحرك — حركة دائمة بلا ومضة ───────────────────────────────
@@ -125,6 +137,9 @@ const ForexTicker = ({ data, isDark }) => {
           const digits = item.digits ?? 4;
           return (
             <View key={`${item.id}-${i}`} style={S.tickerItem}>
+              <Text style={S.tickerFlags} numberOfLines={1}>
+                {getPairFlags(item.symbol)}
+              </Text>
               <Text style={[S.tickerPair, { color: C.muted }]} numberOfLines={1}>
                 {item.symbol}
               </Text>
@@ -363,8 +378,6 @@ export default function MarketScreen() {
   const [fetchErr,     setFetchErr]     = useState('');
   const [extPrices,    setExtPrices]    = useState({});
 
-  const [gainers,      setGainers]      = useState([]);
-  const [losers,       setLosers]       = useState([]);
   const [commodities,  setCommodities]  = useState([]);
   const [stocks,       setStocks]       = useState([]);
   const [forex,        setForex]        = useState([]);
@@ -397,24 +410,11 @@ export default function MarketScreen() {
       setOverview(ovData);
       fetchExtPrices();
 
-      const normalizeMover = (m) => ({
-        id:                          m.id,
-        symbol:                      m.symbol,
-        name:                        m.name,
-        image:                       m.image,
-        current_price:               m.price     || 0,
-        price_change_percentage_24h: m.change24h || 0,
-        type:                        'external_crypto',
-      });
-
       Promise.all([
-        getTopMovers(5).catch(() => ({ gainers: [], losers: [] })),
         getCommodities().catch(() => []),
         getUSStocks().catch(() => []),
         getForexRates().catch(() => []),
-      ]).then(([movers, comm, stk, fx]) => {
-        setGainers((movers?.gainers || []).map(normalizeMover));
-        setLosers((movers?.losers  || []).map(normalizeMover));
+      ]).then(([comm, stk, fx]) => {
         setCommodities((comm || []).map(x => ({ ...x, type: 'commodity' })));
         setStocks((stk  || []).map(x => ({ ...x, type: 'stock' })));
         setForex(fx || []);
@@ -674,26 +674,6 @@ export default function MarketScreen() {
             />
 
             <HorizontalMarketSection
-              titleKey="top_gainers_section_title"
-              descKey="top_gainers_section_desc"
-              data={gainers}
-              isDark={isDark}
-              primaryColor={primaryColor}
-              onPressItem={handleExtPress}
-              t={t}
-            />
-
-            <HorizontalMarketSection
-              titleKey="top_losers_section_title"
-              descKey="top_losers_section_desc"
-              data={losers}
-              isDark={isDark}
-              primaryColor={primaryColor}
-              onPressItem={handleExtPress}
-              t={t}
-            />
-
-            <HorizontalMarketSection
               titleKey="commodities_section_title"
               descKey="commodities_section_desc"
               data={commodities}
@@ -817,7 +797,8 @@ const S = StyleSheet.create({
     paddingHorizontal: 8,
     direction: 'ltr',
   },
-  tickerPair:  { fontSize: 11, fontWeight: '700', width: 60, textAlign: 'left' },
+  tickerFlags: { fontSize: 11, width: 24, marginRight: 2, textAlign: 'left' },
+  tickerPair:  { fontSize: 11, fontWeight: '700', width: 48, textAlign: 'left' },
   tickerPrice: { fontSize: 12, fontWeight: '800', marginHorizontal: 4, flex: 1, textAlign: 'left' },
   tickerChg:   { fontSize: 11, fontWeight: '700', marginLeft: 2, textAlign: 'left' },
   tickerSep:   { position:'absolute', right:0, top:6, bottom:6, width:1, opacity:0.3 },
