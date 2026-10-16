@@ -698,7 +698,13 @@ export default function MarketScreen() {
 
       <Modal visible={addModal} transparent animationType="slide" onRequestClose={closeModal}>
         <View style={S.modalOverlay}>
-          <View style={[S.modalBox, { backgroundColor:C.card }]}>
+          <View style={[
+            S.modalBox,
+            {
+              backgroundColor: C.card,
+              paddingBottom: Math.max(insets.bottom, 20) + 12,
+            },
+          ]}>
             <View style={[S.modalHandle, { backgroundColor:C.border }]} />
             <View style={S.modalHeader}>
               <Text style={[S.modalTitle, { color:C.text }]}>{t('add_custom_token')}</Text>
@@ -874,8 +880,7 @@ const S = StyleSheet.create({
   extChgTxt:     { fontSize: 11, fontWeight: '700' },
 
   modalOverlay:{ flex:1, backgroundColor:'rgba(0,0,0,0.5)', justifyContent:'flex-end' },
-  modalBox:    { borderTopLeftRadius:24, borderTopRightRadius:24, padding:20, paddingTop:12,
-                 paddingBottom:Platform.OS==='ios'?36:20 },
+  modalBox:    { borderTopLeftRadius:24, borderTopRightRadius:24, padding:20, paddingTop:12 },
   modalHandle: { width:36, height:4, borderRadius:2, alignSelf:'center', marginBottom:16 },
   modalHeader: { flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:16 },
   modalTitle:  { fontSize:18, fontWeight:'800' },

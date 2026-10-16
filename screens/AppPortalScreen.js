@@ -413,7 +413,14 @@ export default function AppPortalScreen() {
         <TouchableWithoutFeedback onPress={() => setHistoryOpen(false)}>
           <View style={S.overlay}>
             <TouchableWithoutFeedback>
-              <View style={[S.sheet, { backgroundColor:C.card, maxHeight:'75%' }]}>
+              <View style={[
+                S.sheet,
+                {
+                  backgroundColor: C.card,
+                  maxHeight: '75%',
+                  paddingBottom: Math.max(insets.bottom, 20) + 12,
+                },
+              ]}>
                 <View style={[S.handle, { backgroundColor:C.border }]} />
                 <View style={S.historyHeader}>
                   <Text style={[S.sheetTitle, { color:C.text, marginBottom:0 }]}>
@@ -436,7 +443,11 @@ export default function AppPortalScreen() {
                     </TouchableOpacity>
                   </View>
                 </View>
-                <ScrollView showsVerticalScrollIndicator={false} style={{ marginTop:10 }}>
+                <ScrollView
+                  showsVerticalScrollIndicator={false}
+                  style={{ marginTop:10 }}
+                  contentContainerStyle={{ paddingBottom: 8 }}
+                >
                   {history.length === 0 ? (
                     <View style={[S.empty, { backgroundColor:C.inputBg, borderColor:C.border, marginTop:4 }]}>
                       <View style={[S.emptyIco, { backgroundColor:C.accent + '18' }]}>
@@ -484,7 +495,13 @@ export default function AppPortalScreen() {
         onRequestClose={() => setAddVisible(false)}>
         <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
           <View style={S.overlay}>
-            <View style={[S.sheet, { backgroundColor:C.card }]}>
+            <View style={[
+              S.sheet,
+              {
+                backgroundColor: C.card,
+                paddingBottom: Math.max(insets.bottom, 20) + 12,
+              },
+            ]}>
               <View style={[S.handle, { backgroundColor:C.border }]} />
               <Text style={[S.sheetTitle, { color:C.text }]}>
                 {t('add_bookmark', 'إضافة مفضلة')}
@@ -598,8 +615,7 @@ const S = StyleSheet.create({
 
   // Modal
   overlay:     { flex:1, backgroundColor:'rgba(0,0,0,0.5)', justifyContent:'flex-end' },
-  sheet:       { borderTopLeftRadius:24, borderTopRightRadius:24, padding:22,
-                 paddingBottom:Platform.OS==='ios'?38:22 },
+  sheet:       { borderTopLeftRadius:24, borderTopRightRadius:24, padding:22 },
   handle:      { width:36, height:4, borderRadius:2, alignSelf:'center', marginBottom:16 },
   sheetTitle:  { fontSize:18, fontWeight:'800', textAlign:'center', marginBottom:16 },
   historyHeader:{ flexDirection:'row', justifyContent:'space-between', alignItems:'center' },
