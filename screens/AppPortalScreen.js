@@ -25,18 +25,11 @@ const DAPPS = [
   { id:'jito',     name:'Jito',     icon:'https://assets.coingecko.com/coins/images/33228/large/jto.png',  url:'https://jito.network/staking',         category:'staking', badge:'9.2% APY' },
   { id:'orca',     name:'Orca',     icon:'https://assets.coingecko.com/coins/images/17547/large/Orca_Logo.png', url:'https://www.orca.so/pools',       category:'pools',   badge:'Pools' },
   { id:'raydium', name:'Raydium', icon:'https://assets.coingecko.com/coins/images/13928/large/PSigc4ie_400x400.jpg', url:'https://raydium.io/liquidity-pools/', category:'pools', badge:'15.5% APY' },
-  { id:'meteora',  name:'Meteora',  icon:'https://www.meteora.ag/favicon.ico',                              url:'https://app.meteora.ag',               category:'defi',    badge:'20% APY' },
-  { id:'kamino',   name:'Kamino',   icon:'https://www.kamino.finance/favicon.ico',                          url:'https://app.kamino.finance/lend',      category:'defi',    badge:'8% APY' },
-  { id:'drift',    name:'Drift',    icon:'https://www.drift.trade/favicon.ico',                              url:'https://app.drift.trade',              category:'trading', badge:'Perps' },
-  { id:'solend',   name:'Solend',   icon:'https://solend.fi/favicon.ico',                                    url:'https://solend.fi/dashboard',          category:'defi',    badge:'5% APY' },
+  { id:'meteora',  name:'Meteora',  icon:'https://assets.coingecko.com/coins/images/69110/standard/meteora.png', url:'https://app.meteora.ag',               category:'defi',    badge:'20% APY' },
+  { id:'kamino',   name:'Kamino',   icon:'https://assets.coingecko.com/coins/images/35801/standard/Kamino_200x200.png', url:'https://app.kamino.finance/lend',      category:'defi',    badge:'8% APY' },
+  { id:'drift',    name:'Drift',    icon:'https://assets.coingecko.com/coins/images/37509/standard/DRIFT.png', url:'https://app.drift.trade',              category:'trading', badge:'Perps' },
+  { id:'solend',   name:'Solend',   icon:'https://assets.coingecko.com/coins/images/19573/standard/logo.webp', url:'https://solend.fi/dashboard',          category:'defi',    badge:'5% APY' },
 ];
-
-const CAT_COLOR = {
-  staking: '#3B82F6',
-  defi:    '#8B5CF6',
-  trading: '#10B981',
-  pools:   '#F59E0B',
-};
 
 const SafeImg = ({ uri, size, radiusRatio = 0.28 }) => {
   const [err, setErr] = useState(false);
@@ -193,58 +186,49 @@ export default function AppPortalScreen() {
   };
 
   // ── Hero Card ─────────────────────────────────────────────────────────────
-  const HeroCard = ({ item }) => {
-    const color = CAT_COLOR[item.category] || C.accent;
-    return (
-      <TouchableOpacity
-        style={[S.hero, { backgroundColor:C.card, borderColor:C.border }]}
-        onPress={() => openUrl(item.url, item.name)}
-        activeOpacity={0.85}
-      >
-        <View style={[S.heroStripe, { backgroundColor:color }]} />
-        <View style={[S.heroIcon, { backgroundColor:color + '14', borderColor:color + '30' }]}>
-          <SafeImg uri={item.icon} size={52} radiusRatio={0.28} />
-        </View>
-        <View style={{ flex:1 }}>
-          <View style={S.heroTitleRow}>
-            <Text style={[S.heroName, { color:C.text }]}>{item.name}</Text>
-            <View style={[S.heroBadge, { backgroundColor:color + '20' }]}>
-              <Text style={[S.heroBadgeTxt, { color }]}>{item.badge}</Text>
-            </View>
-          </View>
-          <Text style={[S.heroDesc, { color:C.muted }]} numberOfLines={1}>
-            {t(`desc_${item.id}`, { defaultValue: t('featured_app', 'تطبيق مميز') })}
+  const HeroCard = ({ item }) => (
+    <TouchableOpacity
+      style={[S.hero, { backgroundColor:C.card, borderColor:C.border }]}
+      onPress={() => openUrl(item.url, item.name)}
+      activeOpacity={0.85}
+    >
+      <View style={[S.heroIcon, { backgroundColor:C.card2, borderColor:C.border }]}>
+        <SafeImg uri={item.icon} size={52} radiusRatio={0.28} />
+      </View>
+      <View style={{ flex:1 }}>
+        <Text style={[S.heroName, { color:C.text }]}>{item.name}</Text>
+        <Text style={[S.heroDesc, { color:C.muted }]} numberOfLines={1}>
+          {t(`desc_${item.id}`, { defaultValue: t('featured_app', 'تطبيق مميز') })}
+        </Text>
+        <View style={S.heroMetaRow}>
+          <Text style={[S.heroBadgeTxt, { color:C.muted }]} numberOfLines={1}>
+            {item.badge}
           </Text>
           <View style={S.heroOpen}>
-            <Text style={[S.heroOpenTxt, { color }]}>
+            <Text style={[S.heroOpenTxt, { color:C.accent }]}>
               {t('portal_open_app', 'افتح التطبيق')}
             </Text>
-            <Ionicons name="arrow-forward" size={13} color={color} />
+            <Ionicons name="arrow-forward" size={13} color={C.accent} />
           </View>
         </View>
-      </TouchableOpacity>
-    );
-  };
+      </View>
+    </TouchableOpacity>
+  );
 
   // ── Dapp Grid Card ────────────────────────────────────────────────────────
-  const DappCard = ({ item }) => {
-    const color = CAT_COLOR[item.category] || C.accent;
-    return (
-      <TouchableOpacity
-        style={[S.card, { backgroundColor:C.card, borderColor:C.border, width:CARD_W }]}
-        onPress={() => openUrl(item.url, item.name)}
-        activeOpacity={0.75}
-      >
-        <View style={[S.iconRing, { borderColor:color + '30', backgroundColor:color + '10' }]}>
-          <SafeImg uri={item.icon} size={44} radiusRatio={0.28} />
-        </View>
-        <Text style={[S.cardName, { color:C.text }]} numberOfLines={1}>{item.name}</Text>
-        <View style={[S.cardBadge, { backgroundColor:color + '18' }]}>
-          <Text style={[S.cardBadgeTxt, { color }]}>{item.badge}</Text>
-        </View>
-      </TouchableOpacity>
-    );
-  };
+  const DappCard = ({ item }) => (
+    <TouchableOpacity
+      style={[S.card, { backgroundColor:C.card, borderColor:C.border, width:CARD_W }]}
+      onPress={() => openUrl(item.url, item.name)}
+      activeOpacity={0.75}
+    >
+      <View style={[S.iconRing, { borderColor:C.border, backgroundColor:C.card2 }]}>
+        <SafeImg uri={item.icon} size={44} radiusRatio={0.28} />
+      </View>
+      <Text style={[S.cardName, { color:C.text }]} numberOfLines={1}>{item.name}</Text>
+      <Text style={[S.cardBadgeTxt, { color:C.muted }]} numberOfLines={1}>{item.badge}</Text>
+    </TouchableOpacity>
+  );
 
   // ── Bookmark Row ──────────────────────────────────────────────────────────
   const BmRow = ({ item }) => (
@@ -358,7 +342,6 @@ export default function AppPortalScreen() {
             >
               {FILTERS.map(f => {
                 const on = filter === f.id;
-                const dotColor = CAT_COLOR[f.id];
                 return (
                   <TouchableOpacity
                     key={f.id}
@@ -369,9 +352,6 @@ export default function AppPortalScreen() {
                     onPress={() => setFilter(f.id)}
                     activeOpacity={0.8}
                   >
-                    {dotColor && (
-                      <View style={[S.filterDot, { backgroundColor: on ? '#FFF' : dotColor }]} />
-                    )}
                     <Text style={[S.filterTxt, { color: on ? '#FFF' : C.muted }]}>
                       {f.label}
                     </Text>
@@ -439,13 +419,22 @@ export default function AppPortalScreen() {
                   <Text style={[S.sheetTitle, { color:C.text, marginBottom:0 }]}>
                     {t('browsing_history', 'سجل التصفح')}
                   </Text>
-                  {history.length > 0 && (
-                    <TouchableOpacity onPress={clearHistory}>
-                      <Text style={[S.clearHistoryTxt, { color:C.danger }]}>
-                        {t('clear_history', 'مسح الكل')}
-                      </Text>
+                  <View style={S.historyHeaderActions}>
+                    {history.length > 0 && (
+                      <TouchableOpacity onPress={clearHistory}>
+                        <Text style={[S.clearHistoryTxt, { color:C.danger }]}>
+                          {t('clear_history', 'مسح الكل')}
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                    <TouchableOpacity
+                      onPress={() => setHistoryOpen(false)}
+                      style={[S.closeBtn, { backgroundColor:C.inputBg }]}
+                      hitSlop={{ top:8, bottom:8, left:8, right:8 }}
+                    >
+                      <Ionicons name="close" size={16} color={C.muted} />
                     </TouchableOpacity>
-                  )}
+                  </View>
                 </View>
                 <ScrollView showsVerticalScrollIndicator={false} style={{ marginTop:10 }}>
                   {history.length === 0 ? (
@@ -562,38 +551,34 @@ const S = StyleSheet.create({
 
   // Hero
   hero:        { flexDirection:'row', alignItems:'center', padding:16, borderRadius:20,
-                 borderWidth:1, gap:14, overflow:'hidden',
+                 borderWidth:1, gap:14,
                  shadowColor:'#000', shadowOffset:{width:0,height:3},
                  shadowOpacity:0.06, shadowRadius:8, elevation:3 },
-  heroStripe:  { position:'absolute', top:0, left:0, bottom:0, width:4 },
-  heroIcon:    { width:64, height:64, borderRadius:18, borderWidth:1.5,
+  heroIcon:    { width:64, height:64, borderRadius:18, borderWidth:1,
                  justifyContent:'center', alignItems:'center' },
-  heroTitleRow:{ flexDirection:'row', alignItems:'center', gap:8, marginBottom:4 },
-  heroName:    { fontSize:18, fontWeight:'800' },
-  heroBadge:   { paddingHorizontal:8, paddingVertical:2, borderRadius:8 },
-  heroBadgeTxt:{ fontSize:10, fontWeight:'800' },
+  heroName:    { fontSize:18, fontWeight:'800', marginBottom:4 },
   heroDesc:    { fontSize:12, marginBottom:8 },
+  heroMetaRow: { flexDirection:'row', alignItems:'center', justifyContent:'space-between' },
+  heroBadgeTxt:{ fontSize:11, fontWeight:'600' },
   heroOpen:    { flexDirection:'row', alignItems:'center', gap:4 },
-  heroOpenTxt: { fontSize:12, fontWeight:'800' },
+  heroOpenTxt: { fontSize:12, fontWeight:'700' },
 
   // Filters
   filterRow:   { paddingRight:20, gap:8, alignItems:'center' },
   filterBtn:   { flexDirection:'row', alignItems:'center', paddingHorizontal:14, paddingVertical:7,
                  borderRadius:20, borderWidth:1.5, gap:6 },
-  filterDot:   { width:6, height:6, borderRadius:3 },
   filterTxt:   { fontSize:12, fontWeight:'700' },
 
   // Grid
   gridWrap:    { flexDirection:'row', flexWrap:'wrap', gap:GAP },
   card:        { alignItems:'center', paddingVertical:18, paddingHorizontal:10,
-                 borderRadius:18, borderWidth:1, gap:10,
+                 borderRadius:18, borderWidth:1, gap:8,
                  shadowColor:'#000', shadowOffset:{width:0,height:2},
                  shadowOpacity:0.04, shadowRadius:6, elevation:2 },
-  iconRing:    { width:56, height:56, borderRadius:18, borderWidth:1.5,
+  iconRing:    { width:56, height:56, borderRadius:18, borderWidth:1,
                  justifyContent:'center', alignItems:'center' },
   cardName:    { fontSize:13, fontWeight:'700', textAlign:'center' },
-  cardBadge:   { paddingHorizontal:9, paddingVertical:3, borderRadius:8 },
-  cardBadgeTxt:{ fontSize:10, fontWeight:'800' },
+  cardBadgeTxt:{ fontSize:11, fontWeight:'600', marginTop:-4, textAlign:'center' },
 
   // Bookmarks
   bmList:      { paddingHorizontal:20, paddingTop:4 },
@@ -618,7 +603,9 @@ const S = StyleSheet.create({
   handle:      { width:36, height:4, borderRadius:2, alignSelf:'center', marginBottom:16 },
   sheetTitle:  { fontSize:18, fontWeight:'800', textAlign:'center', marginBottom:16 },
   historyHeader:{ flexDirection:'row', justifyContent:'space-between', alignItems:'center' },
+  historyHeaderActions:{ flexDirection:'row', alignItems:'center', gap:12 },
   clearHistoryTxt:{ fontSize:13, fontWeight:'700' },
+  closeBtn:    { width:28, height:28, borderRadius:14, justifyContent:'center', alignItems:'center' },
   inp:         { flexDirection:'row', alignItems:'center', borderRadius:12, borderWidth:1,
                  marginBottom:10, height:46 },
   inpTxt:      { flex:1, paddingHorizontal:10, fontSize:14, height:'100%' },
