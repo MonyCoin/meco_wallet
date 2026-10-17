@@ -5,6 +5,7 @@ import {
   SafeAreaView, ScrollView, Alert, ActivityIndicator, Linking
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { useAppStore } from '../store';
 import { Ionicons } from '@expo/vector-icons';
@@ -25,6 +26,7 @@ const PLATFORM_FEE_SOL = 0.0005;
 
 export default function StakingScreen() {
   const navigation   = useNavigation();
+  const insets       = useSafeAreaInsets();
   const { t }        = useTranslation();
   const theme        = useAppStore(state => state.theme);
   const primaryColor = useAppStore(state => state.primaryColor || '#6C63FF');
@@ -203,7 +205,10 @@ export default function StakingScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={[styles.content, { paddingBottom: Math.max(insets.bottom, 20) + 24 }]}
+        showsVerticalScrollIndicator={false}
+      >
 
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
