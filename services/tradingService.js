@@ -7,7 +7,8 @@ import { default as heliusService } from './heliusService';
 
 const FEE_COLLECTOR_ADDRESS = 'BkaJsFAJKPQZgreBFLrY2pPUi44fTJzXhmeBc8LeuF5W';
 const SERVICE_FEE_SOL       = 0.0005;
-const JUPITER_API_KEY       = 'jup_c50a1fd6f89facc37df71bf8bb1dbc83ad49e3ce896d33fc171291d11e28efd2';
+// ✅ المفتاح يُقرأ من متغير البيئة (يُحقن وقت البناء/التحديث) ولا يُكتب في الكود
+const JUPITER_API_KEY       = process.env.EXPO_PUBLIC_JUPITER_API_KEY;
 const MECO_MINT             = 'A5Ln25cfww33kfUSzBb89bMha7j1PnFQTy7H3FsQHN7W';
 
 const JUPITER_QUOTE_API      = 'https://quote-api.jup.ag/v6/quote';
@@ -22,7 +23,7 @@ const BROWSER_HEADERS = {
   'User-Agent':   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
   'Origin':       'https://jup.ag',
   'Referer':      'https://jup.ag/',
-  'x-api-key':    JUPITER_API_KEY,
+  ...(JUPITER_API_KEY ? { 'x-api-key': JUPITER_API_KEY } : {}),
 };
 
 const fetchWT = async (url, options = {}, ms = 20000) => {

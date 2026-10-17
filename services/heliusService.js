@@ -4,7 +4,12 @@ import * as web3 from '@solana/web3.js';
 import * as splToken from '@solana/spl-token';
 
 const MECO_MINT_ADDRESS = 'A5Ln25cfww33kfUSzBb89bMha7j1PnFQTy7H3FsQHN7W';
-const HELIUS_URL = 'https://mainnet.helius-rpc.com/?api-key=fb28d3cf-7dd1-4667-9167-7941c3aceb66';
+// ✅ المفتاح يُقرأ من متغير البيئة (يُحقن وقت البناء/التحديث) ولا يُكتب في الكود
+// ملاحظة: يجب كتابة process.env.EXPO_PUBLIC_* بهذه الصيغة المباشرة ليعمل الاستبدال الثابت
+const HELIUS_API_KEY = process.env.EXPO_PUBLIC_HELIUS_API_KEY;
+const HELIUS_URL = HELIUS_API_KEY
+  ? `https://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`
+  : '';
 
 // ✅ خريطة شاملة لجميع العملات المعروفة — تُستخدم في سجل المعاملات
 const MINT_TO_SYMBOL = {
