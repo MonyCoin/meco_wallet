@@ -3,9 +3,10 @@ import React, { useEffect, useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, SafeAreaView,
   ScrollView, ActivityIndicator, Alert, Linking,
-  Image, RefreshControl,
+  Image, RefreshControl, Platform,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { useAppStore } from '../store';
 import { Ionicons } from '@expo/vector-icons';
@@ -55,6 +56,7 @@ const timeAgo = (ts) => {
 
 export default function AssetDetailsScreen() {
   const navigation   = useNavigation();
+  const insets       = useSafeAreaInsets();
   const route        = useRoute();
   const { t }        = useTranslation();
   const theme        = useAppStore(s => s.theme);
@@ -148,9 +150,9 @@ export default function AssetDetailsScreen() {
   const cRange  = cMax - cMin || 1;
 
   return (
-    <SafeAreaView style={[S.root, { backgroundColor: C.bg }]}>
+    <SafeAreaView style={[S.root, { backgroundColor: C.bg, paddingTop: Platform.OS === 'ios' ? 0 : insets.top }]}>
       <ScrollView
-        contentContainerStyle={S.scroll}
+        contentContainerStyle={[S.scroll, { paddingBottom: Math.max(insets.bottom, 20) + 40 }]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.primary} />}
         showsVerticalScrollIndicator={false}
       >
