@@ -181,8 +181,9 @@ export default function WalletScreen() {
 
       setStakingData(stakingInfo);
 
+      // التسعير بحسب عنوان العقد (mint) لتفادي تعارض الرموز المتشابهة
       const priceMap = {};
-      marketData.forEach(tk => { priceMap[tk.symbol] = tk.current_price || 0; });
+      marketData.forEach(tk => { if (tk.mint) priceMap[tk.mint] = tk.current_price || 0; });
 
       const tradableList = CORE_TOKENS
         .filter(tk => tk.swapAvailable)
@@ -206,7 +207,7 @@ export default function WalletScreen() {
           const tokenData = tokenAccounts.find(tk => tk.mint === asset.mint);
           if (tokenData) amount = tokenData.amount || 0;
         }
-        const price    = priceMap[asset.symbol] || 0;
+        const price    = priceMap[asset.mint] || 0;
         const valueUSD = amount * price;
         calculatedTotalUSD += valueUSD;
         return { ...asset, amount, price, valueUSD };
@@ -220,7 +221,7 @@ export default function WalletScreen() {
         const tokenData = tokenAccounts.find(tk => tk.mint === customToken.mint);
         const amount    = tokenData?.amount || 0;
         if (amount > 0) {
-          const price    = priceMap[customToken.symbol] || customToken.current_price || 0;
+          const price    = priceMap[customToken.mint] || customToken.current_price || 0;
           const valueUSD = amount * price;
           calculatedTotalUSD += valueUSD;
           filteredAssets.push({ ...customToken, amount, price, valueUSD });
@@ -251,7 +252,9 @@ export default function WalletScreen() {
     try {
       const marketData = await getJupiterMarketData().catch(() => []);
       const priceMap   = {};
-      marketData.forEach(tk => { priceMap[tk.symbol] = tk.current_price || 0; });
+      marketData.forEach(tk => { if (tk.mint) priceMap[tk.mint] = tk.current_price || 0; });
+      const coreMint   = (sym) => CORE_TOKENS.find(t => t.symbol === sym)?.mint;
+      const customList = await getCustomTokens().catch(() => []);
 
       for (const acc of accounts) {
         try {
@@ -261,16 +264,29 @@ export default function WalletScreen() {
           const addr   = acc.publicKey;
           const solBal = await getSolBalance(true, addr).catch(() => 0) || 0;
           let mecoAmount = 0, usdcAmount = 0, usdtAmount = 0;
-          try { mecoAmount = await getTokenBalance('7hBNyFfwYTv65z3ZudMAyKBw3BLMKxyKXsr5xM51Za4i', true, addr); } catch (_) {}
+          try { mecoAmount = await getTokenBalance(CORE_TOKENS.find(t => t.symbol === 'MECO').mint, true, addr); } catch (_) {}
           await new Promise(r => setTimeout(r, 200));
           try { usdcAmount = await getTokenBalance('EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', true, addr); } catch (_) {}
           await new Promise(r => setTimeout(r, 200));
           try { usdtAmount = await getTokenBalance('Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB', true, addr); } catch (_) {}
           balances[acc.publicKey] =
-            (solBal     * (priceMap['SOL']  || 0)) +
-            (mecoAmount * (priceMap['MECO'] || 0)) +
-            (usdcAmount * (priceMap['USDC'] || 0)) +
-            (usdtAmount * (priceMap['USDT'] || 0));
+            (solBal     * (priceMap[coreMint('SOL')]  || 0)) +
+            (mecoAmount * (priceMap[coreMint('MECO')] || 0)) +
+            (usdcAmount * (priceMap[coreMint('USDC')] || 0)) +
+            (usdtAmount * (priceMap[coreMint('USDT')] || 0));
+
+          // العملات المخصصة التي أضافها المستخدم من شاشة السوق
+          if (customList.length > 0) {
+            await new Promise(r => setTimeout(r, 200));
+            const accTokens = await getTokenAccounts(addr).catch(() => []);
+            for (const ct of customList) {
+              const held = accTokens.find(tk => tk.mint === ct.mint);
+              const amt  = held?.amount || 0;
+              if (amt > 0) {
+                balances[acc.publicKey] += amt * (priceMap[ct.mint] || ct.current_price || 0);
+              }
+            }
+          }
         } catch (_) { balances[acc.publicKey] = 0; }
       }
     } catch (err) {
