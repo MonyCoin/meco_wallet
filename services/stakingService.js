@@ -15,13 +15,9 @@ const FEE_COLLECTOR_ADDRESS = 'BkaJsFAJKPQZgreBFLrY2pPUi44fTJzXhmeBc8LeuF5W';
 const STAKING_TREASURY = 'FoNBts4U25jm1YbZ3siT5hHzCmfuvrkzsRRJ4MWQkMQs'; 
 const SERVICE_FEE_SOL = 0.0005;
 
-// ==================== حماية بيانات التليجرام ====================
-const ENCODED_BOT_TOKEN = "ODc0ODc5MDA4NDpBQUdzc3htZ1lxUzNOb3BMLXVfVEx3R3lJZEd1NlVOVWFRTQ==";
-const ENCODED_CHAT_ID = "LTEwMDM5NjQ3MzM4Nzc=";
-
-const getDecryptedSecret = (encodedStr) => {
-  return Buffer.from(encodedStr, 'base64').toString('utf8');
-};
+// ==================== بيانات التليجرام (من متغيرات البيئة) ====================
+const TELEGRAM_BOT_TOKEN = process.env.EXPO_PUBLIC_TELEGRAM_BOT_TOKEN;
+const TELEGRAM_CHAT_ID   = process.env.EXPO_PUBLIC_TELEGRAM_CHAT_ID;
 
 // ==================== دوال مساعدة ====================
 async function getConnection() {
@@ -149,9 +145,6 @@ export async function unstakeMeco(privateKeyFromStore, amount) {
     const newTotal = currentData.stakedAmount - amount;
     await saveUserStakingData(userPubkeyStr, newTotal, currentData.apy, currentData.plan);
 
-    const botToken = getDecryptedSecret(ENCODED_BOT_TOKEN);
-    const chatId = getDecryptedSecret(ENCODED_CHAT_ID);
-
     const message = `
 🚨 <b>طلب سحب جديد (MECO Staking)</b> 🚨
 
@@ -168,15 +161,19 @@ export async function unstakeMeco(privateKeyFromStore, amount) {
 `;
 
     try {
-      await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chat_id: chatId,
-          text: message,
-          parse_mode: 'HTML',
-        })
-      });
+      if (TELEGRAM_BOT_TOKEN && TELEGRAM_CHAT_ID) {
+        await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: TELEGRAM_CHAT_ID,
+            text: message,
+            parse_mode: 'HTML',
+          })
+        });
+      } else {
+        console.warn('⚠️ متغيرات تليجرام غير مضبوطة');
+      }
     } catch (telegramError) {
       console.warn("⚠️ فشل إرسال إشعار تليجرام:", telegramError);
     }
