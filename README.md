@@ -197,13 +197,14 @@ eas build --platform android --build-profile production
 
 ```env
 EXPO_PUBLIC_HELIUS_API_KEY=your_helius_key_here
-EXPO_PUBLIC_JUPITER_API_KEY=your_jupiter_key_here
+EXPO_PUBLIC_ALCHEMY_API_KEY=your_alchemy_key_here
 ```
 
+- **Helius:** مزود RPC الأساسي. **Alchemy:** احتياط أول يعمل تلقائيًا عند تعطل Helius.
+- ترتيب نقاط RPC: Helius ← Alchemy ← RPC العام لـ Solana ← Ankr. إذا غاب أي مفتاح يتخطاه التطبيق ويكمل بالنقطة التالية.
 - بعد تعديل `.env` شغّل `npx expo start -c` لمسح الذاكرة المؤقتة.
 - للتحديثات والبناء عبر EAS، أضف المتغيرين نفسهما في بيئة `production` من لوحة Expo (نوع الرؤية: Plain text أو Sensitive، وليس Secret).
-- إذا غاب مفتاح Helius يعود التطبيق إلى نقاط RPC العامة (أبطأ وأقل استقرارًا).
-- يوجد قالب جاهز في ملف `.env.example`.
+- التبادل والأسعار عبر Jupiter (`lite-api.jup.ag`) لا يحتاجان مفتاحًا.
 
 ---
 
@@ -214,7 +215,7 @@ EXPO_PUBLIC_JUPITER_API_KEY=your_jupiter_key_here
 | التطبيق | React Native 0.81، Expo SDK 54، JavaScript (ES2022+) |
 | البلوكتشين | `@solana/web3.js`، `@solana/spl-token`، `ed25519-hd-key` |
 | الأمان والتخزين | `expo-secure-store`، AsyncStorage، `bs58`، `@noble/hashes` |
-| الاتصال واللامركزية | WalletConnect v2 Core، Helius RPC، Ankr RPC |
+| الاتصال واللامركزية | WalletConnect v2 Core، Helius RPC، Alchemy RPC، Ankr RPC |
 | الأسعار والتبادل | Jupiter API، CoinGecko API، Yahoo Finance (الفوركس والسلع) |
 | الترجمة | i18next، react-i18next |
 | الواجهة وإدارة البيانات | React Navigation v7، Zustand |
@@ -228,7 +229,7 @@ EXPO_PUBLIC_JUPITER_API_KEY=your_jupiter_key_here
 | البلوكتشين | Solana |
 | الشبكة | Mainnet-Beta |
 | رمز MECO | `A5Ln25cfww33kfUSzBb89bMha7j1PnFQTy7H3FsQHN7W` |
-| مزودو RPC | Helius وAnkr |
+| مزودو RPC | Helius (أساسي) وAlchemy (احتياط) وAnkr |
 
 - [عرض رمز MECO على Solscan](https://solscan.io/token/A5Ln25cfww33kfUSzBb89bMha7j1PnFQTy7H3FsQHN7W)
 - [تحليل معاملات MECO](https://solscan.io/token/A5Ln25cfww33kfUSzBb89bMha7j1PnFQTy7H3FsQHN7W)
