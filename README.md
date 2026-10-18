@@ -193,16 +193,17 @@ eas build --platform android --build-profile production
 
 ### متغيرات البيئة
 
-أنشئ ملف `.env` في جذر المشروع، ولا ترفع المفاتيح السرية إلى GitHub:
+أنشئ ملف `.env` في جذر المشروع (مُستثنى من Git عبر `.gitignore`)، ولا ترفع المفاتيح السرية إلى GitHub. يقرأ التطبيق المتغيرين التاليين فقط، وتبدأ أسماؤهما بـ `EXPO_PUBLIC_` ليُحقنا وقت البناء:
 
 ```env
-SOLANA_RPC_URL=https://api.mainnet-beta.solana.com
-HELIUS_API_KEY=your_helius_key_here
-ANKR_API_KEY=your_ankr_key_here
-JUPITER_API_KEY=your_jupiter_key
-WALLETCONNECT_PROJECT_ID=your_walletconnect_project_id
-COINGECKO_API_KEY=your_coingecko_key
+EXPO_PUBLIC_HELIUS_API_KEY=your_helius_key_here
+EXPO_PUBLIC_JUPITER_API_KEY=your_jupiter_key_here
 ```
+
+- بعد تعديل `.env` شغّل `npx expo start -c` لمسح الذاكرة المؤقتة.
+- للتحديثات والبناء عبر EAS، أضف المتغيرين نفسهما في بيئة `production` من لوحة Expo (نوع الرؤية: Plain text أو Sensitive، وليس Secret).
+- إذا غاب مفتاح Helius يعود التطبيق إلى نقاط RPC العامة (أبطأ وأقل استقرارًا).
+- يوجد قالب جاهز في ملف `.env.example`.
 
 ---
 
@@ -210,13 +211,13 @@ COINGECKO_API_KEY=your_coingecko_key
 
 | المجال | التقنيات |
 |:---|:---|
-| التطبيق | React Native، Expo SDK 54، TypeScript |
-| البلوكتشين | Solana Web3.js، SPL-Token، `@solana/transactions` |
-| الأمان والتخزين | `expo-secure-store`، AsyncStorage، TweetNaCl.js |
+| التطبيق | React Native 0.81، Expo SDK 54، JavaScript (ES2022+) |
+| البلوكتشين | `@solana/web3.js`، `@solana/spl-token`، `ed25519-hd-key` |
+| الأمان والتخزين | `expo-secure-store`، AsyncStorage، `bs58`، `@noble/hashes` |
 | الاتصال واللامركزية | WalletConnect v2 Core، Helius RPC، Ankr RPC |
-| الأسعار والتبادل | Jupiter API، CoinGecko API |
+| الأسعار والتبادل | Jupiter API، CoinGecko API، Yahoo Finance (الفوركس والسلع) |
 | الترجمة | i18next، react-i18next |
-| الواجهة وإدارة البيانات | React Navigation، Redux/Context API، React Query |
+| الواجهة وإدارة البيانات | React Navigation v7، Zustand |
 
 ---
 
