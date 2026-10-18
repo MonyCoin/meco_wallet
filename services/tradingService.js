@@ -7,23 +7,18 @@ import { default as heliusService } from './heliusService';
 
 const FEE_COLLECTOR_ADDRESS = 'BkaJsFAJKPQZgreBFLrY2pPUi44fTJzXhmeBc8LeuF5W';
 const SERVICE_FEE_SOL       = 0.0005;
-// ✅ المفتاح يُقرأ من متغير البيئة (يُحقن وقت البناء/التحديث) ولا يُكتب في الكود
-const JUPITER_API_KEY       = process.env.EXPO_PUBLIC_JUPITER_API_KEY;
 const MECO_MINT             = 'A5Ln25cfww33kfUSzBb89bMha7j1PnFQTy7H3FsQHN7W';
 
-const JUPITER_QUOTE_API      = 'https://quote-api.jup.ag/v6/quote';
-const JUPITER_SWAP_API       = 'https://quote-api.jup.ag/v6/swap';
-const JUPITER_LITE_QUOTE_API = 'https://lite-api.jup.ag/swap/v1/quote';
-const JUPITER_LITE_SWAP_API  = 'https://lite-api.jup.ag/swap/v1/swap';
-const JUPITER_LIMIT_API      = 'https://api.jup.ag/limit/v2';
+// ✅ نفس مسار swapService: lite-api.jup.ag هو المسار الحالي من Jupiter (مجاني وبدون مفتاح)
+// تم حذف quote-api.jup.ag/v6 القديم لأنه يسبب تأخيرًا قبل الرجوع إلى lite-api
+const JUPITER_QUOTE_API = 'https://lite-api.jup.ag/swap/v1/quote';
+const JUPITER_SWAP_API  = 'https://lite-api.jup.ag/swap/v1/swap';
+const JUPITER_LIMIT_API = 'https://api.jup.ag/limit/v2';
 
-const BROWSER_HEADERS = {
+// ترويسات الطلبات — بدون مفتاح وبدون انتحال ترويسات الموقع
+const API_HEADERS = {
   'Accept':       'application/json',
   'Content-Type': 'application/json',
-  'User-Agent':   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-  'Origin':       'https://jup.ag',
-  'Referer':      'https://jup.ag/',
-  ...(JUPITER_API_KEY ? { 'x-api-key': JUPITER_API_KEY } : {}),
 };
 
 const fetchWT = async (url, options = {}, ms = 20000) => {
@@ -60,15 +55,14 @@ async function getQuote(inputMint, outputMint, amount, slippageBps = 50) {
   const effectiveSlippage = isMeco ? Math.max(slippageBps, 300) : slippageBps;
 
   const endpoints = [
-    { name: 'Main V6',  url: JUPITER_QUOTE_API      },
-    { name: 'Lite API', url: JUPITER_LITE_QUOTE_API },
+    { name: 'Lite API', url: JUPITER_QUOTE_API },
   ];
 
   let lastError;
   for (const ep of endpoints) {
     try {
       const url = `${ep.url}?inputMint=${inputMint}&outputMint=${outputMint}&amount=${amount}&slippageBps=${effectiveSlippage}${extraParams}`;
-      const res = await fetchWT(url, { method: 'GET', headers: BROWSER_HEADERS }, 15000);
+      const res = await fetchWT(url, { method: 'GET', headers: API_HEADERS }, 15000);
 
       if (!res.ok) {
         const raw = await res.text();
@@ -92,14 +86,13 @@ async function getQuote(inputMint, outputMint, amount, slippageBps = 50) {
 // ─── Swap TX ──────────────────────────────────────────────────────────────────
 async function buildSwapTx(quote, walletPublicKey) {
   const endpoints = [
-    { url: JUPITER_SWAP_API      },
-    { url: JUPITER_LITE_SWAP_API },
+    { url: JUPITER_SWAP_API },
   ];
   let lastError;
   for (const ep of endpoints) {
     try {
       const res = await fetchWT(ep.url, {
-        method: 'POST', headers: BROWSER_HEADERS,
+        method: 'POST', headers: API_HEADERS,
         body: JSON.stringify({
           quoteResponse:             quote,
           userPublicKey:             walletPublicKey,
@@ -199,7 +192,7 @@ export async function executeLimitOrder({
   inputMint, outputMint, inAmount, outAmount, walletPublicKey, activeIndex,
 }) {
   const res = await fetchWT(`${JUPITER_LIMIT_API}/createOrder`, {
-    method: 'POST', headers: BROWSER_HEADERS,
+    method: 'POST', headers: API_HEADERS,
     body: JSON.stringify({
       owner: walletPublicKey, inputMint, outputMint,
       inAmount: inAmount.toString(), outAmount: outAmount.toString(), expiredAt: null,
@@ -216,7 +209,7 @@ export async function executeLimitOrder({
 // ─── Cancel Limit Order ───────────────────────────────────────────────────────
 export async function cancelLimitOrder({ orderPubkey, walletPublicKey, activeIndex }) {
   const res = await fetchWT(`${JUPITER_LIMIT_API}/cancelOrders`, {
-    method: 'POST', headers: BROWSER_HEADERS,
+    method: 'POST', headers: API_HEADERS,
     body: JSON.stringify({ owner: walletPublicKey, orders: [orderPubkey] }),
   });
   if (!res.ok) throw new Error(`Cancel error: ${res.status}`);
@@ -232,7 +225,7 @@ export async function getOpenLimitOrders(walletPublicKey) {
   try {
     const res = await fetchWT(
       `${JUPITER_LIMIT_API}/openOrders?wallet=${walletPublicKey}`,
-      { headers: BROWSER_HEADERS }
+      { headers: API_HEADERS }
     );
     if (!res.ok) return [];
     return await res.json() || [];
