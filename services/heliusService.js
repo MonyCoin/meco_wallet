@@ -11,6 +11,12 @@ const HELIUS_URL = HELIUS_API_KEY
   ? `https://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`
   : '';
 
+// ✅ Alchemy — احتياط أول عند تعطل Helius (المفتاح من متغير البيئة أيضًا)
+const ALCHEMY_API_KEY = process.env.EXPO_PUBLIC_ALCHEMY_API_KEY;
+const ALCHEMY_URL = ALCHEMY_API_KEY
+  ? `https://solana-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}`
+  : '';
+
 // ✅ خريطة شاملة لجميع العملات المعروفة — تُستخدم في سجل المعاملات
 const MINT_TO_SYMBOL = {
   'So11111111111111111111111111111111111111112':  'SOL',
@@ -39,8 +45,8 @@ const TOKEN_2022_PROGRAM_ID = new web3.PublicKey('TokenzQdBNbLqP5VEhdkAS6EPFLC1P
 
 const RPC_ENDPOINTS = [
   ...(HELIUS_URL ? [{ url: HELIUS_URL, priority: 1 }] : []),
-  { url: 'https://api.mainnet-beta.solana.com', priority: 2 },
-  { url: 'https://solana-api.projectserum.com', priority: 3 },
+  ...(ALCHEMY_URL ? [{ url: ALCHEMY_URL, priority: 2 }] : []),
+  { url: 'https://api.mainnet-beta.solana.com', priority: 3 },
   { url: 'https://rpc.ankr.com/solana',         priority: 4 },
 ];
 
