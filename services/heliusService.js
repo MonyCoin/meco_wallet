@@ -1,4 +1,3 @@
-// ملاحظة: يتخطى التطبيق Helius تلقائيًا عند غياب مفتاحه، ثم يعتمد Alchemy ثم RPC العام ثم Ankr
 // services/heliusService.js
 import * as SecureStore from 'expo-secure-store';
 import * as web3 from '@solana/web3.js';
