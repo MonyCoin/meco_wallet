@@ -2,6 +2,7 @@
 import * as SecureStore from 'expo-secure-store';
 import * as web3 from '@solana/web3.js';
 import * as splToken from '@solana/spl-token';
+import * as backup from './alchemyService';
 
 const MECO_MINT_ADDRESS = 'A5Ln25cfww33kfUSzBb89bMha7j1PnFQTy7H3FsQHN7W';
 // ✅ المفتاح يُقرأ من متغير البيئة (يُحقن وقت البناء/التحديث) ولا يُكتب في الكود
@@ -9,12 +10,6 @@ const MECO_MINT_ADDRESS = 'A5Ln25cfww33kfUSzBb89bMha7j1PnFQTy7H3FsQHN7W';
 const HELIUS_API_KEY = process.env.EXPO_PUBLIC_HELIUS_API_KEY;
 const HELIUS_URL = HELIUS_API_KEY
   ? `https://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`
-  : '';
-
-// ✅ Alchemy — احتياط أول عند تعطل Helius (المفتاح من متغير البيئة أيضًا)
-const ALCHEMY_API_KEY = process.env.EXPO_PUBLIC_ALCHEMY_API_KEY;
-const ALCHEMY_URL = ALCHEMY_API_KEY
-  ? `https://solana-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}`
   : '';
 
 // ✅ خريطة شاملة لجميع العملات المعروفة — تُستخدم في سجل المعاملات
@@ -43,11 +38,9 @@ const getMintSymbol = (mint) => MINT_TO_SYMBOL[mint] || 'TOKEN';
 const TOKEN_PROGRAM_ID      = new web3.PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
 const TOKEN_2022_PROGRAM_ID = new web3.PublicKey('TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb');
 
+// Helius فقط هنا — عند توقفه يتحول التطبيق تلقائيًا إلى alchemyService (الخدمة الاحتياطية)
 const RPC_ENDPOINTS = [
   ...(HELIUS_URL ? [{ url: HELIUS_URL, priority: 1 }] : []),
-  ...(ALCHEMY_URL ? [{ url: ALCHEMY_URL, priority: 2 }] : []),
-  { url: 'https://api.mainnet-beta.solana.com', priority: 3 },
-  { url: 'https://rpc.ankr.com/solana',         priority: 4 },
 ];
 
 const CACHE_DURATION       = 15000;
@@ -162,6 +155,29 @@ class RPCManager {
 
 const rpcManager = new RPCManager(RPC_ENDPOINTS);
 
+// ─── التحويل التلقائي إلى الخدمة الاحتياطية (alchemyService) ──────────────────
+// إن توقف Helius (انتهاء الحصة / تعطل / غياب المفتاح) تعمل كل الدوال عبر alchemyService
+// بنفس الأسماء والمنطق. نعيد فحص Helius دوريًا فيعود التطبيق إليه تلقائيًا عند عودته.
+const HELIUS_OK_CACHE_MS  = 10000;
+const BACKUP_RECHECK_MS   = 30000;
+let heliusOkUntil = 0;
+let backupUntil   = 0;
+
+async function useBackup() {
+  const now = Date.now();
+  if (now < heliusOkUntil) return false;
+  if (now < backupUntil)   return true;
+  try {
+    await rpcManager.getConnection();
+    heliusOkUntil = Date.now() + HELIUS_OK_CACHE_MS;
+    return false;
+  } catch (_) {
+    backupUntil = Date.now() + BACKUP_RECHECK_MS;
+    console.warn('⚠️ Helius غير متاح — التحويل إلى الخدمة الاحتياطية (Alchemy)');
+    return true;
+  }
+}
+
 async function withRetry(fn, context = 'operation', maxRetries = 2) {
   let lastError;
   for (let i = 0; i <= maxRetries; i++) {
@@ -181,6 +197,7 @@ export function delay(ms) {
 }
 
 export async function getLatestBlockhash(forceRefresh = false) {
+  if (await useBackup()) return backup.getLatestBlockhash(forceRefresh);
   try {
     const now = Date.now();
     if (!forceRefresh && CACHE.blockhash && (now - CACHE.blockhashTime) < BLOCKHASH_DURATION) {
@@ -255,6 +272,7 @@ export const getTokenMarketPrice = async (tokenSymbol) => {
 };
 
 export async function getSolBalance(forceRefresh = false, address = null) {
+  if (await useBackup()) return backup.getSolBalance(forceRefresh, address);
   try {
     const pubKeyStr = address || await SecureStore.getItemAsync('wallet_public_key');
     if (!pubKeyStr) return 0;
@@ -282,6 +300,7 @@ export async function getSolBalance(forceRefresh = false, address = null) {
  * (PUMP مثلاً على Token-2022، والكود القديم كان يتجاهله تمامًا)
  */
 export async function getTokenBalance(mintAddress, forceRefresh = false, address = null) {
+  if (await useBackup()) return backup.getTokenBalance(mintAddress, forceRefresh, address);
   try {
     const pubKeyStr = address || await SecureStore.getItemAsync('wallet_public_key');
     if (!pubKeyStr) return 0;
@@ -320,6 +339,7 @@ export async function getTokenBalance(mintAddress, forceRefresh = false, address
  * ✅ يجلب كل حسابات الرموز للمحفظة — من كلا البرنامجين (SPL + Token-2022)
  */
 export async function getTokenAccounts(address = null) {
+  if (await useBackup()) return backup.getTokenAccounts(address);
   try {
     const pubKeyStr = address || await SecureStore.getItemAsync('wallet_public_key');
     if (!pubKeyStr) return [];
@@ -360,6 +380,7 @@ export async function validateSolanaAddress(address) {
 }
 
 export async function getCurrentNetworkFee() {
+  if (await useBackup()) return backup.getCurrentNetworkFee();
   try {
     const fees = await rpcManager.execute('getRecentPrioritizationFees');
     if (fees && fees.length > 0) {
@@ -376,6 +397,7 @@ export async function getCurrentNetworkFee() {
 
 export async function sendSolTransaction(fromKeypair, toAddress, amount) {
   if (amount <= 0) throw new Error('INVALID_AMOUNT');
+  if (await useBackup()) return backup.sendSolTransaction(fromKeypair, toAddress, amount);
   try {
     const connection     = await rpcManager.getConnection();
     const { blockhash }  = await getLatestBlockhash(true);
@@ -398,6 +420,7 @@ export async function sendSolTransaction(fromKeypair, toAddress, amount) {
 
 export async function sendTokenTransaction(fromKeypair, toAddress, mintAddress, amount) {
   if (amount <= 0) throw new Error('INVALID_AMOUNT');
+  if (await useBackup()) return backup.sendTokenTransaction(fromKeypair, toAddress, mintAddress, amount);
   try {
     const connection    = await rpcManager.getConnection();
     const { blockhash } = await getLatestBlockhash(true);
@@ -443,6 +466,7 @@ export async function sendTokenTransaction(fromKeypair, toAddress, mintAddress, 
 }
 
 export async function heliusRpcRequest(method, params = []) {
+  if (await useBackup()) return backup.heliusRpcRequest(method, params);
   try {
     const connection = await rpcManager.getConnection();
     switch (method) {
@@ -474,9 +498,11 @@ export function clearBalanceCache(mintAddress) {
   }
   CACHE.blockhash     = null;
   CACHE.blockhashTime = 0;
+  try { backup.clearBalanceCache(mintAddress); } catch (_) {}
 }
 
 export async function getTransactionHistory(limit = 20, address = null, before = null) {
+  if (await useBackup()) return backup.getTransactionHistory(limit, address, before);
   try {
     const pubKeyStr = address || await SecureStore.getItemAsync('wallet_public_key');
     if (!pubKeyStr) return [];
@@ -678,4 +704,6 @@ export async function getTransactionHistory(limit = 20, address = null, before =
   }
 }
 
-export default { getConnection: () => rpcManager.getConnection() };
+export default {
+  getConnection: async () => (await useBackup()) ? backup.default.getConnection() : rpcManager.getConnection(),
+};
