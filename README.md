@@ -193,18 +193,33 @@ eas build --platform android --build-profile production
 
 ### متغيرات البيئة
 
-أنشئ ملف `.env` في جذر المشروع (مُستثنى من Git عبر `.gitignore`)، ولا ترفع المفاتيح السرية إلى GitHub. يقرأ التطبيق المتغيرين التاليين فقط، وتبدأ أسماؤهما بـ `EXPO_PUBLIC_` ليُحقنا وقت البناء:
+المفاتيح السرية تُقرأ من متغيرات البيئة ولا تُكتب داخل الكود. أنشئ ملف `.env` في جذر المشروع ولا ترفعه إلى GitHub:
 
 ```env
 EXPO_PUBLIC_HELIUS_API_KEY=your_helius_key_here
 EXPO_PUBLIC_ALCHEMY_API_KEY=your_alchemy_key_here
+EXPO_PUBLIC_FINNHUB_API_KEY=your_finnhub_key_here
+EXPO_PUBLIC_TELEGRAM_BOT_TOKEN=your_telegram_bot_token_here
+EXPO_PUBLIC_TELEGRAM_CHAT_ID=your_telegram_chat_id_here
 ```
 
-- **Helius:** مزود RPC الأساسي. **Alchemy:** احتياط أول يعمل تلقائيًا عند تعطل Helius.
-- ترتيب نقاط RPC: Helius ← Alchemy ← RPC العام لـ Solana ← Ankr. إذا غاب أي مفتاح يتخطاه التطبيق ويكمل بالنقطة التالية.
-- بعد تعديل `.env` شغّل `npx expo start -c` لمسح الذاكرة المؤقتة.
-- للتحديثات والبناء عبر EAS، أضف المتغيرين نفسهما في بيئة `production` من لوحة Expo (نوع الرؤية: Plain text أو Sensitive، وليس Secret).
-- التبادل والأسعار عبر Jupiter (`lite-api.jup.ag`) لا يحتاجان مفتاحًا.
+| المتغير | الاستخدام |
+|:---|:---|
+| `EXPO_PUBLIC_HELIUS_API_KEY` | مزود RPC الأساسي (`heliusService.js`) |
+| `EXPO_PUBLIC_ALCHEMY_API_KEY` | مزود RPC الاحتياطي (`alchemyService.js`) |
+| `EXPO_PUBLIC_FINNHUB_API_KEY` | أسعار الأسهم والأخبار (`marketDataService.js` و`assetChartService.js`) |
+| `EXPO_PUBLIC_TELEGRAM_BOT_TOKEN` و`EXPO_PUBLIC_TELEGRAM_CHAT_ID` | إشعارات طلبات فك التخزين (`stakingService.js`) |
+
+عند التشغيل المحلي تُقرأ المتغيرات من ملف `.env`. أما في تحديثات الإنتاج فتُضاف إلى بيئة `production` في Expo (EAS Environment Variables)، ثم تُحقن وقت البناء أو تنفيذ `eas update`. يجب كتابة `process.env.EXPO_PUBLIC_*` بصيغتها المباشرة في الكود ليعمل الاستبدال الثابت.
+
+> **تنبيه:** متغيرات `EXPO_PUBLIC_*` تُدمج داخل حزمة التطبيق عند البناء، فهي تُخفي المفاتيح عن المستودع لكنها لا تجعلها سرية تمامًا. استخدم مفاتيح بصلاحيات وحصص محدودة، وبدّلها فورًا عند الاشتباه بتسريبها.
+
+### 🔁 الخدمة الاحتياطية لمزود RPC
+
+- **الأساسي:** `services/heliusService.js` يتعامل مع Helius فقط.
+- **الاحتياطي:** `services/alchemyService.js` نسخة موازية من خدمة Helius بنفس الدوال والمنطق والأسماء، وتعمل عبر Alchemy مع نقاط RPC عامة كخيار أخير.
+- **التحويل التلقائي:** عند تعطل Helius (انتهاء الحصة أو انقطاع الخدمة أو غياب المفتاح) تُحوَّل كل الدوال تلقائيًا إلى `alchemyService`، ويُعاد فحص Helius دوريًا فيعود التطبيق إليه تلقائيًا بمجرد عودته. لا يلزم تعديل أي شاشة أو خدمة أخرى لأن كل الاستدعاءات تمر عبر `heliusService`.
+- **تأكيد المعاملات:** المكتبة الافتراضية تؤكد المعاملة عبر WebSocket (`signatureSubscribe`)، وبعض المزودين مثل Alchemy لا يدعمها، فتنتهي المعاملة على الشبكة بنجاح بينما يعرض التطبيق فشلًا كاذبًا. لذلك تؤكد `alchemyService` المعاملات بالاستعلام الدوري عن حالة التوقيع عبر HTTP (`getSignatureStatuses`) مع فحص انتهاء صلاحية الـ blockhash، فتظهر النتيجة الصحيحة دون الاعتماد على WebSocket.
 
 ---
 
@@ -212,13 +227,13 @@ EXPO_PUBLIC_ALCHEMY_API_KEY=your_alchemy_key_here
 
 | المجال | التقنيات |
 |:---|:---|
-| التطبيق | React Native 0.81، Expo SDK 54، JavaScript (ES2022+) |
-| البلوكتشين | `@solana/web3.js`، `@solana/spl-token`، `ed25519-hd-key` |
-| الأمان والتخزين | `expo-secure-store`، AsyncStorage، `bs58`، `@noble/hashes` |
-| الاتصال واللامركزية | WalletConnect v2 Core، Helius RPC، Alchemy RPC، Ankr RPC |
-| الأسعار والتبادل | Jupiter API، CoinGecko API، Yahoo Finance (الفوركس والسلع) |
+| التطبيق | React Native، Expo SDK 54، TypeScript |
+| البلوكتشين | Solana Web3.js، SPL-Token، `@solana/transactions` |
+| الأمان والتخزين | `expo-secure-store`، AsyncStorage، TweetNaCl.js |
+| الاتصال واللامركزية | WalletConnect v2 Core، Helius RPC (أساسي)، Alchemy RPC (احتياطي تلقائي) |
+| الأسعار والتبادل | Jupiter API، CoinGecko API |
 | الترجمة | i18next، react-i18next |
-| الواجهة وإدارة البيانات | React Navigation v7، Zustand |
+| الواجهة وإدارة البيانات | React Navigation، Redux/Context API، React Query |
 
 ---
 
@@ -229,7 +244,7 @@ EXPO_PUBLIC_ALCHEMY_API_KEY=your_alchemy_key_here
 | البلوكتشين | Solana |
 | الشبكة | Mainnet-Beta |
 | رمز MECO | `A5Ln25cfww33kfUSzBb89bMha7j1PnFQTy7H3FsQHN7W` |
-| مزودو RPC | Helius (أساسي) وAlchemy (احتياط) وAnkr |
+| مزودو RPC | Helius (أساسي) وAlchemy (احتياطي تلقائي) |
 
 - [عرض رمز MECO على Solscan](https://solscan.io/token/A5Ln25cfww33kfUSzBb89bMha7j1PnFQTy7H3FsQHN7W)
 - [تحليل معاملات MECO](https://solscan.io/token/A5Ln25cfww33kfUSzBb89bMha7j1PnFQTy7H3FsQHN7W)
@@ -244,6 +259,8 @@ EXPO_PUBLIC_ALCHEMY_API_KEY=your_alchemy_key_here
 - استخدم عبارة استرداد قوية واحفظها خارج الإنترنت.
 - لا تشارك عبارة الاسترداد أو المفتاح الخاص مع أي شخص.
 - فعّل المصادقة البيومترية وحدّث التطبيق باستمرار.
+- مفاتيح الخدمات (Helius وAlchemy وFinnhub وTelegram) تُقرأ من متغيرات البيئة ولا تُكتب في الكود المصدري.
+- عند تعطل مزود RPC الأساسي يتحول التطبيق تلقائيًا إلى مزود احتياطي دون انقطاع الخدمة.
 
 > **تنبيه:** أنت المسؤول عن حفظ عبارة الاسترداد والمفاتيح الخاصة. لا يستطيع فريق MECO استعادتها إذا فُقدت.
 
