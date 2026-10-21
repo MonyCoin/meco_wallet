@@ -28,7 +28,7 @@ const EXT_CARD_GAP     = 20;
 const EXT_CARD_WIDTH   = (width - EXT_CARD_PADDING * 2 - EXT_CARD_GAP) / 2;
 
 // ✅ شريط الفوركس — حركة دائمة بلا توقف، وسلوك موحّد في اللغتين
-const TICKER_ITEM_WIDTH       = 160;
+const TICKER_ITEM_WIDTH       = 200; // خانة البطاقة = بطاقة بعرض 192 + هامش 4 على كل جانب — تبقى الحركة متصلة
 const TICKER_SPEED_PX_PER_SEC = 55;
 
 const EXTERNAL_TOKENS = [
@@ -79,13 +79,35 @@ const getPairFlags = (symbol) => {
   return `${CURRENCY_FLAGS[base] || ''}${CURRENCY_FLAGS[quote] || ''}`;
 };
 
+// ✅ أسماء مختصرة للعملات — للسطر الثاني داخل بطاقة الزوج
+const CURRENCY_NAMES = {
+  en: {
+    USD:'Dollar', EUR:'Euro', GBP:'Sterling', JPY:'Yen', CHF:'Franc',
+    AUD:'Aussie', CAD:'Loonie', NZD:'Kiwi', AED:'Dirham', SAR:'Riyal',
+    EGP:'E. Pound', TRY:'Lira', INR:'Rupee', CNY:'Yuan', ZAR:'Rand', MXN:'Peso',
+  },
+  ar: {
+    USD:'دولار', EUR:'يورو', GBP:'إسترليني', JPY:'ين', CHF:'فرنك',
+    AUD:'أسترالي', CAD:'كندي', NZD:'نيوزلندي', AED:'درهم', SAR:'ريال',
+    EGP:'جنيه', TRY:'ليرة', INR:'روبية', CNY:'يوان', ZAR:'راند', MXN:'بيزو',
+  },
+};
+const getPairNames = (symbol, lang) => {
+  const [base, quote] = String(symbol || '').split('/');
+  const dict = CURRENCY_NAMES[String(lang || '').startsWith('ar') ? 'ar' : 'en'];
+  return `${dict[base] || base || ''} / ${dict[quote] || quote || ''}`;
+};
+
 // ─── شريط الفوركس المتحرك — حركة دائمة بلا ومضة ───────────────────────────────
 const ForexTicker = ({ data, isDark }) => {
+  const { i18n } = useTranslation();
   const C = {
     text: isDark?'#EEEEFF':'#1C1C24',
     muted: isDark?'#7E7EAA':'#8A8A9E',
     success:'#10B981', error:'#EF4444',
-    sep: 'rgba(128,128,128,0.3)',
+    card:   isDark?'#111122':'#FFFFFF',
+    border: isDark?'#1E1E38':'#E8E8F2',
+    flagBg: isDark?'#1E1E38':'#EEF0F6',
   };
 
   const scrollX = useRef(new Animated.Value(0)).current;
@@ -137,19 +159,49 @@ const ForexTicker = ({ data, isDark }) => {
           const digits = item.digits ?? 4;
           return (
             <View key={`${item.id}-${i}`} style={S.tickerItem}>
-              <Text style={S.tickerFlags} numberOfLines={1}>
-                {getPairFlags(item.symbol)}
-              </Text>
-              <Text style={[S.tickerPair, { color: C.muted }]} numberOfLines={1}>
-                {item.symbol}
-              </Text>
-              <Text style={[S.tickerPrice, { color: C.text }]} numberOfLines={1}>
-                {Number(item.current_price || 0).toFixed(digits)}
-              </Text>
-              <Text style={[S.tickerChg, { color: up ? C.success : C.error }]}>
-                {up ? '▲' : '▼'} {Math.abs(item.price_change_percentage_24h || 0).toFixed(2)}%
-              </Text>
-              <View style={[S.tickerSep, { backgroundColor: C.sep }]} />
+              <View style={[S.tickerCard, { backgroundColor: C.card, borderColor: C.border }]}>
+                {/* الأعلام: دائرتان متداخلتان */}
+                <View style={S.fxFlagsWrap}>
+                  <View style={[S.fxFlagCircle, { backgroundColor: C.flagBg, borderColor: C.card }]}>
+                    <Text style={S.fxFlagTxt}>{CURRENCY_FLAGS[String(item.symbol || '').split('/')[0]] || ''}</Text>
+                  </View>
+                  <View style={[S.fxFlagCircle, S.fxFlagCircle2, { backgroundColor: C.flagBg, borderColor: C.card }]}>
+                    <Text style={S.fxFlagTxt}>{CURRENCY_FLAGS[String(item.symbol || '').split('/')[1]] || ''}</Text>
+                  </View>
+                </View>
+
+                {/* الجانب الأول: رمز الزوج + أسماء العملتين */}
+                <View style={S.fxLeft}>
+                  <Text style={[S.fxSymbol, { color: C.text }]} numberOfLines={1}>
+                    {item.symbol}
+                  </Text>
+                  <Text
+                    style={[S.fxNames, { color: C.muted }]}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.8}
+                  >
+                    {getPairNames(item.symbol, i18n.language)}
+                  </Text>
+                </View>
+
+                {/* الجانب الثاني: السعر + نسبة التغير */}
+                <View style={S.fxRight}>
+                  <Text
+                    style={[S.fxPrice, { color: C.text }]}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.7}
+                  >
+                    {Number(item.current_price || 0).toFixed(digits)}
+                  </Text>
+                  <View style={[S.fxChgChip, { backgroundColor: (up ? C.success : C.error) + '1F' }]}>
+                    <Text style={[S.fxChgTxt, { color: up ? C.success : C.error }]}>
+                      {up ? '▲' : '▼'} {Math.abs(item.price_change_percentage_24h || 0).toFixed(2)}%
+                    </Text>
+                  </View>
+                </View>
+              </View>
             </View>
           );
         })}
@@ -785,7 +837,7 @@ const S = StyleSheet.create({
                  alignItems:'center', borderWidth:1 },
 
   tickerWrap: {
-    height: 32,
+    height: 58,
     overflow: 'hidden',
     justifyContent: 'center',
     marginBottom: 10,
@@ -798,16 +850,29 @@ const S = StyleSheet.create({
   },
   tickerItem: {
     width: TICKER_ITEM_WIDTH,
+    paddingHorizontal: 4,
+    direction: 'ltr',
+  },
+  tickerCard: {
     flexDirection: 'row',
     alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: 12,
+    height: 48,
     paddingHorizontal: 8,
     direction: 'ltr',
   },
-  tickerFlags: { fontSize: 11, width: 24, marginRight: 2, textAlign: 'left' },
-  tickerPair:  { fontSize: 11, fontWeight: '700', width: 48, textAlign: 'left' },
-  tickerPrice: { fontSize: 12, fontWeight: '800', marginHorizontal: 4, flex: 1, textAlign: 'left' },
-  tickerChg:   { fontSize: 11, fontWeight: '700', marginLeft: 2, textAlign: 'left' },
-  tickerSep:   { position:'absolute', right:0, top:6, bottom:6, width:1, opacity:0.3 },
+  fxFlagsWrap:   { width: 38, height: 26, marginRight: 6 },
+  fxFlagCircle:  { position: 'absolute', left: 0, top: 1, width: 24, height: 24, borderRadius: 12, borderWidth: 2, justifyContent: 'center', alignItems: 'center' },
+  fxFlagCircle2: { left: 14 },
+  fxFlagTxt:     { fontSize: 12 },
+  fxLeft:        { flex: 1, justifyContent: 'center' },
+  fxSymbol:      { fontSize: 12.5, fontWeight: '800', textAlign: 'left' },
+  fxNames:       { fontSize: 9.5, fontWeight: '600', marginTop: 2, textAlign: 'left' },
+  fxRight:       { alignItems: 'flex-end', justifyContent: 'center', marginLeft: 6, minWidth: 62 },
+  fxPrice:       { fontSize: 15, fontWeight: '800', textAlign: 'right' },
+  fxChgChip:     { marginTop: 3, paddingHorizontal: 6, paddingVertical: 1.5, borderRadius: 999 },
+  fxChgTxt:      { fontSize: 10, fontWeight: '800' },
 
   searchRow:   { flexDirection:'row', alignItems:'center', paddingHorizontal:20, paddingTop:12, paddingBottom:12 },
   searchWrap:  { flex:1, flexDirection:'row', alignItems:'center', borderWidth:1, borderRadius:12, height:44 },
