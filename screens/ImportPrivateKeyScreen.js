@@ -77,7 +77,7 @@ export default function ImportPrivateKeyScreen() {
 
           {/* ⚠️ تحذير أمني مزدوج */}
           <View style={[styles.warningBox, { backgroundColor: colors.warningBg }]}>
-            <Ionicons name="shield-warning" size={24} color={colors.warningText} />
+            <Ionicons name="warning" size={24} color={colors.warningText} />
             <View style={styles.warningContent}>
               <Text style={[styles.warningText, { color: colors.warningText }]}>
                 {t('import_private_key.warning')}

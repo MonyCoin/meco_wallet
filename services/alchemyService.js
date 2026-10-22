@@ -79,6 +79,7 @@ const CACHE = {
   tokens:        new LRUCache(MAX_TOKEN_CACHE_SIZE, CACHE_DURATION),
   blockhash:     null,
   blockhashTime: 0,
+  overview:      {},
   prices:        new LRUCache(20, PRICE_CACHE_DURATION),
 };
 
@@ -399,6 +400,93 @@ export async function getTokenAccounts(address = null) {
   }
 }
 
+// ✅ أرصدة عدة حسابات دفعة واحدة: SOL بطلب واحد لكل 100 حساب + الرموز بطلبين لكل حساب (SPL + Token-2022)
+// يُرجع { [address]: { sol, tokens: { [mint]: amount }, ok } } — ok=false عند فشل جلب الحساب (ولا يُعامل كصفر)
+// options.maxAgeMs: يقبل نتيجة محفوظة أحدث من هذه المدة (الافتراضي 0 = جلب جديد دائمًا)
+const OVERVIEW_CONCURRENCY = 3;
+const OVERVIEW_SOL_CHUNK   = 100;
+
+export async function getAccountsOverview(addresses = [], options = {}) {
+  const maxAgeMs = (options && options.maxAgeMs) || 0;
+  const list     = [...new Set((addresses || []).filter(a => typeof a === 'string' && a))];
+  const result   = {};
+  const now      = Date.now();
+  const todo     = [];
+
+  for (const addr of list) {
+    const cached = CACHE.overview[addr];
+    if (maxAgeMs > 0 && cached && (now - cached.ts) < maxAgeMs) result[addr] = cached.data;
+    else todo.push(addr);
+  }
+  if (todo.length === 0) return result;
+
+  // عناوين غير صالحة: تُعلَّم فاشلة ولا تُرسل للشبكة
+  const valid = [];
+  const keys  = {};
+  for (const addr of todo) {
+    try { keys[addr] = new web3.PublicKey(addr); valid.push(addr); }
+    catch (_) { result[addr] = { sol: 0, tokens: {}, ok: false }; }
+  }
+  if (valid.length === 0) return result;
+
+  // اتصال واحد للعملية كلها (بدل فحص صحة الاتصال مع كل طلب)، وعند الفشل نجدّده مرة ونعيد المحاولة
+  let connection = await rpcManager.getConnection();
+  const call = async (fn) => {
+    try { return await fn(connection); }
+    catch (_) {
+      connection = await rpcManager.getConnection();
+      return await fn(connection);
+    }
+  };
+
+  // SOL: طلب واحد لكل 100 حساب
+  const solByAddr = {};
+  for (let i = 0; i < valid.length; i += OVERVIEW_SOL_CHUNK) {
+    const chunk = valid.slice(i, i + OVERVIEW_SOL_CHUNK);
+    try {
+      const infos = await call(c => c.getMultipleAccountsInfo(chunk.map(a => keys[a])));
+      chunk.forEach((a, idx) => {
+        solByAddr[a] = ((infos && infos[idx] && infos[idx].lamports) || 0) / web3.LAMPORTS_PER_SOL;
+      });
+    } catch (_) { /* تبقى هذه العناوين بلا قيمة SOL فتُعلَّم فاشلة أدناه */ }
+  }
+
+  // الرموز: طلبان لكل حساب (SPL + Token-2022)
+  const fetchTokens = async (addr) => {
+    const tokens = {};
+    for (const programId of [TOKEN_PROGRAM_ID, TOKEN_2022_PROGRAM_ID]) {
+      const res = await call(c => c.getParsedTokenAccountsByOwner(keys[addr], { programId }));
+      for (const acc of (res?.value || [])) {
+        const info = acc?.account?.data?.parsed?.info;
+        if (!info?.mint) continue;
+        const ta  = info.tokenAmount || {};
+        const amt = Number(ta.uiAmountString ?? ta.uiAmount ?? 0);
+        tokens[info.mint] = (tokens[info.mint] || 0) + (isNaN(amt) ? 0 : amt);
+      }
+    }
+    return tokens;
+  };
+
+  let next = 0;
+  const worker = async () => {
+    while (next < valid.length) {
+      const addr = valid[next++];
+      try {
+        const tokens = await fetchTokens(addr);
+        if (solByAddr[addr] === undefined) { result[addr] = { sol: 0, tokens, ok: false }; continue; }
+        const data = { sol: solByAddr[addr], tokens, ok: true };
+        result[addr] = data;
+        CACHE.overview[addr] = { data, ts: Date.now() };
+      } catch (_) {
+        result[addr] = { sol: solByAddr[addr] || 0, tokens: {}, ok: false };
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(OVERVIEW_CONCURRENCY, valid.length) }, worker));
+
+  return result;
+}
+
 export async function validateSolanaAddress(address) {
   try {
     if (!address || typeof address !== 'string') return { isValid: false, exists: false, error: 'INVALID_FORMAT' };
@@ -518,6 +606,7 @@ export async function heliusRpcRequest(method, params = []) {
 }
 
 export function clearBalanceCache(mintAddress) {
+  CACHE.overview = {};
   if (mintAddress) {
     CACHE.tokens.clear();
   } else {

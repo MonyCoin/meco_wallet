@@ -13,7 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { GestureHandlerRootView, Swipeable } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getSolBalance, getTokenAccounts, getTokenBalance, clearBalanceCache } from '../services/heliusService';
+import { getSolBalance, getTokenAccounts, getAccountsOverview, clearBalanceCache } from '../services/heliusService';
 import { CORE_TOKENS, getJupiterMarketData, getCustomTokens } from '../services/jupiterMarketService';
 import { getUserStakingData } from '../services/stakingService';
 import * as LocalAuthentication from 'expo-local-authentication';
@@ -25,6 +25,9 @@ const { width, height } = Dimensions.get('window');
 const TRADE_CARD_PADDING = 20;
 const TRADE_CARD_GAP     = 20;
 const TRADE_CARD_WIDTH   = (width - TRADE_CARD_PADDING * 2 - TRADE_CARD_GAP) / 2;
+
+// ✅ نافذة الأرصدة المجمّعة لشاشة الحسابات — إعادة فتحها خلال هذه المدة لا تعيد الجلب
+const ACCOUNTS_OVERVIEW_CACHE_MS = 3 * 60 * 1000;
 
 const ACCOUNT_EMOJIS = [
   '🦁','🐯','🦊','🐺','🐻','🦝','🦄','🐲','🦅','🦋',
@@ -256,38 +259,45 @@ export default function WalletScreen() {
       const coreMint   = (sym) => CORE_TOKENS.find(t => t.symbol === sym)?.mint;
       const customList = await getCustomTokens().catch(() => []);
 
+      // الحساب النشط له إجمالي جاهز، وبقية الحسابات تُجلب دفعة واحدة (بدل حساب بعد حساب)
+      const others = [];
       for (const acc of accounts) {
-        try {
-          if (acc.index === activeAccountIndex && totalBalanceUSD > 0) {
-            balances[acc.publicKey] = totalBalanceUSD; continue;
-          }
-          const addr   = acc.publicKey;
-          const solBal = await getSolBalance(true, addr).catch(() => 0) || 0;
-          let mecoAmount = 0, usdcAmount = 0, usdtAmount = 0;
-          try { mecoAmount = await getTokenBalance(CORE_TOKENS.find(t => t.symbol === 'MECO').mint, true, addr); } catch (_) {}
-          await new Promise(r => setTimeout(r, 200));
-          try { usdcAmount = await getTokenBalance('EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', true, addr); } catch (_) {}
-          await new Promise(r => setTimeout(r, 200));
-          try { usdtAmount = await getTokenBalance('Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB', true, addr); } catch (_) {}
-          balances[acc.publicKey] =
-            (solBal     * (priceMap[coreMint('SOL')]  || 0)) +
-            (mecoAmount * (priceMap[coreMint('MECO')] || 0)) +
-            (usdcAmount * (priceMap[coreMint('USDC')] || 0)) +
-            (usdtAmount * (priceMap[coreMint('USDT')] || 0));
+        if (acc.index === activeAccountIndex && totalBalanceUSD > 0) {
+          balances[acc.publicKey] = totalBalanceUSD;
+        } else {
+          others.push(acc);
+        }
+      }
 
-          // العملات المخصصة التي أضافها المستخدم من شاشة السوق
-          if (customList.length > 0) {
-            await new Promise(r => setTimeout(r, 200));
-            const accTokens = await getTokenAccounts(addr).catch(() => []);
-            for (const ct of customList) {
-              const held = accTokens.find(tk => tk.mint === ct.mint);
-              const amt  = held?.amount || 0;
-              if (amt > 0) {
-                balances[acc.publicKey] += amt * (priceMap[ct.mint] || ct.current_price || 0);
-              }
-            }
-          }
-        } catch (_) { balances[acc.publicKey] = 0; }
+      let overview = {};
+      try {
+        overview = others.length
+          ? await getAccountsOverview(others.map(a => a.publicKey), { maxAgeMs: ACCOUNTS_OVERVIEW_CACHE_MS })
+          : {};
+      } catch (_) { overview = {}; }
+
+      const solMint  = coreMint('SOL');
+      const mecoMint = coreMint('MECO');
+      const usdcMint = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
+      const usdtMint = 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB';
+
+      for (const acc of others) {
+        const ov = overview[acc.publicKey];
+        if (!ov || !ov.ok) { balances[acc.publicKey] = 0; continue; }
+        const tk = ov.tokens || {};
+
+        let total =
+          ((ov.sol || 0)            * (priceMap[solMint]            || 0)) +
+          ((tk[mecoMint] || 0)      * (priceMap[coreMint('MECO')]   || 0)) +
+          ((tk[usdcMint] || 0)      * (priceMap[coreMint('USDC')]   || 0)) +
+          ((tk[usdtMint] || 0)      * (priceMap[coreMint('USDT')]   || 0));
+
+        // العملات المخصصة التي أضافها المستخدم من شاشة السوق
+        for (const ct of customList) {
+          const amt = tk[ct.mint] || 0;
+          if (amt > 0) total += amt * (priceMap[ct.mint] || ct.current_price || 0);
+        }
+        balances[acc.publicKey] = total;
       }
     } catch (err) {
       console.error('fetchAccountUsdBalances error:', err);

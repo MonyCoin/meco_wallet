@@ -191,7 +191,7 @@ export default function ImportWalletScreen() {
           </View>
 
           <View style={[styles.warningBox, { backgroundColor: colors.warningBg }]}>
-            <Ionicons name="shield-warning" size={24} color={colors.warningText} />
+            <Ionicons name="warning" size={24} color={colors.warningText} />
             <View style={styles.warningContent}>
               <Text style={[styles.warningText, { color: colors.warningText }]}>
                 {t('import_wallet_warning', 'لا تشارك عبارة الاسترداد مع أي شخص.')}

@@ -1,6 +1,6 @@
 // services/balanceMonitorService.js
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getSolBalance, getTokenBalance } from './heliusService';
+import { getAccountsOverview } from './heliusService';
 import { CORE_TOKENS, getCustomTokens } from './jupiterMarketService';
 import { addNotification, NOTIF_TYPES } from './notificationsService';
 
@@ -26,40 +26,30 @@ const saveSnapshots = async (snapshots) => {
   }
 };
 
-// ─── جلب كل أرصدة حساب واحد (SOL + Core + Custom) ─────────────────────────
-const fetchAccountBalances = async (publicKey) => {
-  const balances = {};
+// ─── قائمة الرموز المراقَبة (Core + Custom) — نفس قواعد التسمية السابقة ──────
+const buildTokenList = (customTokens) => {
+  const list = [];
+  const seen = new Set(['SOL']);
 
-  // SOL
-  try {
-    balances['SOL'] = (await getSolBalance(true, publicKey)) || 0;
-  } catch (_) {
-    balances['SOL'] = 0;
-  }
-
-  // Core tokens (ما عدا SOL)
   for (const token of CORE_TOKENS) {
     if (token.symbol === 'SOL' || !token.mint) continue;
-    try {
-      balances[token.symbol] = (await getTokenBalance(token.mint, true, publicKey)) || 0;
-    } catch (_) {
-      balances[token.symbol] = 0;
-    }
+    list.push(token);
+    seen.add(token.symbol);
   }
+  for (const token of (customTokens || [])) {
+    if (!token.mint || seen.has(token.symbol)) continue;
+    list.push(token);
+    seen.add(token.symbol);
+  }
+  return list;
+};
 
-  // Custom tokens
-  try {
-    const customTokens = await getCustomTokens();
-    for (const token of customTokens) {
-      if (!token.mint || balances[token.symbol] !== undefined) continue;
-      try {
-        balances[token.symbol] = (await getTokenBalance(token.mint, true, publicKey)) || 0;
-      } catch (_) {
-        balances[token.symbol] = 0;
-      }
-    }
-  } catch (_) {}
-
+// ─── أرصدة حساب واحد بصيغة اللقطة نفسها { SOL, MECO, ... } من نتيجة الجلب المجمّع ─
+const balancesFromOverview = (entry, tokenList) => {
+  const balances = { SOL: entry.sol || 0 };
+  for (const token of tokenList) {
+    balances[token.symbol] = entry.tokens[token.mint] || 0;
+  }
   return balances;
 };
 
@@ -85,12 +75,24 @@ export const checkBalanceChanges = async (accounts) => {
 
     const isFirstRun = Object.keys(oldSnapshots).length === 0;
 
-    // فحص كل حساب
-    for (const account of accounts) {
-      const publicKey = account?.publicKey;
-      if (!publicKey) continue;
+    // ✅ جلب أرصدة كل الحسابات دفعة واحدة (بدل طلب لكل رمز في كل حساب)
+    const accountList  = accounts.filter(a => a?.publicKey);
+    const customTokens = await getCustomTokens().catch(() => []);
+    const tokenList    = buildTokenList(customTokens);
+    const overview     = await getAccountsOverview(accountList.map(a => a.publicKey));
 
-      const currentBalances = await fetchAccountBalances(publicKey);
+    // فحص كل حساب
+    for (const account of accountList) {
+      const publicKey = account.publicKey;
+      const entry     = overview[publicKey];
+
+      // فشل جلب هذا الحساب: نُبقي لقطته السابقة كما هي ولا نعتبر الرصيد صفرًا
+      if (!entry || !entry.ok) {
+        if (oldSnapshots[publicKey]) newSnapshots[publicKey] = oldSnapshots[publicKey];
+        continue;
+      }
+
+      const currentBalances = balancesFromOverview(entry, tokenList);
       newSnapshots[publicKey] = currentBalances;
 
       // المقارنة فقط إذا كان لدينا snapshot سابق
