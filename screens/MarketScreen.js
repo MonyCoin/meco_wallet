@@ -28,7 +28,7 @@ const EXT_CARD_GAP     = 20;
 const EXT_CARD_WIDTH   = (width - EXT_CARD_PADDING * 2 - EXT_CARD_GAP) / 2;
 
 // ✅ شريط الفوركس — حركة دائمة بلا توقف، وسلوك موحّد في اللغتين
-const TICKER_ITEM_WIDTH       = 200; // خانة البطاقة = بطاقة بعرض 192 + هامش 4 على كل جانب — تبقى الحركة متصلة
+const TICKER_ITEM_WIDTH       = 164; // خانة البطاقة = بطاقة بعرض 156 + هامش 4 على كل جانب — تبقى الحركة متصلة
 const TICKER_SPEED_PX_PER_SEC = 55;
 
 const EXTERNAL_TOKENS = [
@@ -837,7 +837,7 @@ const S = StyleSheet.create({
                  alignItems:'center', borderWidth:1 },
 
   tickerWrap: {
-    height: 58,
+    height: 54,
     overflow: 'hidden',
     justifyContent: 'center',
     marginBottom: 10,
@@ -858,21 +858,21 @@ const S = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderRadius: 12,
-    height: 48,
-    paddingHorizontal: 8,
+    height: 44,
+    paddingHorizontal: 6,
     direction: 'ltr',
   },
-  fxFlagsWrap:   { width: 38, height: 26, marginRight: 6 },
-  fxFlagCircle:  { position: 'absolute', left: 0, top: 1, width: 24, height: 24, borderRadius: 12, borderWidth: 2, justifyContent: 'center', alignItems: 'center' },
-  fxFlagCircle2: { left: 14 },
-  fxFlagTxt:     { fontSize: 12 },
+  fxFlagsWrap:   { width: 32, height: 22, marginRight: 4 },
+  fxFlagCircle:  { position: 'absolute', left: 0, top: 1, width: 20, height: 20, borderRadius: 10, borderWidth: 1.5, justifyContent: 'center', alignItems: 'center' },
+  fxFlagCircle2: { left: 12 },
+  fxFlagTxt:     { fontSize: 10 },
   fxLeft:        { flex: 1, justifyContent: 'center' },
-  fxSymbol:      { fontSize: 12.5, fontWeight: '800', textAlign: 'left' },
-  fxNames:       { fontSize: 9.5, fontWeight: '600', marginTop: 2, textAlign: 'left' },
-  fxRight:       { alignItems: 'flex-end', justifyContent: 'center', marginLeft: 6, minWidth: 62 },
-  fxPrice:       { fontSize: 15, fontWeight: '800', textAlign: 'right' },
-  fxChgChip:     { marginTop: 3, paddingHorizontal: 6, paddingVertical: 1.5, borderRadius: 999 },
-  fxChgTxt:      { fontSize: 10, fontWeight: '800' },
+  fxSymbol:      { fontSize: 11.5, fontWeight: '800', textAlign: 'left' },
+  fxNames:       { fontSize: 9, fontWeight: '600', marginTop: 1, textAlign: 'left' },
+  fxRight:       { alignItems: 'flex-end', justifyContent: 'center', marginLeft: 4, minWidth: 50 },
+  fxPrice:       { fontSize: 12.5, fontWeight: '800', textAlign: 'right' },
+  fxChgChip:     { marginTop: 2, paddingHorizontal: 5, paddingVertical: 1, borderRadius: 999 },
+  fxChgTxt:      { fontSize: 9, fontWeight: '800' },
 
   searchRow:   { flexDirection:'row', alignItems:'center', paddingHorizontal:20, paddingTop:12, paddingBottom:12 },
   searchWrap:  { flex:1, flexDirection:'row', alignItems:'center', borderWidth:1, borderRadius:12, height:44 },
