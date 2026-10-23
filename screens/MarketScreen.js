@@ -9,6 +9,7 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useAppStore } from '../store';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
+import Svg, { Defs, LinearGradient, RadialGradient, Stop, Path, Circle } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
@@ -210,6 +211,180 @@ const ForexTicker = ({ data, isDark }) => {
   );
 };
 
+// ═════════════════════════════════════════════════════════════════════════════
+// ✅ بانر MECO المباشر — رسوم متحركة بالكود (SVG + Animated الأصلي بمحرك native)
+// ملاحظة: المنحنى زخرفي وليس بيانات تاريخية حقيقية، يميل صعودًا أو هبوطًا بحسب إشارة تغير MECO خلال 24 ساعة
+// ═════════════════════════════════════════════════════════════════════════════
+const MECO_MINT_ADDR = 'A5Ln25cfww33kfUSzBb89bMha7j1PnFQTy7H3FsQHN7W';
+const HERO_W      = width - 40;           // عرض محتوى الشاشة (هامش 20 على الجانبين)
+const HERO_H      = 176;
+const HERO_N      = 48;                    // عدد نقاط المنحنى
+const HERO_GREEN  = '#10B981';
+const HERO_RED    = '#EF4444';
+
+const buildHeroCurve = (up) => {
+  const pts = [];
+  for (let i = 0; i <= HERO_N; i++) {
+    const t     = i / HERO_N;
+    const wave  = Math.sin(t * 9.4) * 0.07 + Math.sin(t * 21 + 1.3) * 0.035 + Math.sin(t * 4.1 + 0.6) * 0.05;
+    const trend = (up ? 1 : -1) * (t - 0.5) * 0.55;
+    const v     = Math.min(0.95, Math.max(0.05, 0.5 + trend + wave));
+    pts.push({ x: t * HERO_W, y: 154 - v * 76 });
+  }
+  // مسار سلس عبر نقاط المنتصف (Quadratic)
+  let line = `M ${pts[0].x.toFixed(1)} ${pts[0].y.toFixed(1)}`;
+  for (let i = 1; i < pts.length - 1; i++) {
+    const mx = (pts[i].x + pts[i + 1].x) / 2;
+    const my = (pts[i].y + pts[i + 1].y) / 2;
+    line += ` Q ${pts[i].x.toFixed(1)} ${pts[i].y.toFixed(1)} ${mx.toFixed(1)} ${my.toFixed(1)}`;
+  }
+  const last = pts[pts.length - 1];
+  line += ` L ${last.x.toFixed(1)} ${last.y.toFixed(1)}`;
+  const area = `${line} L ${HERO_W} ${HERO_H} L 0 ${HERO_H} Z`;
+  return { pts, line, area };
+};
+
+const MarketHeroBanner = React.memo(({ token, primaryColor, onPress, onTrade }) => {
+  const { t } = useTranslation();
+  const price  = token?.current_price || 0;
+  const change = token?.price_change_percentage_24h || 0;
+  const up     = change >= 0;
+  const accent = up ? HERO_GREEN : HERO_RED;
+
+  const curve = useMemo(() => buildHeroCurve(up), [up]);
+
+  const drift  = useRef(new Animated.Value(0)).current;
+  const travel = useRef(new Animated.Value(0)).current;
+  const pulse  = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const a1 = Animated.loop(Animated.sequence([
+      Animated.timing(drift, { toValue: 1, duration: 7000, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+      Animated.timing(drift, { toValue: 0, duration: 7000, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+    ]));
+    const a2 = Animated.loop(
+      Animated.timing(travel, { toValue: 1, duration: 7500, easing: Easing.linear, useNativeDriver: true })
+    );
+    const a3 = Animated.loop(
+      Animated.timing(pulse, { toValue: 1, duration: 1600, easing: Easing.out(Easing.quad), useNativeDriver: true })
+    );
+    a1.start(); a2.start(); a3.start();
+    return () => { a1.stop(); a2.stop(); a3.stop(); };
+  }, [drift, travel, pulse]);
+
+  const inputRange = useMemo(() => curve.pts.map((_, i) => i / HERO_N), [curve]);
+  const dotX = useMemo(
+    () => travel.interpolate({ inputRange, outputRange: curve.pts.map(p => p.x - 7) }),
+    [travel, inputRange, curve]
+  );
+  const dotY = useMemo(
+    () => travel.interpolate({ inputRange, outputRange: curve.pts.map(p => p.y - 7) }),
+    [travel, inputRange, curve]
+  );
+
+  const orb1X = drift.interpolate({ inputRange: [0, 1], outputRange: [-14, 26] });
+  const orb1Y = drift.interpolate({ inputRange: [0, 1], outputRange: [0, 14] });
+  const orb2X = drift.interpolate({ inputRange: [0, 1], outputRange: [18, -22] });
+  const orb2Y = drift.interpolate({ inputRange: [0, 1], outputRange: [10, -8] });
+  const ringScale   = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 2.6] });
+  const ringOpacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.55, 0] });
+  const liveOpacity = pulse.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 0.35, 1] });
+
+  return (
+    <TouchableOpacity activeOpacity={0.94} onPress={onPress} style={S.hero}>
+      {/* الخلفية: تدرج داكن */}
+      <Svg width={HERO_W} height={HERO_H} style={StyleSheet.absoluteFill}>
+        <Defs>
+          <LinearGradient id="heroBg" x1="0" y1="0" x2="1" y2="1">
+            <Stop offset="0" stopColor="#15152E" />
+            <Stop offset="1" stopColor="#0A0A16" />
+          </LinearGradient>
+          <LinearGradient id="heroArea" x1="0" y1="0" x2="0" y2="1">
+            <Stop offset="0" stopColor={accent} stopOpacity="0.28" />
+            <Stop offset="1" stopColor={accent} stopOpacity="0" />
+          </LinearGradient>
+          <LinearGradient id="heroLine" x1="0" y1="0" x2="1" y2="0">
+            <Stop offset="0" stopColor={accent} stopOpacity="0.15" />
+            <Stop offset="0.5" stopColor={accent} stopOpacity="0.95" />
+            <Stop offset="1" stopColor={accent} stopOpacity="1" />
+          </LinearGradient>
+        </Defs>
+        <Path d={`M 0 0 L ${HERO_W} 0 L ${HERO_W} ${HERO_H} L 0 ${HERO_H} Z`} fill="url(#heroBg)" />
+      </Svg>
+
+      {/* بقع ضوء تتحرك ببطء */}
+      <Animated.View pointerEvents="none" style={[S.heroOrb, { top: -70, right: -50, transform: [{ translateX: orb1X }, { translateY: orb1Y }] }]}>
+        <Svg width={220} height={220}>
+          <Defs>
+            <RadialGradient id="heroOrb1" cx="50%" cy="50%" r="50%">
+              <Stop offset="0" stopColor={primaryColor} stopOpacity="0.45" />
+              <Stop offset="1" stopColor={primaryColor} stopOpacity="0" />
+            </RadialGradient>
+          </Defs>
+          <Circle cx="110" cy="110" r="110" fill="url(#heroOrb1)" />
+        </Svg>
+      </Animated.View>
+      <Animated.View pointerEvents="none" style={[S.heroOrb, { bottom: -90, left: -60, transform: [{ translateX: orb2X }, { translateY: orb2Y }] }]}>
+        <Svg width={220} height={220}>
+          <Defs>
+            <RadialGradient id="heroOrb2" cx="50%" cy="50%" r="50%">
+              <Stop offset="0" stopColor={accent} stopOpacity="0.28" />
+              <Stop offset="1" stopColor={accent} stopOpacity="0" />
+            </RadialGradient>
+          </Defs>
+          <Circle cx="110" cy="110" r="110" fill="url(#heroOrb2)" />
+        </Svg>
+      </Animated.View>
+
+      {/* المنحنى */}
+      <Svg width={HERO_W} height={HERO_H} style={StyleSheet.absoluteFill} pointerEvents="none">
+        <Path d={curve.area} fill="url(#heroArea)" />
+        <Path d={curve.line} fill="none" stroke="url(#heroLine)" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" />
+      </Svg>
+
+      {/* نقطة مضيئة تسير على المنحنى */}
+      <Animated.View pointerEvents="none" style={[S.heroDotWrap, { transform: [{ translateX: dotX }, { translateY: dotY }] }]}>
+        <Animated.View style={[S.heroDotRing, { backgroundColor: accent, opacity: ringOpacity, transform: [{ scale: ringScale }] }]} />
+        <View style={[S.heroDotCore, { backgroundColor: accent, shadowColor: accent }]} />
+      </Animated.View>
+
+      {/* المحتوى */}
+      <View style={S.heroTop}>
+        <View style={S.heroTitleRow}>
+          <TokenIconImg uri={token?.image} size={26} symbol="M" bg="rgba(255,255,255,0.08)" color="#FFF" />
+          <Text style={S.heroTitle}>MECO</Text>
+          <Text style={S.heroTitleSub}>/ USD</Text>
+          <View style={S.heroLivePill}>
+            <Animated.View style={[S.heroLiveDot, { opacity: liveOpacity }]} />
+            <Text style={S.heroLiveTxt}>{t('market_hero_live', 'مباشر')}</Text>
+          </View>
+        </View>
+        <TouchableOpacity
+          style={[S.heroCta, { backgroundColor: primaryColor }]}
+          onPress={onTrade}
+          activeOpacity={0.85}
+        >
+          <Text style={S.heroCtaTxt}>{t('market_hero_trade', 'تداول MECO')}</Text>
+          <Ionicons name="arrow-forward" size={13} color="#FFF" />
+        </TouchableOpacity>
+      </View>
+
+      <View style={S.heroBottom}>
+        <Text style={S.heroPrice} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+          {price > 0 ? fmtPrice(price) : '—'}
+        </Text>
+        {price > 0 && (
+          <View style={[S.heroChgChip, { backgroundColor: accent + '26' }]}>
+            <Ionicons name={up ? 'caret-up' : 'caret-down'} size={10} color={accent} />
+            <Text style={[S.heroChgTxt, { color: accent }]}>{Math.abs(change).toFixed(2)}%</Text>
+            <Text style={S.heroChgSub}>{t('time_24h')}</Text>
+          </View>
+        )}
+      </View>
+    </TouchableOpacity>
+  );
+});
+
 const MarketOverviewCard = React.memo(({ data, isDark, primaryColor }) => {
   const { t } = useTranslation();
   const C = {
@@ -279,7 +454,7 @@ const TokenListItem = React.memo(({ token, onPress, onLongPress, isDark, primary
   const up = (token.price_change_percentage_24h || 0) >= 0;
   return (
     <TouchableOpacity
-      style={[S.tokenRow, { borderBottomColor:C.border }]}
+      style={S.tokenRow}
       onPress={() => onPress(token)}
       onLongPress={() => onLongPress(token)}
       activeOpacity={0.7}
@@ -544,6 +719,8 @@ export default function MarketScreen() {
     }
   };
 
+  const mecoToken = useMemo(() => tokens.find(tk => tk.mint === MECO_MINT_ADDR) || null, [tokens]);
+
   const filtered = useMemo(() => {
     let list = tokens.filter(tk => {
       if (searchQuery) {
@@ -656,7 +833,12 @@ export default function MarketScreen() {
         showsVerticalScrollIndicator={false}
       >
         {!searchActive && (
-          <MarketOverviewCard data={overview} isDark={isDark} primaryColor={primaryColor} />
+          <MarketHeroBanner
+            token={mecoToken}
+            primaryColor={primaryColor}
+            onPress={() => mecoToken && navigation.navigate('TokenDetails', { token: mecoToken })}
+            onTrade={() => mecoToken && navigation.navigate('TradeExecution', { token: mecoToken, side: 'buy' })}
+          />
         )}
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap:6, paddingBottom:12 }}>
@@ -693,7 +875,7 @@ export default function MarketScreen() {
           ))}
         </View>
 
-        <View style={[S.listContainer, { backgroundColor:C.card, borderColor:C.border }]}>
+        <View style={S.listFlat}>
           {filtered.length === 0 ? (
             <View style={S.empty}>
               <Ionicons name="search-outline" size={36} color={C.muted} />
@@ -715,6 +897,10 @@ export default function MarketScreen() {
 
         {!searchQuery && (
           <>
+            {!searchActive && (
+              <MarketOverviewCard data={overview} isDark={isDark} primaryColor={primaryColor} />
+            )}
+
             <HorizontalMarketSection
               titleKey="global_markets"
               descKey="global_markets_desc"
@@ -882,6 +1068,26 @@ const S = StyleSheet.create({
 
   scroll:      { paddingHorizontal:20 },
 
+  hero:          { height:HERO_H, borderRadius:22, overflow:'hidden', marginBottom:16, direction:'ltr' },
+  heroOrb:       { position:'absolute', width:220, height:220 },
+  heroDotWrap:   { position:'absolute', left:0, top:0, width:14, height:14, alignItems:'center', justifyContent:'center' },
+  heroDotRing:   { position:'absolute', width:14, height:14, borderRadius:7 },
+  heroDotCore:   { width:9, height:9, borderRadius:4.5, shadowOpacity:0.9, shadowRadius:6, shadowOffset:{ width:0, height:0 }, elevation:6 },
+  heroTop:       { position:'absolute', top:14, left:16, right:14, flexDirection:'row', alignItems:'center', justifyContent:'space-between' },
+  heroTitleRow:  { flexDirection:'row', alignItems:'center', gap:7 },
+  heroTitle:     { color:'#FFFFFF', fontSize:16, fontWeight:'800' },
+  heroTitleSub:  { color:'rgba(255,255,255,0.45)', fontSize:12, fontWeight:'600', marginLeft:-3 },
+  heroLivePill:  { flexDirection:'row', alignItems:'center', gap:5, backgroundColor:'rgba(16,185,129,0.14)', paddingHorizontal:8, paddingVertical:3, borderRadius:999, marginLeft:4 },
+  heroLiveDot:   { width:6, height:6, borderRadius:3, backgroundColor:'#10B981' },
+  heroLiveTxt:   { color:'#10B981', fontSize:10, fontWeight:'800' },
+  heroCta:       { flexDirection:'row', alignItems:'center', gap:5, paddingHorizontal:12, paddingVertical:7, borderRadius:999 },
+  heroCtaTxt:    { color:'#FFFFFF', fontSize:12, fontWeight:'800' },
+  heroBottom:    { position:'absolute', top:52, left:16, right:16 },
+  heroPrice:     { color:'#FFFFFF', fontSize:32, fontWeight:'800', letterSpacing:-0.5, maxWidth:'70%' },
+  heroChgChip:   { flexDirection:'row', alignItems:'center', gap:4, alignSelf:'flex-start', paddingHorizontal:9, paddingVertical:3, borderRadius:999, marginTop:4 },
+  heroChgTxt:    { fontSize:12, fontWeight:'800' },
+  heroChgSub:    { color:'rgba(255,255,255,0.5)', fontSize:10, fontWeight:'600', marginLeft:2 },
+
   overviewCard:  { borderRadius:18, padding:16, marginBottom:14, borderWidth:1 },
   overviewRow:   { flexDirection:'row', justifyContent:'space-between' },
   overviewItem:  { flex:1, alignItems:'center' },
@@ -898,8 +1104,8 @@ const S = StyleSheet.create({
   sortBtn:     { paddingHorizontal:10, paddingVertical:5, borderRadius:8, borderWidth:1 },
   sortTxt:     { fontSize:12, fontWeight:'600' },
 
-  listContainer:{ borderRadius:18, borderWidth:1, overflow:'hidden', paddingVertical:4, marginBottom:20 },
-  tokenRow:    { flexDirection:'row', alignItems:'center', padding:12, borderBottomWidth:1 },
+  listFlat:    { marginBottom:20 },
+  tokenRow:    { flexDirection:'row', alignItems:'center', paddingVertical:13, paddingHorizontal:2 },
   tokenLeft:   { flexDirection:'row', alignItems:'center', flex:1, gap:10 },
   tokenIcon:   { width:36, height:36, borderRadius:18, justifyContent:'center', alignItems:'center' },
   tokenIconImg:{ width:36, height:36, borderRadius:18 },

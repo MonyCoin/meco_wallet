@@ -1731,6 +1731,8 @@ i18n.addResourceBundle('en', 'translation', {
 // ═════════════════════════════════════════════════════════════════════════════
 i18n.addResourceBundle('ar', 'translation', {
   market_pulse_title: 'نبض السوق',
+  market_hero_live: 'مباشر',
+  market_hero_trade: 'تداول MECO',
   staking_summary_title: 'ملخص التخزين',
   staking_summary_staked_label: 'المبلغ المخزّن',
   staking_summary_rewards_label: 'الأرباح المتراكمة',
@@ -1741,6 +1743,8 @@ i18n.addResourceBundle('ar', 'translation', {
 
 i18n.addResourceBundle('en', 'translation', {
   market_pulse_title: 'Market Pulse',
+  market_hero_live: 'LIVE',
+  market_hero_trade: 'Trade MECO',
   staking_summary_title: 'Staking Summary',
   staking_summary_staked_label: 'Staked Amount',
   staking_summary_rewards_label: 'Accumulated Rewards',
