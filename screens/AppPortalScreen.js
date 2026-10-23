@@ -16,8 +16,9 @@ import { initWalletConnect, pairWalletConnect } from '../services/walletConnectS
 const { width } = Dimensions.get('window');
 const BOOKMARKS_KEY = '@meco_bookmarks';
 const HISTORY_KEY   = '@meco_browsing_history';
-const GAP     = 12;
-const CARD_W  = (width - 40 - GAP) / 2;
+const BANNER_W      = width - 40;
+const BANNER_GAP    = 12;
+const BANNER_H      = 124;
 
 const DAPPS = [
   { id:'jupiter',  name:'Jupiter',  icon:'https://assets.coingecko.com/coins/images/34188/large/jup.png',  url:'https://jup.ag',  category:'trading', badge:'DEX',  featured:true },
@@ -31,12 +32,31 @@ const DAPPS = [
   { id:'solend',   name:'Solend',   icon:'https://assets.coingecko.com/coins/images/19573/standard/logo.webp', url:'https://solend.fi/dashboard',          category:'defi',    badge:'5% APY' },
 ];
 
+// تبويبات قسم "اكتشف"
+const DISCOVER_TABS = [
+  { id:'featured',  labelKey:'portal_tab_featured',  def:'مميز',        apps:['jupiter', 'orca', 'jito'] },
+  { id:'earn',      labelKey:'portal_tab_earn',      def:'ربح',         apps:['marinade', 'jito', 'kamino', 'solend'] },
+  { id:'ecosystem', labelKey:'portal_tab_ecosystem', def:'نظام بيئي',   apps:['raydium', 'meteora', 'drift'] },
+];
+
+// البطاقات المميزة القابلة للتمرير
+const BANNERS = [
+  { id:'jupiter',  app:'jupiter',  colors:['#3B2FB8', '#241C86'], tKey:'portal_b1_title', sKey:'portal_b1_sub', tDef:'تداول بأفضل سعر',       sDef:'مبادلة فورية عبر Jupiter' },
+  { id:'marinade', app:'marinade', colors:['#0E7A6B', '#0A4F47'], tKey:'portal_b2_title', sKey:'portal_b2_sub', tDef:'اربح من SOL',           sDef:'تخزين سائل مع Marinade' },
+  { id:'orca',     app:'orca',     colors:['#B4325F', '#7A1F40'], tKey:'portal_b3_title', sKey:'portal_b3_sub', tDef:'وفّر السيولة واربح',    sDef:'مجمعات السيولة على Orca' },
+  { id:'drift',    app:'drift',    colors:['#5B3BC4', '#33217D'], tKey:'portal_b4_title', sKey:'portal_b4_sub', tDef:'تداول العقود الدائمة',  sDef:'منصة Drift اللامركزية' },
+];
+
+const getHost = (url) => {
+  try { return url.replace(/^https?:\/\//, '').split('/')[0]; } catch (_) { return ''; }
+};
+
 const SafeImg = ({ uri, size, radiusRatio = 0.28 }) => {
   const [err, setErr] = useState(false);
   if (err || !uri) return (
     <View style={{ width:size, height:size, borderRadius:size*radiusRatio,
-      backgroundColor:'rgba(100,100,160,0.08)', justifyContent:'center', alignItems:'center' }}>
-      <Ionicons name="globe-outline" size={size*0.45} color="rgba(100,100,160,0.35)" />
+      backgroundColor:'rgba(100,100,160,0.12)', justifyContent:'center', alignItems:'center' }}>
+      <Ionicons name="globe-outline" size={size*0.45} color="rgba(140,140,200,0.5)" />
     </View>
   );
   return (
@@ -50,33 +70,28 @@ export default function AppPortalScreen() {
   const { t }        = useTranslation();
   const navigation   = useNavigation();
   const route        = useRoute();
-  const theme        = useAppStore(s => s.theme);
   const primaryColor = useAppStore(s => s.primaryColor || '#6C63FF');
-  const isDark       = theme === 'dark';
+  const accounts     = useAppStore(s => s.accounts);
+  const activeIdx    = useAppStore(s => s.activeAccountIndex);
+  const walletName   = useAppStore(s => s.walletName);
   const insets       = useSafeAreaInsets();
 
   const C = {
-    bg:      isDark ? '#07070F' : '#F2F3F7',
-    card:    isDark ? '#0F0F1E' : '#FFFFFF',
-    card2:   isDark ? '#171730' : '#ECECF4',
-    text:    isDark ? '#EEEEFF' : '#0D0D1A',
-    muted:   isDark ? '#6E6EA0' : '#9090A8',
-    border:  isDark ? '#1E1E38' : '#E4E4F0',
+    bg:      '#07070F',
+    card:    '#111122',
+    card2:   '#171730',
+    text:    '#EEEEFF',
+    muted:   '#7E7EAA',
+    border:  '#1E1E38',
     accent:  primaryColor,
-    inputBg: isDark ? '#13132A' : '#EDEDF6',
+    inputBg: '#13132A',
     danger:  '#EF4444',
   };
 
-  const FILTERS = [
-    { id:'all',     label: t('all', 'الكل') },
-    { id:'staking', label: t('category_staking', 'Staking') },
-    { id:'defi',    label: t('category_defi', 'DeFi') },
-    { id:'trading', label: t('category_trading', 'Trading') },
-    { id:'pools',   label: t('category_pools', 'Pools') },
-  ];
-
-  const [filter,      setFilter]      = useState('all');
+  const [tab,         setTab]         = useState('featured');
   const [view,        setView]        = useState('explore');
+  const [menuOpen,    setMenuOpen]    = useState(false);
+  const [bannerIdx,   setBannerIdx]   = useState(0);
   const [search,      setSearch]      = useState('');
   const [bookmarks,   setBookmarks]   = useState([]);
   const [bmLoading,   setBmLoading]   = useState(true);
@@ -169,11 +184,17 @@ export default function AppPortalScreen() {
     openUrl(url, 'Web3');
   };
 
-  const filtered    = filter === 'all' ? DAPPS : DAPPS.filter(d => d.category === filter);
-  const heroApp     = filter === 'all' ? DAPPS.find(d => d.featured) : null;
-  const gridApps    = heroApp ? filtered.filter(d => d.id !== heroApp.id) : filtered;
-  const padTop      = Platform.OS === 'ios' ? insets.top + 10 : insets.top + 18;
-  const padBot      = insets.bottom + 80;
+  const avatarLetter = ((accounts?.[activeIdx]?.name || walletName || 'M').trim().charAt(0) || 'M').toUpperCase();
+  const padTop = Platform.OS === 'ios' ? insets.top + 10 : insets.top + 18;
+  const padBot = insets.bottom + 80;
+
+  const appById = (id) => DAPPS.find(d => d.id === id);
+  const activeTab = DISCOVER_TABS.find(x => x.id === tab) || DISCOVER_TABS[0];
+  const discoverApps = activeTab.apps.map(appById).filter(Boolean);
+  // المفضلة: مواقع المستخدم المحفوظة، وإن لم توجد تظهر التطبيقات الأساسية
+  const favItems = bookmarks.length > 0
+    ? bookmarks.map(b => ({ id:b.id, name:b.name, url:b.url, icon: b.iconUrl || `https://www.google.com/s2/favicons?domain=${getHost(b.url)}&sz=128`, removable:true }))
+    : ['jupiter', 'orca', 'raydium', 'marinade'].map(appById).filter(Boolean);
 
   const fmtHistoryTime = (ts) => {
     if (!ts) return '';
@@ -185,137 +206,49 @@ export default function AppPortalScreen() {
     return new Date(ts).toLocaleDateString();
   };
 
-  // ── Hero Card ─────────────────────────────────────────────────────────────
-  const HeroCard = ({ item }) => (
-    <TouchableOpacity
-      style={[S.hero, { backgroundColor:C.card, borderColor:C.border }]}
-      onPress={() => openUrl(item.url, item.name)}
-      activeOpacity={0.85}
-    >
-      <View style={[S.heroIcon, { backgroundColor:C.card2, borderColor:C.border }]}>
-        <SafeImg uri={item.icon} size={52} radiusRatio={0.28} />
-      </View>
-      <View style={{ flex:1 }}>
-        <Text style={[S.heroName, { color:C.text }]}>{item.name}</Text>
-        <Text style={[S.heroDesc, { color:C.muted }]} numberOfLines={1}>
-          {t(`desc_${item.id}`, { defaultValue: t('featured_app', 'تطبيق مميز') })}
-        </Text>
-        <View style={S.heroMetaRow}>
-          <Text style={[S.heroBadgeTxt, { color:C.muted }]} numberOfLines={1}>
-            {item.badge}
-          </Text>
-          <View style={S.heroOpen}>
-            <Text style={[S.heroOpenTxt, { color:C.accent }]}>
-              {t('portal_open_app', 'افتح التطبيق')}
-            </Text>
-            <Ionicons name="arrow-forward" size={13} color={C.accent} />
-          </View>
-        </View>
-      </View>
-    </TouchableOpacity>
-  );
+  const onBannerScroll = (e) => {
+    const i = Math.round(e.nativeEvent.contentOffset.x / (BANNER_W + BANNER_GAP));
+    if (i !== bannerIdx) setBannerIdx(i);
+  };
 
-  // ── Dapp Grid Card ────────────────────────────────────────────────────────
-  const DappCard = ({ item }) => (
-    <TouchableOpacity
-      style={[S.card, { backgroundColor:C.card, borderColor:C.border, width:CARD_W }]}
-      onPress={() => openUrl(item.url, item.name)}
-      activeOpacity={0.75}
-    >
-      <View style={[S.iconRing, { borderColor:C.border, backgroundColor:C.card2 }]}>
-        <SafeImg uri={item.icon} size={44} radiusRatio={0.28} />
-      </View>
-      <Text style={[S.cardName, { color:C.text }]} numberOfLines={1}>{item.name}</Text>
-      <Text style={[S.cardBadgeTxt, { color:C.muted }]} numberOfLines={1}>{item.badge}</Text>
-    </TouchableOpacity>
-  );
-
-  // ── Bookmark Row ──────────────────────────────────────────────────────────
-  const BmRow = ({ item }) => (
-    <TouchableOpacity
-      style={[S.bmRow, { backgroundColor:C.card, borderColor:C.border }]}
-      onPress={() => openUrl(item.url, item.name)}
-      onLongPress={() => saveBm(bookmarks.filter(b => b.id !== item.id))}
-      delayLongPress={600}
-      activeOpacity={0.75}
-    >
-      <View style={[S.bmIco, { backgroundColor:C.accent + '18' }]}>
-        <Ionicons name="globe-outline" size={20} color={C.accent} />
-      </View>
-      <View style={{ flex:1 }}>
-        <Text style={[S.bmName, { color:C.text }]} numberOfLines={1}>{item.name}</Text>
-        <Text style={[S.bmUrl, { color:C.muted }]} numberOfLines={1}>
-          {item.url.replace(/^https?:\/\//, '')}
-        </Text>
-      </View>
-      <Ionicons name="chevron-forward" size={14} color={C.muted} />
-    </TouchableOpacity>
-  );
+  const menuItems = [
+    { icon:'time-outline',     label: t('browsing_history', 'سجل التصفح'), action: () => setHistoryOpen(true) },
+    { icon:'bookmark-outline', label: t('bookmarks', 'المفضلة'),            action: () => setView('bookmarks') },
+    { icon:'add-circle-outline', label: t('add_bookmark', 'إضافة مفضلة'),   action: () => { setNewBm({ name:'', url:'' }); setAddVisible(true); } },
+    { icon:'qr-code-outline',  label: t('portal_menu_scan', 'مسح QR للاتصال'), action: () => navigation.navigate('QRScanner', { returnTo:'AppPortal' }) },
+  ];
 
   return (
     <View style={[S.root, { backgroundColor:C.bg, paddingTop:padTop }]}>
 
+      {/* ── Header: حساب + بحث + قائمة ── */}
       <Animated.View style={{ opacity:fadeAnim, transform:[{ translateY:slideAnim }] }}>
-        {/* ── Header ── */}
         <View style={S.headerRow}>
-          <View style={{ flex:1 }}>
-            <Text style={[S.headerTitle, { color:C.text }]}>
-              {t('explore_web3', 'استكشف Web3')}
-            </Text>
-            <Text style={[S.headerSub, { color:C.muted }]}>
-              {t('explore_desc', 'أفضل التطبيقات اللامركزية بين يديك')}
-            </Text>
+          <View style={[S.avatar, { backgroundColor:C.card2, borderColor:C.border }]}>
+            <Text style={[S.avatarTxt, { color:C.text }]}>{avatarLetter}</Text>
           </View>
-        </View>
-
-        {/* ── Search ── */}
-        <View style={[S.searchBar, { backgroundColor:C.card, borderColor:C.border }]}>
-          <Ionicons name="search-outline" size={16} color={C.muted} style={{ marginLeft:14 }} />
-          <TextInput
-            style={[S.searchInput, { color:C.text }]}
-            placeholder={t('browser_search_placeholder', 'ابحث أو أدخل رابطاً...')}
-            placeholderTextColor={C.muted}
-            value={search}
-            onChangeText={setSearch}
-            onSubmitEditing={handleSearch}
-            returnKeyType="go"
-            autoCapitalize="none"
-            autoCorrect={false}
-            keyboardType="url"
-          />
-          {search.length > 0 && (
-            <TouchableOpacity onPress={() => setSearch('')} style={{ paddingHorizontal:8 }}>
-              <Ionicons name="close-circle" size={16} color={C.muted} />
-            </TouchableOpacity>
-          )}
-          <TouchableOpacity
-            onPress={() => setHistoryOpen(true)}
-            style={[S.searchHistoryBtn, { borderLeftColor:C.border }]}
-          >
-            <Ionicons name="time-outline" size={17} color={C.muted} />
-          </TouchableOpacity>
-        </View>
-
-        {/* ── Segmented Tabs ── */}
-        <View style={[S.segment, { backgroundColor:C.card, borderColor:C.border }]}>
-          {[
-            { id:'explore',   label: t('discover', 'اكتشف')    },
-            { id:'bookmarks', label: t('bookmarks', 'المفضلة') },
-          ].map(tab => {
-            const on = view === tab.id;
-            return (
-              <TouchableOpacity
-                key={tab.id}
-                style={[S.segBtn, on && { backgroundColor:C.accent }]}
-                onPress={() => setView(tab.id)}
-                activeOpacity={0.85}
-              >
-                <Text style={[S.segTxt, { color: on ? '#FFF' : C.muted }]}>
-                  {tab.label}
-                </Text>
+          <View style={[S.searchBar, { backgroundColor:C.bg, borderColor:C.border }]}>
+            <TextInput
+              style={[S.searchInput, { color:C.text }]}
+              placeholder={t('browser_search_placeholder', 'ابحث أو أدخل رابطاً...')}
+              placeholderTextColor={C.muted}
+              value={search}
+              onChangeText={setSearch}
+              onSubmitEditing={handleSearch}
+              returnKeyType="go"
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="url"
+            />
+            {search.length > 0 && (
+              <TouchableOpacity onPress={() => setSearch('')} style={{ paddingHorizontal:6 }}>
+                <Ionicons name="close-circle" size={16} color={C.muted} />
               </TouchableOpacity>
-            );
-          })}
+            )}
+            <TouchableOpacity onPress={() => setMenuOpen(true)} style={S.dotsBtn} hitSlop={{ top:8, bottom:8, left:8, right:8 }}>
+              <Ionicons name="ellipsis-vertical" size={18} color={C.text} />
+            </TouchableOpacity>
+          </View>
         </View>
       </Animated.View>
 
@@ -323,47 +256,109 @@ export default function AppPortalScreen() {
         <Animated.View style={{ flex:1, opacity:fadeAnim }}>
           <ScrollView
             showsVerticalScrollIndicator={false}
-            contentContainerStyle={[S.scrollContent, { paddingBottom: padBot }]}
+            contentContainerStyle={{ paddingBottom: padBot }}
             keyboardShouldPersistTaps="handled"
           >
-            {/* Hero */}
-            {heroApp && (
-              <View style={{ marginBottom:16 }}>
-                <HeroCard item={heroApp} />
-              </View>
-            )}
-
-            {/* Filters */}
+            {/* ── بطاقات مميزة ── */}
             <ScrollView
               horizontal
+              pagingEnabled={false}
+              snapToInterval={BANNER_W + BANNER_GAP}
+              decelerationRate="fast"
               showsHorizontalScrollIndicator={false}
-              contentContainerStyle={S.filterRow}
-              style={{ marginBottom:14 }}
+              contentContainerStyle={{ paddingHorizontal:20, gap:BANNER_GAP }}
+              onScroll={onBannerScroll}
+              scrollEventThrottle={16}
+              style={{ direction:'ltr' }}
             >
-              {FILTERS.map(f => {
-                const on = filter === f.id;
+              {BANNERS.map(b => {
+                const app = appById(b.app);
                 return (
                   <TouchableOpacity
-                    key={f.id}
-                    style={[S.filterBtn, {
-                      backgroundColor: on ? C.accent : C.card,
-                      borderColor:     on ? C.accent : C.border,
-                    }]}
-                    onPress={() => setFilter(f.id)}
-                    activeOpacity={0.8}
+                    key={b.id}
+                    activeOpacity={0.9}
+                    style={[S.banner, { backgroundColor:b.colors[0] }]}
+                    onPress={() => app && openUrl(app.url, app.name)}
                   >
-                    <Text style={[S.filterTxt, { color: on ? '#FFF' : C.muted }]}>
-                      {f.label}
-                    </Text>
+                    <View style={[S.bannerOrb, { backgroundColor:b.colors[1], top:-40, right:-30, width:170, height:170, borderRadius:85 }]} />
+                    <View style={[S.bannerOrb, { backgroundColor:'rgba(255,255,255,0.07)', bottom:-50, left:-20, width:120, height:120, borderRadius:60 }]} />
+                    <View style={{ flex:1, paddingRight:12 }}>
+                      <Text style={S.bannerTitle} numberOfLines={2}>{t(b.tKey, b.tDef)}</Text>
+                      <Text style={S.bannerSub} numberOfLines={2}>{t(b.sKey, b.sDef)}</Text>
+                    </View>
+                    <View style={S.bannerIconWrap}>
+                      <SafeImg uri={app?.icon} size={56} radiusRatio={0.3} />
+                    </View>
                   </TouchableOpacity>
                 );
               })}
             </ScrollView>
+            <View style={S.dotsRow}>
+              {BANNERS.map((b, i) => (
+                <View key={b.id} style={[S.dot, { backgroundColor: i === bannerIdx ? '#FFFFFF' : 'rgba(255,255,255,0.22)' }]} />
+              ))}
+            </View>
 
-            {/* Grid */}
-            <View style={S.gridWrap}>
-              {gridApps.map(item => <DappCard key={item.id} item={item} />)}
-              {gridApps.length % 2 !== 0 && <View style={{ width:CARD_W }} />}
+            {/* ── التطبيقات المفضلة ── */}
+            <TouchableOpacity style={S.sectionHead} onPress={() => setView('bookmarks')} activeOpacity={0.7}>
+              <Text style={[S.sectionTitle, { color:C.text }]}>{t('portal_favorite_apps', 'التطبيقات المفضلة')}</Text>
+              <Ionicons name="chevron-forward" size={18} color={C.text} />
+            </TouchableOpacity>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={S.favRow}
+              keyboardShouldPersistTaps="handled"
+            >
+              {favItems.map(f => (
+                <TouchableOpacity
+                  key={f.id}
+                  style={S.favItem}
+                  activeOpacity={0.75}
+                  onPress={() => openUrl(f.url, f.name)}
+                  onLongPress={f.removable ? () => saveBm(bookmarks.filter(b => b.id !== f.id)) : undefined}
+                  delayLongPress={600}
+                >
+                  <SafeImg uri={f.icon} size={58} radiusRatio={0.3} />
+                  <Text style={[S.favName, { color:C.text }]} numberOfLines={1}>{f.name}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+
+            {/* ── اكتشف ── */}
+            <View style={[S.sectionHead, { marginTop:26 }]}>
+              <Text style={[S.sectionTitle, { color:C.text }]}>{t('discover', 'اكتشف')}</Text>
+            </View>
+            <View style={S.tabsRow}>
+              {DISCOVER_TABS.map(x => {
+                const on = tab === x.id;
+                return (
+                  <TouchableOpacity key={x.id} style={S.tabBtn} onPress={() => setTab(x.id)} activeOpacity={0.8}>
+                    <Text style={[S.tabTxt, { color: on ? C.text : C.muted, fontWeight: on ? '800' : '600' }]}>
+                      {t(x.labelKey, x.def)}
+                    </Text>
+                    <View style={[S.tabLine, { backgroundColor: on ? C.accent : 'transparent' }]} />
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            <View style={{ paddingHorizontal:20 }}>
+              {discoverApps.map(item => (
+                <TouchableOpacity
+                  key={item.id}
+                  style={S.appRow}
+                  activeOpacity={0.75}
+                  onPress={() => openUrl(item.url, item.name)}
+                >
+                  <SafeImg uri={item.icon} size={44} radiusRatio={0.26} />
+                  <View style={{ flex:1 }}>
+                    <Text style={[S.appName, { color:C.text }]} numberOfLines={1}>{item.name}</Text>
+                    <Text style={[S.appDesc, { color:C.muted }]} numberOfLines={1}>
+                      {t(`desc_${item.id}`, { defaultValue: item.badge })}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
             </View>
           </ScrollView>
         </Animated.View>
@@ -374,24 +369,37 @@ export default function AppPortalScreen() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          <TouchableOpacity
-            style={[S.addBmBtn, { borderColor:C.accent + '40', backgroundColor:C.card }]}
-            onPress={() => { setNewBm({ name:'', url:'' }); setAddVisible(true); }}
-          >
-            <View style={[S.addBmIco, { backgroundColor:C.accent + '18' }]}>
-              <Ionicons name="add" size={20} color={C.accent} />
-            </View>
-            <Text style={[S.addBmTxt, { color:C.accent }]}>
-              {t('add_bookmark', 'إضافة مفضلة')}
-            </Text>
-          </TouchableOpacity>
+          <View style={S.bmHeader}>
+            <TouchableOpacity onPress={() => setView('explore')} hitSlop={{ top:10, bottom:10, left:10, right:10 }} style={{ marginRight:10 }}>
+              <Ionicons name="arrow-back" size={22} color={C.text} />
+            </TouchableOpacity>
+            <Text style={[S.sectionTitle, { color:C.text, flex:1 }]}>{t('bookmarks', 'المفضلة')}</Text>
+            <TouchableOpacity onPress={() => { setNewBm({ name:'', url:'' }); setAddVisible(true); }} hitSlop={{ top:10, bottom:10, left:10, right:10 }}>
+              <Ionicons name="add-circle-outline" size={24} color={C.accent} />
+            </TouchableOpacity>
+          </View>
 
           {bmLoading
             ? <ActivityIndicator color={C.accent} style={{ marginTop:40 }} />
             : bookmarks.length
-              ? bookmarks.map(b => <BmRow key={b.id} item={b} />)
+              ? bookmarks.map(item => (
+                  <TouchableOpacity
+                    key={item.id}
+                    style={S.appRow}
+                    onPress={() => openUrl(item.url, item.name)}
+                    onLongPress={() => saveBm(bookmarks.filter(b => b.id !== item.id))}
+                    delayLongPress={600}
+                    activeOpacity={0.75}
+                  >
+                    <SafeImg uri={item.iconUrl || `https://www.google.com/s2/favicons?domain=${getHost(item.url)}&sz=128`} size={44} radiusRatio={0.26} />
+                    <View style={{ flex:1 }}>
+                      <Text style={[S.appName, { color:C.text }]} numberOfLines={1}>{item.name}</Text>
+                      <Text style={[S.appDesc, { color:C.muted }]} numberOfLines={1}>{getHost(item.url)}</Text>
+                    </View>
+                  </TouchableOpacity>
+                ))
               : (
-                <View style={[S.empty, { backgroundColor:C.card, borderColor:C.border }]}>
+                <View style={S.empty}>
                   <View style={[S.emptyIco, { backgroundColor:C.accent + '18' }]}>
                     <Ionicons name="bookmark-outline" size={30} color={C.accent} />
                   </View>
@@ -406,6 +414,27 @@ export default function AppPortalScreen() {
           }
         </Animated.ScrollView>
       )}
+
+      {/* قائمة النقاط الثلاث */}
+      <Modal visible={menuOpen} transparent animationType="fade" onRequestClose={() => setMenuOpen(false)}>
+        <TouchableWithoutFeedback onPress={() => setMenuOpen(false)}>
+          <View style={{ flex:1 }}>
+            <View style={[S.menu, { top: padTop + 56, backgroundColor:C.card2, borderColor:C.border }]}>
+              {menuItems.map((m, i) => (
+                <TouchableOpacity
+                  key={m.icon}
+                  style={[S.menuRow, i > 0 && { borderTopWidth:StyleSheet.hairlineWidth, borderTopColor:C.border }]}
+                  activeOpacity={0.7}
+                  onPress={() => { setMenuOpen(false); m.action(); }}
+                >
+                  <Ionicons name={m.icon} size={18} color={C.text} />
+                  <Text style={[S.menuTxt, { color:C.text }]}>{m.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
 
       {/* History Modal */}
       <Modal visible={historyOpen} transparent animationType="slide"
@@ -547,62 +576,48 @@ export default function AppPortalScreen() {
 
 const S = StyleSheet.create({
   root:        { flex:1 },
-  scrollContent:{ paddingHorizontal:20 },
 
   // Header
-  headerRow:   { flexDirection:'row', alignItems:'flex-start', paddingHorizontal:20, marginBottom:14 },
-  headerTitle: { fontSize:24, fontWeight:'800', letterSpacing:-0.4 },
-  headerSub:   { fontSize:12, marginTop:3 },
+  headerRow:   { flexDirection:'row', alignItems:'center', paddingHorizontal:20, marginBottom:18, gap:10 },
+  avatar:      { width:44, height:44, borderRadius:22, borderWidth:1, justifyContent:'center', alignItems:'center' },
+  avatarTxt:   { fontSize:16, fontWeight:'800' },
+  searchBar:   { flex:1, flexDirection:'row', alignItems:'center', borderRadius:24, borderWidth:1, height:46, paddingLeft:16 },
+  searchInput: { flex:1, fontSize:14, height:'100%' },
+  dotsBtn:     { width:42, height:'100%', justifyContent:'center', alignItems:'center' },
 
-  // Search
-  searchBar:   { flexDirection:'row', alignItems:'center', borderRadius:14, borderWidth:1,
-                 height:48, marginHorizontal:20, marginBottom:12 },
-  searchInput: { flex:1, fontSize:14, height:'100%', paddingHorizontal:10 },
-  searchHistoryBtn:{ width:42, height:'100%', justifyContent:'center', alignItems:'center', borderLeftWidth:1 },
+  // Banners
+  banner:      { width:BANNER_W, height:BANNER_H, borderRadius:22, overflow:'hidden', flexDirection:'row',
+                 alignItems:'center', paddingHorizontal:20 },
+  bannerOrb:   { position:'absolute' },
+  bannerTitle: { color:'#FFFFFF', fontSize:19, fontWeight:'800', marginBottom:6 },
+  bannerSub:   { color:'rgba(255,255,255,0.78)', fontSize:13, lineHeight:18 },
+  bannerIconWrap:{ width:64, height:64, justifyContent:'center', alignItems:'center' },
+  dotsRow:     { flexDirection:'row', justifyContent:'center', gap:7, marginTop:12 },
+  dot:         { width:7, height:7, borderRadius:3.5 },
 
-  // Segment
-  segment:     { flexDirection:'row', marginHorizontal:20, borderRadius:14, borderWidth:1,
-                 padding:3, marginBottom:16, gap:3 },
-  segBtn:      { flex:1, paddingVertical:10, borderRadius:11, alignItems:'center', justifyContent:'center' },
-  segTxt:      { fontSize:13, fontWeight:'700' },
+  // Sections
+  sectionHead: { flexDirection:'row', alignItems:'center', gap:4, paddingHorizontal:20, marginTop:24, marginBottom:14 },
+  sectionTitle:{ fontSize:22, fontWeight:'800', letterSpacing:-0.3 },
 
-  // Hero
-  hero:        { flexDirection:'row', alignItems:'center', padding:16, borderRadius:20,
-                 borderWidth:1, gap:14,
-                 shadowColor:'#000', shadowOffset:{width:0,height:3},
-                 shadowOpacity:0.06, shadowRadius:8, elevation:3 },
-  heroIcon:    { width:64, height:64, borderRadius:18, borderWidth:1,
-                 justifyContent:'center', alignItems:'center' },
-  heroName:    { fontSize:18, fontWeight:'800', marginBottom:4 },
-  heroDesc:    { fontSize:12, marginBottom:8 },
-  heroMetaRow: { flexDirection:'row', alignItems:'center', justifyContent:'space-between' },
-  heroBadgeTxt:{ fontSize:11, fontWeight:'600' },
-  heroOpen:    { flexDirection:'row', alignItems:'center', gap:4 },
-  heroOpenTxt: { fontSize:12, fontWeight:'700' },
+  // Favorites
+  favRow:      { paddingHorizontal:20, gap:18 },
+  favItem:     { width:74, alignItems:'center', gap:8 },
+  favName:     { fontSize:13, fontWeight:'600', textAlign:'center' },
 
-  // Filters
-  filterRow:   { paddingRight:20, gap:8, alignItems:'center' },
-  filterBtn:   { flexDirection:'row', alignItems:'center', paddingHorizontal:14, paddingVertical:7,
-                 borderRadius:20, borderWidth:1.5, gap:6 },
-  filterTxt:   { fontSize:12, fontWeight:'700' },
+  // Discover tabs
+  tabsRow:     { flexDirection:'row', paddingHorizontal:20, gap:22, marginBottom:8 },
+  tabBtn:      { paddingTop:6, alignItems:'center' },
+  tabTxt:      { fontSize:15 },
+  tabLine:     { height:2.5, borderRadius:2, alignSelf:'stretch', marginTop:6 },
 
-  // Grid
-  gridWrap:    { flexDirection:'row', flexWrap:'wrap', gap:GAP },
-  card:        { alignItems:'center', paddingVertical:18, paddingHorizontal:10,
-                 borderRadius:18, borderWidth:1, gap:8,
-                 shadowColor:'#000', shadowOffset:{width:0,height:2},
-                 shadowOpacity:0.04, shadowRadius:6, elevation:2 },
-  iconRing:    { width:56, height:56, borderRadius:18, borderWidth:1,
-                 justifyContent:'center', alignItems:'center' },
-  cardName:    { fontSize:13, fontWeight:'700', textAlign:'center' },
-  cardBadgeTxt:{ fontSize:11, fontWeight:'600', marginTop:-4, textAlign:'center' },
+  // Flat rows
+  appRow:      { flexDirection:'row', alignItems:'center', gap:14, paddingVertical:11 },
+  appName:     { fontSize:16, fontWeight:'700' },
+  appDesc:     { fontSize:13, marginTop:2 },
 
-  // Bookmarks
+  // Bookmarks view
   bmList:      { paddingHorizontal:20, paddingTop:4 },
-  addBmBtn:    { flexDirection:'row', alignItems:'center', padding:14, borderRadius:16,
-                 marginBottom:14, borderWidth:1.5, borderStyle:'dashed', gap:10 },
-  addBmIco:    { width:34, height:34, borderRadius:10, justifyContent:'center', alignItems:'center' },
-  addBmTxt:    { fontSize:14, fontWeight:'700' },
+  bmHeader:    { flexDirection:'row', alignItems:'center', marginBottom:12 },
   bmRow:       { flexDirection:'row', alignItems:'center', padding:14, borderRadius:16,
                  marginBottom:10, borderWidth:1, gap:12 },
   bmIco:       { width:42, height:42, borderRadius:13, justifyContent:'center', alignItems:'center' },
@@ -612,6 +627,12 @@ const S = StyleSheet.create({
   emptyIco:    { width:58, height:58, borderRadius:17, justifyContent:'center', alignItems:'center' },
   emptyTitle:  { fontSize:16, fontWeight:'800' },
   emptySub:    { fontSize:12, textAlign:'center', lineHeight:18 },
+
+  // Menu
+  menu:        { position:'absolute', right:20, minWidth:210, borderRadius:16, borderWidth:1, overflow:'hidden',
+                 elevation:12, shadowColor:'#000', shadowOpacity:0.4, shadowRadius:12, shadowOffset:{ width:0, height:6 } },
+  menuRow:     { flexDirection:'row', alignItems:'center', gap:12, paddingVertical:14, paddingHorizontal:16 },
+  menuTxt:     { fontSize:14, fontWeight:'600' },
 
   // Modal
   overlay:     { flex:1, backgroundColor:'rgba(0,0,0,0.5)', justifyContent:'flex-end' },
