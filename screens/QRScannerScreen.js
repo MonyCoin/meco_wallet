@@ -4,6 +4,7 @@ import {
   View, Text, StyleSheet, TouchableOpacity, Alert,
   Dimensions, ActivityIndicator, Platform
 } from 'react-native';
+import * as ExpoCamera from 'expo-camera';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import { useTranslation } from 'react-i18next';
@@ -97,26 +98,42 @@ export default function QRScannerScreen() {
     setScanned(false);
   };
 
+  // فك الرمز محليًا على الجهاز (بدون رفع الصورة لأي خدمة خارجية)
+  const decodeLocally = async (imageUri) => {
+    const scan = ExpoCamera.scanFromURLAsync
+      || ExpoCamera.CameraView?.scanFromURLAsync
+      || ExpoCamera.Camera?.scanFromURLAsync;
+    if (typeof scan !== 'function') return null;
+    const results = await scan(imageUri, ['qr']);
+    return results?.[0]?.data || null;
+  };
+
+  // احتياطي: خدمة خارجية، مع التحقق من الرد قبل قراءته كـ JSON
+  const decodeRemotely = async (imageUri) => {
+    const formData = new FormData();
+    formData.append('file', { uri: imageUri, type: 'image/jpeg', name: 'qr_code.jpg' });
+    const response = await fetch('https://api.qrserver.com/v1/read-qr-code/', {
+      method: 'POST',
+      body: formData,
+    });
+    const text = await response.text();
+    let data;
+    try { data = JSON.parse(text); } catch (_) {
+      console.warn('QR remote decode: non-JSON reply', response.status, text.slice(0, 120));
+      return null;
+    }
+    return data?.[0]?.symbol?.[0]?.data || null;
+  };
+
   const decodeQRFromImage = async (imageUri) => {
     try {
-      const formData = new FormData();
-      formData.append('file', {
-        uri: imageUri,
-        type: 'image/jpeg',
-        name: 'qr_code.jpg',
-      });
-
-      const response = await fetch('https://api.qrserver.com/v1/read-qr-code/', {
-        method: 'POST',
-        body: formData,
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
-
-      const data = await response.json();
-      if (data && data[0] && data[0].symbol && data[0].symbol[0].data) {
-        return data[0].symbol[0].data;
-      }
-      return null;
+      const local = await decodeLocally(imageUri);
+      if (local) return local;
+    } catch (error) {
+      console.warn('QR local decode error:', error);
+    }
+    try {
+      return await decodeRemotely(imageUri);
     } catch (error) {
       console.warn('QR Decode Error:', error);
       return null;
@@ -132,7 +149,7 @@ export default function QRScannerScreen() {
       }
 
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ['images'],
         allowsEditing: false,
         quality: 0.8,
       });
