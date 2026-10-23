@@ -451,12 +451,12 @@ export default function WalletScreen() {
           renderRightActions={(p,d) => renderRightActions(p,d,item)}
           onSwipeableWillOpen={() => closeOtherSwipeables(item.symbol, swipeableRefs)}
         >
-          <View style={[styles.assetItem, { backgroundColor: colors.card, borderBottomColor: colors.border, borderBottomWidth: index === arr.length - 1 ? 0 : 1 }]}>
+          <View style={[styles.assetItem, { backgroundColor: colors.background }]}>
             <View style={styles.assetLeft}>
               <View style={[styles.assetIconContainer, { backgroundColor: isDark ? '#171730' : '#ECECF4' }]}>
                 <Image source={{ uri: item.image }} style={styles.assetIcon} />
                 {item.symbol === 'SOL' && (
-                  <View style={[styles.badgeDot, { backgroundColor: '#14F195', borderColor: colors.card }]} />
+                  <View style={[styles.badgeDot, { backgroundColor: '#14F195', borderColor: colors.background }]} />
                 )}
               </View>
               <View style={styles.assetInfo}>
@@ -801,7 +801,7 @@ export default function WalletScreen() {
               </TouchableOpacity>
             </View>
 
-            <View style={[styles.listContainer, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={styles.listFlat}>
               {assets.length === 0 ? (
                 (!loadingInitial && !isSwitchingAccount) && (
                   <View style={styles.emptyContainer}>
@@ -1200,9 +1200,9 @@ const styles = StyleSheet.create({
   assetsHeader: { flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:12 },
   sectionTitle: { fontSize:16, fontWeight:'800' },
   refreshBtn:   { width:36, height:36, borderRadius:12, justifyContent:'center', alignItems:'center' },
-  listContainer:{ borderRadius:18, borderWidth:1, overflow:'hidden', paddingVertical:4 },
+  listFlat:     { },
   assetItemWrapper:{},
-  assetItem:    { flexDirection:'row', alignItems:'center', padding:12, borderBottomWidth:1 },
+  assetItem:    { flexDirection:'row', alignItems:'center', paddingVertical:13, paddingHorizontal:2 },
   assetLeft:    { flexDirection:'row', alignItems:'center', flex:1, gap:10 },
   assetIconContainer: { width:36, height:36, borderRadius:18, justifyContent:'center', alignItems:'center' },
   assetIcon:   { width:36, height:36, borderRadius:18 },

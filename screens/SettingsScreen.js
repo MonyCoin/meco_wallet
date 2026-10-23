@@ -200,7 +200,7 @@ export default function SettingsScreen() {
   const SettingItem = ({ icon, title, subtitle, onPress, rightComponent, danger=false }) => (
     <TouchableOpacity style={styles.item} onPress={onPress} activeOpacity={0.7} disabled={!onPress}>
       <View style={styles.itemLeft}>
-        <View style={[styles.iconWrap, { backgroundColor: danger ? C.danger+'12' : primaryColor+'12' }]}>{icon}</View>
+        <View style={styles.iconWrap}>{icon}</View>
         <View style={styles.itemText}>
           <Text style={[styles.itemTitle, { color: danger ? C.danger : C.text }]}>{title}</Text>
           {subtitle && <Text style={[styles.itemSub, { color:C.textSecondary }]}>{subtitle}</Text>}
@@ -232,7 +232,7 @@ export default function SettingsScreen() {
         {/* Wallet Section */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color:C.textSecondary }]}>{t('wallet_settings').toUpperCase()}</Text>
-          <View style={[styles.groupContainer, { backgroundColor: C.card, borderColor: C.border }]}>
+          <View style={styles.groupContainer}>
             <SettingItem
               icon={<Ionicons name="language-outline" size={20} color={primaryColor} />}
               title={t('language')} subtitle={language==='ar'?'العربية':'English'}
@@ -243,7 +243,6 @@ export default function SettingsScreen() {
                 </View>
               }
             />
-            <View style={[styles.innerDivider, { backgroundColor: C.border }]} />
             <SettingItem
               icon={<MaterialIcons name="fingerprint" size={20} color={primaryColor} />}
               title={t('biometric_authentication')} subtitle={t('use_fingerprint_or_face_id')}
@@ -255,7 +254,7 @@ export default function SettingsScreen() {
         {/* Appearance Section */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color:C.textSecondary }]}>{t('appearance').toUpperCase()}</Text>
-          <View style={[styles.groupContainer, { backgroundColor: C.card, borderColor: C.border }]}>
+          <View style={styles.groupContainer}>
             <SettingItem
               icon={<Ionicons name="color-palette-outline" size={20} color={primaryColor} />}
               title={t('accent_color')} subtitle={t('choose_your_theme_color')}
@@ -273,13 +272,12 @@ export default function SettingsScreen() {
         {/* Support Section */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color:C.textSecondary }]}>{t('support').toUpperCase()}</Text>
-          <View style={[styles.groupContainer, { backgroundColor: C.card, borderColor: C.border }]}>
+          <View style={styles.groupContainer}>
             <SettingItem
               icon={<Feather name="mail" size={20} color={primaryColor} />}
               title={t('contact_support')} subtitle={t('get_help_or_report_issues')}
               onPress={() => Linking.openURL('mailto:mecowallet@gmail.com')} rightComponent={<Chevron />}
             />
-            <View style={[styles.innerDivider, { backgroundColor: C.border }]} />
             <SettingItem
               icon={<Ionicons name="cloud-download-outline" size={20} color={primaryColor} />}
               title={t('check_for_updates','التحقق من وجود تحديثات')}
@@ -293,13 +291,12 @@ export default function SettingsScreen() {
         {/* Legal Section */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color:C.textSecondary }]}>{t('legal_section_title', 'الشروط والخصوصية').toUpperCase()}</Text>
-          <View style={[styles.groupContainer, { backgroundColor: C.card, borderColor: C.border }]}>
+          <View style={styles.groupContainer}>
             <SettingItem
               icon={<Ionicons name="shield-checkmark-outline" size={20} color={primaryColor} />}
               title={t('privacy_policy_title', 'سياسة الخصوصية')}
               onPress={() => Linking.openURL(PRIVACY_POLICY_URL)} rightComponent={<Chevron />}
             />
-            <View style={[styles.innerDivider, { backgroundColor: C.border }]} />
             <SettingItem
               icon={<Ionicons name="document-text-outline" size={20} color={primaryColor} />}
               title={t('terms_of_use_title', 'شروط الاستخدام')}
@@ -311,7 +308,7 @@ export default function SettingsScreen() {
         {/* Data Section */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color:C.textSecondary }]}>{t('data','البيانات').toUpperCase()}</Text>
-          <View style={[styles.groupContainer, { backgroundColor: C.card, borderColor: C.border }]}>
+          <View style={styles.groupContainer}>
             <SettingItem
               icon={<Ionicons name="refresh-circle-outline" size={20} color={C.warning} />}
               title={t('clear_cache','مسح التخزين المؤقت')}
@@ -325,7 +322,7 @@ export default function SettingsScreen() {
         {/* Safety Section */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color:C.textSecondary }]}>{t('safety').toUpperCase()}</Text>
-          <View style={[styles.groupContainer, { backgroundColor: C.card, borderColor: C.border }]}>
+          <View style={styles.groupContainer}>
             <SettingItem
               icon={<Ionicons name="key-outline" size={20} color={primaryColor} />}
               title={t('show_recovery_phrase')} subtitle={t('view_your_secret_phrase')}
@@ -337,7 +334,7 @@ export default function SettingsScreen() {
         {/* Account Section */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color:C.textSecondary }]}>{t('account').toUpperCase()}</Text>
-          <View style={[styles.groupContainer, { backgroundColor: C.card, borderColor: C.border }]}>
+          <View style={styles.groupContainer}>
             <SettingItem
               icon={<Ionicons name="log-out-outline" size={20} color={C.danger} />}
               title={t('logout')} subtitle={t('sign_out_from_wallet')}
@@ -417,12 +414,12 @@ const styles = StyleSheet.create({
   section:      { marginBottom:24 },
   sectionTitle: { fontSize:12, fontWeight:'600', marginBottom:10, letterSpacing:1 },
 
-  groupContainer: { borderRadius:18, borderWidth:1, overflow:'hidden', elevation:1, shadowOffset:{width:0,height:2}, shadowOpacity:0.02, shadowRadius:4 },
+  groupContainer: { },
   innerDivider: { height:1, marginHorizontal:16 },
 
-  item:         { flexDirection:'row', alignItems:'center', justifyContent:'space-between', padding:14, backgroundColor:'transparent' },
+  item:         { flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingVertical:13, paddingHorizontal:2, backgroundColor:'transparent' },
   itemLeft:     { flexDirection:'row', alignItems:'center', flex:1 },
-  iconWrap:     { width:38, height:36, borderRadius:10, justifyContent:'center', alignItems:'center', marginRight:12 },
+  iconWrap:     { width:28, height:28, justifyContent:'center', alignItems:'center', marginRight:12 },
   itemText:     { flex:1, alignItems: 'flex-start' },
   itemTitle:    { fontSize:15, fontWeight:'700', marginBottom:2 },
   itemSub:      { fontSize:11 },
