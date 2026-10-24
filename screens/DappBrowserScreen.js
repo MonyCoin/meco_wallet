@@ -2,8 +2,9 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ActivityIndicator,
-  Modal, TextInput, Keyboard, TouchableWithoutFeedback, Platform, FlatList
+  Modal, TextInput, Keyboard, TouchableWithoutFeedback, Platform, FlatList, KeyboardAvoidingView
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -20,21 +21,21 @@ export default function DappBrowserScreen() {
   const { t }        = useTranslation();
   const navigation   = useNavigation();
   const route        = useRoute();
-  const theme        = useAppStore(s => s.theme);
   const primaryColor = useAppStore(s => s.primaryColor || '#6C63FF');
-  const isDark       = theme === 'dark';
+  const insets       = useSafeAreaInsets();
 
+  // التطبيق يعمل بالنمط الغامق فقط
   const C = {
-    bg:       isDark ? '#07070F' : '#F0F1F6',
-    surface:  isDark ? '#0F0F1E' : '#FFFFFF',
-    surface2: isDark ? '#161628' : '#F8F8FF',
-    text:     isDark ? '#EEEEFF' : '#0D0D1A',
-    muted:    isDark ? '#6060A0' : '#9090A8',
-    border:   isDark ? '#1E1E38' : '#E4E4F0',
-    border2:  isDark ? '#282842' : '#DDDDF0',
+    bg:       '#07070F',
+    surface:  '#111122',
+    surface2: '#111122',
+    text:     '#EEEEFF',
+    muted:    '#7E7EAA',
+    border:   '#1E1E38',
+    border2:  '#2A2A44',
     accent:   primaryColor,
     warning:  '#F59E0B',
-    inputBg:  isDark ? '#13132A' : '#F2F2FB',
+    inputBg:  '#171730',
   };
 
   const { url: initialUrl, name: initialName } = route.params || {};
@@ -170,12 +171,12 @@ export default function DappBrowserScreen() {
     <View style={[S.root, { backgroundColor: C.bg }]}>
 
       {/* ── شريط تحكم متصفح Web3 العلوي ── */}
-      <View style={[S.addrRow, { borderBottomColor: C.border }]}>
-        <TouchableOpacity style={[S.homeBtn, { backgroundColor: C.inputBg, borderColor: C.border }]} onPress={() => navigation.goBack()}>
+      <View style={S.addrRow}>
+        <TouchableOpacity style={[S.homeBtn, { backgroundColor: C.surface }]} onPress={() => navigation.goBack()}>
           <Ionicons name="close-outline" size={22} color={C.text} />
         </TouchableOpacity>
 
-        <View style={[S.urlBar, { backgroundColor: C.inputBg, borderColor: C.border }]}>
+        <View style={[S.urlBar, { backgroundColor: C.surface }]}>
           {loadingWeb ? (
             <ActivityIndicator size="small" color={C.accent} style={{ marginLeft: 13 }} />
           ) : (
@@ -200,14 +201,14 @@ export default function DappBrowserScreen() {
         </View>
 
         <TouchableOpacity
-          style={[S.qrBtn, { backgroundColor: C.accent + '20', borderColor: C.accent + '50' }]}
+          style={[S.qrBtn, { backgroundColor: C.accent + '24' }]}
           onPress={() => navigation.navigate('QRScanner', { returnTo: 'DappBrowser' })}
         >
           <Ionicons name="qr-code-outline" size={19} color={C.accent} />
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[S.tabsBtn, { backgroundColor: C.accent + '20', borderColor: C.accent + '55' }]}
+          style={[S.tabsBtn, { backgroundColor: C.accent + '24' }]}
           onPress={() => setTabsOvVisible(true)}
         >
           <Text style={[S.tabsBadge, { color: C.accent }]}>{tabs.length}</Text>
@@ -266,7 +267,7 @@ export default function DappBrowserScreen() {
       <Modal visible={menuVisible} transparent animationType="fade" onRequestClose={() => setMenuVisible(false)}>
         <TouchableWithoutFeedback onPress={() => setMenuVisible(false)}>
           <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.1)' }}>
-            <View style={[S.menu, { backgroundColor: C.surface, borderColor: C.border2 }]}>
+            <View style={[S.menu, { backgroundColor: C.surface2 }]}>
               {[
                 { icon:'arrow-back',    key:'browser_back',    enabled: activeTab?.canGoBack,    action: () => { setMenuVisible(false); if (activeTab?.canGoBack) webviewRefs.current[activeTabId]?.goBack(); } },
                 { icon:'arrow-forward', key:'browser_forward', enabled: activeTab?.canGoForward, action: () => { setMenuVisible(false); if (activeTab?.canGoForward) webviewRefs.current[activeTabId]?.goForward(); } },
@@ -292,7 +293,7 @@ export default function DappBrowserScreen() {
 
       <Modal visible={tabsOvVisible} animationType="slide" onRequestClose={() => setTabsOvVisible(false)}>
         <View style={[S.tabsOvRoot, { backgroundColor: C.bg }]}>
-          <View style={[S.tabsOvHeader, { borderBottomColor: C.border }]}>
+          <View style={S.tabsOvHeader}>
             <View>
               <Text style={[S.tabsOvTitle, { color: C.text }]}>{t('open_tabs')}</Text>
               <Text style={[S.tabsOvSub,   { color: C.muted }]}>{tabs.length} {t('portal_tabs_label')}</Text>
@@ -305,8 +306,8 @@ export default function DappBrowserScreen() {
             data={tabs} numColumns={2} keyExtractor={i => i.id}
             contentContainerStyle={{ padding: 12 }}
             renderItem={({ item }) => (
-              <View style={[S.tabPreview, { backgroundColor: C.surface, borderColor: item.id === activeTabId ? C.accent : C.border }]}>
-                <View style={[S.tabPreviewTop, { borderBottomColor: C.border }]}>
+              <View style={[S.tabPreview, { backgroundColor: C.surface }, item.id === activeTabId && { borderWidth: 2, borderColor: C.accent }]}>
+                <View style={S.tabPreviewTop}>
                   <Text style={[S.tabPreviewTitle, { color: C.text }]} numberOfLines={1}>{item.title}</Text>
                   <TouchableOpacity onPress={() => closeTab(item.id)} style={[S.tabCloseBtn, { backgroundColor: C.border }]}>
                     <Ionicons name="close" size={12} color={C.muted} />
@@ -336,14 +337,15 @@ export default function DappBrowserScreen() {
       <Modal visible={addModalVisible} transparent animationType="slide" onRequestClose={() => setAddModalVisible(false)}>
         <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
           <View style={S.sheetOverlay}>
-            <View style={[S.sheet, { backgroundColor: C.surface2 }]}>
+            <KeyboardAvoidingView behavior="padding">
+            <View style={[S.sheet, { backgroundColor: C.surface2, paddingBottom: Math.max(insets.bottom, 16) + 20 }]}>
               <View style={[S.sheetHandle, { backgroundColor: C.border2 }]} />
               <Text style={[S.sheetTitle, { color: C.text }]}>{t('add_bookmark')}</Text>
               {[
                 { field:'name', icon:'text-outline', placeholderKey:'bookmark_name_placeholder', kbType:'default' },
                 { field:'url',  icon:'link-outline', placeholderKey:'bookmark_url_placeholder',  kbType:'url'     },
               ].map(f => (
-                <View key={f.field} style={[S.inputRow, { backgroundColor: C.inputBg, borderColor: C.border }]}>
+                <View key={f.field} style={[S.inputRow, { backgroundColor: C.inputBg }]}>
                   <Ionicons name={f.icon} size={16} color={C.muted} style={{ marginLeft: 14 }} />
                   <TextInput
                     style={[S.inputTxt, { color: C.text }]}
@@ -357,7 +359,7 @@ export default function DappBrowserScreen() {
                 </View>
               ))}
               <View style={S.sheetBtns}>
-                <TouchableOpacity style={[S.sheetBtn, { backgroundColor: C.border }]} onPress={() => setAddModalVisible(false)}>
+                <TouchableOpacity style={[S.sheetBtn, { backgroundColor: C.inputBg }]} onPress={() => setAddModalVisible(false)}>
                   <Text style={[S.sheetBtnTxt, { color: C.muted }]}>{t('cancel')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={[S.sheetBtn, { backgroundColor: C.accent }]} onPress={handleAddBookmark}>
@@ -366,6 +368,7 @@ export default function DappBrowserScreen() {
                 </TouchableOpacity>
               </View>
             </View>
+            </KeyboardAvoidingView>
           </View>
         </TouchableWithoutFeedback>
       </Modal>
@@ -376,22 +379,22 @@ export default function DappBrowserScreen() {
 
 const S = StyleSheet.create({
   root:     { flex: 1 },
-  addrRow:  { flexDirection:'row', alignItems:'center', paddingHorizontal:16, paddingVertical:10, gap:8, borderBottomWidth:1 },
-  homeBtn:  { width:42, height:42, borderRadius:13, borderWidth:1, justifyContent:'center', alignItems:'center' },
-  urlBar:   { flex:1, flexDirection:'row', alignItems:'center', borderRadius:13, borderWidth:1, height:44 },
+  addrRow:  { flexDirection:'row', alignItems:'center', paddingHorizontal:16, paddingVertical:10, gap:8 },
+  homeBtn:  { width:42, height:42, borderRadius:21, justifyContent:'center', alignItems:'center' },
+  urlBar:   { flex:1, flexDirection:'row', alignItems:'center', borderRadius:22, height:44 },
   urlInput: { flex:1, paddingHorizontal:10, fontSize:14, height:'100%' },
   dotsBtn:  { paddingHorizontal:11, height:'100%', justifyContent:'center' },
-  qrBtn:    { width:42, height:42, borderRadius:13, borderWidth:1, justifyContent:'center', alignItems:'center' },
-  tabsBtn:  { width:42, height:42, borderRadius:13, borderWidth:1.5, justifyContent:'center', alignItems:'center' },
+  qrBtn:    { width:42, height:42, borderRadius:21, justifyContent:'center', alignItems:'center' },
+  tabsBtn:  { width:42, height:42, borderRadius:21, justifyContent:'center', alignItems:'center' },
   tabsBadge:{ fontSize:14, fontWeight:'800' },
   webLoader:    { position:'absolute', top:0, left:0, right:0, bottom:0, justifyContent:'center', alignItems:'center', zIndex:10, backgroundColor:'rgba(0,0,0,0.05)' },
   tabsOvRoot:   { flex:1, paddingTop: Platform.OS==='ios'?52:20 },
-  tabsOvHeader: { flexDirection:'row', justifyContent:'space-between', alignItems:'center', padding:20, borderBottomWidth:1 },
+  tabsOvHeader: { flexDirection:'row', justifyContent:'space-between', alignItems:'center', padding:20 },
   tabsOvTitle:  { fontSize:22, fontWeight:'800', marginBottom:2 },
   tabsOvSub:    { fontSize:13 },
   closeBtn:     { width:36, height:36, borderRadius:18, justifyContent:'center', alignItems:'center' },
-  tabPreview:   { flex:1, margin:8, borderRadius:20, borderWidth:2, height:175, overflow:'hidden' },
-  tabPreviewTop:{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', padding:10, borderBottomWidth:1 },
+  tabPreview:   { flex:1, margin:8, borderRadius:20, height:175, overflow:'hidden' },
+  tabPreviewTop:{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', padding:10 },
   tabPreviewTitle:{ flex:1, fontSize:12, fontWeight:'700', marginRight:6 },
   tabCloseBtn:  { width:22, height:22, borderRadius:11, justifyContent:'center', alignItems:'center' },
   tabPreviewBody:{ flex:1, justifyContent:'center', alignItems:'center', gap:8 },
@@ -399,7 +402,7 @@ const S = StyleSheet.create({
   tabPreviewUrl:{ fontSize:11, textAlign:'center', paddingHorizontal:8 },
   newTabBtn:    { position:'absolute', bottom:40, alignSelf:'center', flexDirection:'row', alignItems:'center', paddingVertical:16, paddingHorizontal:32, borderRadius:30, elevation:6 },
   newTabTxt:    { color:'#FFF', fontWeight:'800', fontSize:16, marginLeft:8 },
-  menu:         { position:'absolute', right:16, top:64, width:188, borderRadius:18, borderWidth:1, elevation:10, zIndex:999 },
+  menu:         { position:'absolute', right:16, top:64, width:188, borderRadius:18, elevation:10, zIndex:999 },
   menuRow:      { flexDirection:'row', alignItems:'center', paddingVertical:14, paddingHorizontal:16, gap:12 },
   menuTxt:      { fontSize:14, fontWeight:'600' },
   menuDivider:  { height:1, marginHorizontal:10 },
@@ -407,9 +410,9 @@ const S = StyleSheet.create({
   sheet:        { borderTopLeftRadius:28, borderTopRightRadius:28, padding:24, paddingBottom: Platform.OS==='ios'?40:24 },
   sheetHandle:  { width:40, height:4, borderRadius:2, alignSelf:'center', marginBottom:20 },
   sheetTitle:   { fontSize:20, fontWeight:'800', textAlign:'center', marginBottom:20 },
-  inputRow:     { flexDirection:'row', alignItems:'center', borderRadius:14, borderWidth:1, marginBottom:12, height:52 },
+  inputRow:     { flexDirection:'row', alignItems:'center', borderRadius:14, marginBottom:12, height:52 },
   inputTxt:     { flex:1, paddingHorizontal:12, fontSize:15, height:'100%' },
   sheetBtns:    { flexDirection:'row', gap:12, marginTop:8 },
-  sheetBtn:     { flex:1, flexDirection:'row', justifyContent:'center', alignItems:'center', paddingVertical:16, borderRadius:14 },
+  sheetBtn:     { flex:1, flexDirection:'row', justifyContent:'center', alignItems:'center', paddingVertical:16, borderRadius:999 },
   sheetBtnTxt:  { fontSize:15, fontWeight:'800' },
 });

@@ -45,13 +45,33 @@ const fmtBig = (n) => {
 
 const fmtPct = (n) => `${n >= 0 ? '+' : ''}${Number(n || 0).toFixed(2)}%`;
 
-const timeAgo = (ts) => {
-  const diff = Date.now() - ts;
-  const h = Math.floor(diff / 3600000);
-  if (h < 1)  return 'الآن';
-  if (h < 24) return `منذ ${h} ساعة`;
-  const d = Math.floor(h / 24);
-  return `منذ ${d} يوم`;
+const timeAgo = (ts, t) => {
+  const n = Number(ts);
+  if (!n) return '';
+  const diff = Math.max(0, Date.now() - n);
+  const m = Math.floor(diff / 60000);
+  if (m < 1)  return t('just_now');
+  if (m < 60) return t('minutes_ago', { count: m });
+  const h = Math.floor(m / 60);
+  if (h < 24) return t('hours_ago', { count: h });
+  return t('days_ago', { count: Math.floor(h / 24) });
+};
+
+// رابط خبر صالح: http/https فقط
+const isValidUrl = (u) => {
+  if (typeof u !== 'string') return false;
+  const s = u.trim();
+  return /^https?:\/\/[^\s/$.?#][^\s]*\.[^\s]{2,}$/i.test(s);
+};
+
+// تنظيف نص الموجز من HTML والكيانات
+const cleanSummary = (s) => {
+  if (typeof s !== 'string') return '';
+  return s
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&quot;/g, '"')
+    .replace(/&#0?39;|&apos;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+    .replace(/\s+/g, ' ').trim();
 };
 
 export default function AssetDetailsScreen() {
@@ -59,21 +79,22 @@ export default function AssetDetailsScreen() {
   const insets       = useSafeAreaInsets();
   const route        = useRoute();
   const { t }        = useTranslation();
-  const theme        = useAppStore(s => s.theme);
   const primaryColor = useAppStore(s => s.primaryColor || '#6C63FF');
-  const isDark       = theme === 'dark';
   const { asset }    = route.params || {};
 
+  // التطبيق يعمل بالنمط الغامق فقط
   const C = {
-    bg:      isDark ? '#07070F' : '#F4F5F9',
-    card:    isDark ? '#111122' : '#FFFFFF',
-    text:    isDark ? '#EEEEFF' : '#1C1C24',
-    muted:   isDark ? '#7E7EAA' : '#8A8A9E',
-    dim:     isDark ? '#505070' : '#9CA3AF',
-    border:  isDark ? '#1E1E38' : '#E8E8F2',
+    bg:      '#07070F',
+    card:    '#111122',
+    card2:   '#171730',
+    text:    '#EEEEFF',
+    muted:   '#7E7EAA',
+    dim:     '#505070',
+    border:  '#1E1E38',
     success: '#10B981', error: '#EF4444',
     primary: primaryColor,
   };
+
 
   const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -121,7 +142,7 @@ export default function AssetDetailsScreen() {
         low:     chartRes.stats?.low   || asset.low  || 0,
         change:  liveChange || chartRes.stats?.change || 0,
       });
-      setNews(newsRes || []);
+      setNews((newsRes || []).filter(n => n && n.headline && isValidUrl(n.url)));
       setProfile(profileRes);
     } catch (e) {
       console.warn('[AssetDetails] fetch error:', e.message);
@@ -138,7 +159,17 @@ export default function AssetDetailsScreen() {
     await fetchAll(timeframe, true);
   }, [timeframe, fetchAll]);
 
-  const openUrl = (url) => { if (url) Linking.openURL(url).catch(() => {}); };
+  const openUrl = async (url) => {
+    if (!isValidUrl(url)) {
+      Alert.alert(t('error'), t('invalid_link', 'الرابط غير صالح'));
+      return;
+    }
+    try {
+      await Linking.openURL(url.trim());
+    } catch (e) {
+      Alert.alert(t('error'), t('invalid_link', 'تعذّر فتح الرابط'));
+    }
+  };
 
   // ─── الرسم البياني ────────────────────────────────────────────────────────
   const chartH  = 180;
@@ -159,7 +190,7 @@ export default function AssetDetailsScreen() {
         {/* ── Header ── */}
         <View style={S.header}>
           <TouchableOpacity onPress={() => navigation.goBack()}
-            style={[S.iconBtn, { backgroundColor: C.card, borderColor: C.border }]}>
+            style={[S.iconBtn, { backgroundColor: C.card }]}>
             <Ionicons name="arrow-back" size={18} color={C.text} />
           </TouchableOpacity>
 
@@ -171,7 +202,7 @@ export default function AssetDetailsScreen() {
                 <Text style={{ fontSize: 18 }}>{asset.emoji}</Text>
               </View>
             ) : (
-              <View style={[S.assetEmojiWrap, { backgroundColor: C.border }]}>
+              <View style={[S.assetEmojiWrap, { backgroundColor: C.card2 }]}>
                 <Text style={{ fontSize: 14, fontWeight: '800', color: C.text }}>{asset.symbol?.charAt(0)}</Text>
               </View>
             )}
@@ -184,7 +215,7 @@ export default function AssetDetailsScreen() {
           </View>
 
           <TouchableOpacity onPress={toggleWatch}
-            style={[S.iconBtn, { backgroundColor: C.card, borderColor: C.border }]}>
+            style={[S.iconBtn, { backgroundColor: C.card }]}>
             <Ionicons
               name={watchlist.includes(asset.symbol) ? 'star' : 'star-outline'}
               size={18}
@@ -194,7 +225,7 @@ export default function AssetDetailsScreen() {
         </View>
 
         {/* ── السعر ── */}
-        <View style={[S.card, { backgroundColor: C.card, borderColor: C.border }]}>
+        <View style={S.hero}>
           <Text style={[S.priceLabel, { color: C.muted }]}>{t('current_price')}</Text>
           <View style={S.priceRow}>
             <Text style={[S.price, { color: C.text }]}>{fmtPrice(stats.current)}</Text>
@@ -205,41 +236,8 @@ export default function AssetDetailsScreen() {
           </View>
         </View>
 
-        {/* ── أزرار الروابط الخارجية فقط ── */}
-        <View style={S.actions}>
-          {asset.type === 'stock' && profile?.weburl && (
-            <TouchableOpacity
-              style={[S.actionBtn, { backgroundColor: C.primary }]}
-              onPress={() => openUrl(profile.weburl)}
-            >
-              <Ionicons name="globe-outline" size={15} color="#FFF" />
-              <Text style={S.actionTxt}>{t('website')}</Text>
-            </TouchableOpacity>
-          )}
-
-          {asset.type === 'external_crypto' && asset.coingeckoId && (
-            <TouchableOpacity
-              style={[S.actionBtn, { backgroundColor: C.primary }]}
-              onPress={() => openUrl(`https://www.coingecko.com/en/coins/${asset.coingeckoId}`)}
-            >
-              <Ionicons name="open-outline" size={15} color="#FFF" />
-              <Text style={S.actionTxt}>CoinGecko</Text>
-            </TouchableOpacity>
-          )}
-
-          {asset.type === 'commodity' && (
-            <TouchableOpacity
-              style={[S.actionBtn, { backgroundColor: C.primary }]}
-              onPress={() => openUrl(`https://finance.yahoo.com/quote/${encodeURIComponent(asset.id)}`)}
-            >
-              <Ionicons name="open-outline" size={15} color="#FFF" />
-              <Text style={S.actionTxt}>Yahoo Finance</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-
         {/* ── التبويب الزمني ── */}
-        <View style={[S.card, { backgroundColor: C.card, borderColor: C.border, padding: 12 }]}>
+        <View style={S.card}>
           <View style={S.tfRow}>
             {TIMEFRAMES.map(lbl => (
               <TouchableOpacity
@@ -254,7 +252,7 @@ export default function AssetDetailsScreen() {
         </View>
 
         {/* ── الرسم البياني ── */}
-        <View style={[S.card, { backgroundColor: C.card, borderColor: C.border, minHeight: 220 }]}>
+        <View style={[S.card, { minHeight: 220 }]}>
           {loading ? (
             <View style={S.chartLoad}>
               <ActivityIndicator size="large" color={C.primary} />
@@ -285,7 +283,7 @@ export default function AssetDetailsScreen() {
         </View>
 
         {/* ── OHLC ── */}
-        <View style={[S.card, { backgroundColor: C.card, borderColor: C.border }]}>
+        <View style={S.card}>
           <Text style={[S.secTitle, { color: C.text }]}>{t('ohlc_stats')}</Text>
           <View style={S.grid}>
             {[
@@ -294,7 +292,7 @@ export default function AssetDetailsScreen() {
               { k: 'ohlc_low',   v: fmtPrice(stats.low),     c: C.error   },
               { k: 'ohlc_close', v: fmtPrice(stats.current), c: C.text    },
             ].map(item => (
-              <View key={item.k} style={[S.gridItem, { backgroundColor: C.bg, borderColor: C.border }]}>
+              <View key={item.k} style={[S.gridItem, { backgroundColor: C.card }]}>
                 <Text style={[S.gridLabel, { color: C.muted }]}>{t(item.k)}</Text>
                 <Text style={[S.gridValue, { color: item.c }]}>{item.v}</Text>
               </View>
@@ -304,7 +302,7 @@ export default function AssetDetailsScreen() {
 
         {/* ── إحصائيات إضافية للأسهم ── */}
         {asset.type === 'stock' && profile && (
-          <View style={[S.card, { backgroundColor: C.card, borderColor: C.border }]}>
+          <View style={S.card}>
             <Text style={[S.secTitle, { color: C.text }]}>{t('market_stats')}</Text>
             <View style={S.grid}>
               {[
@@ -313,7 +311,7 @@ export default function AssetDetailsScreen() {
                 { k: 'exchange',   v: profile.exchange || '—' },
                 { k: 'country',    v: profile.country  || '—' },
               ].map(item => (
-                <View key={item.k} style={[S.gridItem, { backgroundColor: C.bg, borderColor: C.border }]}>
+                <View key={item.k} style={[S.gridItem, { backgroundColor: C.card }]}>
                   <Text style={[S.gridLabel, { color: C.muted }]}>{t(item.k, item.k)}</Text>
                   <Text style={[S.gridValue, { color: C.text }]} numberOfLines={1}>{item.v}</Text>
                 </View>
@@ -324,28 +322,25 @@ export default function AssetDetailsScreen() {
 
         {/* ── الأخبار ── */}
         {news.length > 0 && (
-          <View style={[S.card, { backgroundColor: C.card, borderColor: C.border }]}>
+          <View style={S.card}>
             <View style={S.newsHeader}>
               <Ionicons name="newspaper-outline" size={16} color={C.primary} />
               <Text style={[S.secTitle, { color: C.text, marginBottom: 0 }]}>
                 {t('latest_news')}
               </Text>
             </View>
-            <View style={{ marginTop: 12 }}>
+            <View style={{ marginTop: 12, gap: 8 }}>
               {news.map((n, i) => (
                 <TouchableOpacity
                   key={n.id || i}
-                  style={[
-                    S.newsItem,
-                    i !== news.length - 1 && { borderBottomWidth: 1, borderBottomColor: C.border },
-                  ]}
+                  style={[S.newsItem, { backgroundColor: C.card }]}
                   onPress={() => openUrl(n.url)}
                   activeOpacity={0.7}
                 >
                   {n.image ? (
                     <Image source={{ uri: n.image }} style={S.newsImg} />
                   ) : (
-                    <View style={[S.newsImg, { backgroundColor: C.bg, justifyContent: 'center', alignItems: 'center' }]}>
+                    <View style={[S.newsImg, { backgroundColor: C.card2, justifyContent: 'center', alignItems: 'center' }]}>
                       <Ionicons name="newspaper-outline" size={20} color={C.dim} />
                     </View>
                   )}
@@ -353,12 +348,19 @@ export default function AssetDetailsScreen() {
                     <Text style={[S.newsHeadline, { color: C.text }]} numberOfLines={2}>
                       {n.headline}
                     </Text>
+                    {(() => {
+                      const sm = cleanSummary(n.summary);
+                      if (!sm || sm.toLowerCase() === cleanSummary(n.headline).toLowerCase()) return null;
+                      return (
+                        <Text style={[S.newsSummary, { color: C.muted }]} numberOfLines={3}>{sm}</Text>
+                      );
+                    })()}
                     <View style={S.newsMeta}>
                       <Text style={[S.newsSource, { color: C.muted }]} numberOfLines={1}>
                         {n.source}
                       </Text>
                       <Text style={[S.newsTime, { color: C.dim }]}>
-                        {timeAgo(n.datetime)}
+                        {timeAgo(n.datetime, t)}
                       </Text>
                     </View>
                   </View>
@@ -370,7 +372,7 @@ export default function AssetDetailsScreen() {
 
         {/* ── الوصف (للأسهم فقط) ── */}
         {asset.type === 'stock' && profile && (
-          <View style={[S.card, { backgroundColor: C.card, borderColor: C.border }]}>
+          <View style={S.card}>
             <Text style={[S.secTitle, { color: C.text }]}>{t('about_token')}</Text>
             <Text style={[S.desc, { color: C.muted }]}>
               {profile.name} {profile.industry ? `— ${profile.industry}` : ''}
@@ -393,8 +395,8 @@ const S = StyleSheet.create({
     justifyContent: 'space-between', marginBottom: 16,
   },
   iconBtn: {
-    width: 40, height: 40, borderRadius: 12,
-    justifyContent: 'center', alignItems: 'center', borderWidth: 1,
+    width: 40, height: 40, borderRadius: 20,
+    justifyContent: 'center', alignItems: 'center',
   },
   assetHead: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12 },
   assetImg: { width: 34, height: 34, borderRadius: 17 },
@@ -402,26 +404,19 @@ const S = StyleSheet.create({
   sym: { fontSize: 16, fontWeight: '800' },
   nam: { fontSize: 11, marginTop: 1 },
 
-  card: {
-    borderRadius: 18, padding: 16, marginBottom: 12, borderWidth: 1,
-    elevation: 1, shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.02, shadowRadius: 4,
-  },
+  card: { marginBottom: 22 },
+  hero: { marginBottom: 18, paddingTop: 4 },
 
   priceLabel: { fontSize: 12, fontWeight: '600', marginBottom: 8 },
   priceRow:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  price:      { fontSize: 30, fontWeight: '800', letterSpacing: -0.5 },
+  price:      { fontSize: 38, fontWeight: '800', letterSpacing: -0.5 },
   changePill: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, gap: 4 },
   changeTxt:  { fontSize: 12, fontWeight: '700' },
 
-  actions:   { flexDirection: 'row', gap: 8, marginBottom: 12 },
-  actionBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 12, borderRadius: 14, gap: 6 },
-  actionTxt: { fontSize: 12, fontWeight: '700', color: '#FFF' },
-
-  secTitle: { fontSize: 14, fontWeight: '800', marginBottom: 12 },
+  secTitle: { fontSize: 20, fontWeight: '800', marginBottom: 12 },
 
   tfRow: { flexDirection: 'row', justifyContent: 'space-between', width: '100%' },
-  tfBtn: { flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: 10, marginHorizontal: 2 },
+  tfBtn: { flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: 999, marginHorizontal: 2 },
   tfTxt: { fontSize: 12, fontWeight: '700' },
 
   chartArea: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 4, overflow: 'hidden' },
@@ -431,13 +426,14 @@ const S = StyleSheet.create({
   body:      { position: 'absolute', width: '55%', borderRadius: 1 },
 
   grid:      { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 8 },
-  gridItem:  { width: '48%', paddingVertical: 10, paddingHorizontal: 12, borderRadius: 12, borderWidth: 1 },
+  gridItem:  { width: '48%', paddingVertical: 10, paddingHorizontal: 12, borderRadius: 16 },
   gridLabel: { fontSize: 11, marginBottom: 4 },
   gridValue: { fontSize: 14, fontWeight: '700' },
 
   newsHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  newsItem:   { flexDirection: 'row', gap: 12, paddingVertical: 12 },
-  newsImg:    { width: 56, height: 56, borderRadius: 10 },
+  newsItem:   { flexDirection: 'row', gap: 12, padding: 12, borderRadius: 16 },
+  newsImg:    { width: 64, height: 64, borderRadius: 12 },
+  newsSummary:{ fontSize: 12, lineHeight: 17, marginTop: 4 },
   newsHeadline: { fontSize: 13, fontWeight: '700', lineHeight: 18 },
   newsMeta:   { flexDirection: 'row', justifyContent: 'space-between', marginTop: 6, gap: 8 },
   newsSource: { fontSize: 11, flex: 1 },

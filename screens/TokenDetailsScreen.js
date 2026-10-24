@@ -66,22 +66,22 @@ export default function TokenDetailsScreen() {
   const navigation   = useNavigation();
   const route        = useRoute();
   const { t }        = useTranslation();
-  const theme        = useAppStore(s => s.theme);
   const primaryColor = useAppStore(s => s.primaryColor || '#6C63FF');
-  const isDark       = theme === 'dark';
   const { token }    = route.params || {};
 
+  // التطبيق يعمل بالنمط الغامق فقط
   const C = {
-    bg:      isDark ? '#07070F' : '#F4F5F9',
-    card:    isDark ? '#111122' : '#FFFFFF',
-    card2:   isDark ? '#171730' : '#ECECF4',
-    text:    isDark ? '#EEEEFF' : '#1C1C24',
-    muted:   isDark ? '#7E7EAA' : '#8A8A9E',
-    dim:     isDark ? '#505070' : '#9CA3AF',
-    border:  isDark ? '#1E1E38' : '#E8E8F2',
+    bg:      '#07070F',
+    card:    '#111122',
+    card2:   '#171730',
+    text:    '#EEEEFF',
+    muted:   '#7E7EAA',
+    dim:     '#505070',
+    border:  '#1E1E38',
     success: '#10B981', error: '#EF4444',
     primary: primaryColor,
   };
+
 
   const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -217,7 +217,7 @@ export default function TokenDetailsScreen() {
     if (token.mint && !token.isExternal) { await Clipboard.setStringAsync(token.mint); Alert.alert(t('success'), t('copied_to_clipboard')); }
   };
   const openExp = () => { if (token.mint && !token.isExternal) Linking.openURL(`https://solscan.io/token/${token.mint}`); };
-  const openUrl = (url) => { if (url) Linking.openURL(url); };
+  const openUrl = (url) => { if (url) Linking.openURL(url).catch(() => {}); };
 
   const fmtBig = (n) => {
     if (!n) return 'N/A';
@@ -256,7 +256,7 @@ export default function TokenDetailsScreen() {
         {/* ── Header ── */}
         <View style={S.header}>
           <TouchableOpacity onPress={() => navigation.goBack()}
-            style={[S.iconBtn, { backgroundColor:C.card, borderColor:C.border }]}>
+            style={[S.iconBtn, { backgroundColor:C.card }]}>
             <Ionicons name="arrow-back" size={18} color={C.text} />
           </TouchableOpacity>
           <View style={S.tokenHead}>
@@ -268,7 +268,7 @@ export default function TokenDetailsScreen() {
           </View>
           <View style={{ flexDirection:'row', gap:8 }}>
             <TouchableOpacity onPress={toggleWatch}
-              style={[S.iconBtn, { backgroundColor:C.card, borderColor:C.border }]}>
+              style={[S.iconBtn, { backgroundColor:C.card }]}>
               <Ionicons
                 name={watchlist.includes(token.symbol) ? 'star' : 'star-outline'}
                 size={18}
@@ -277,7 +277,7 @@ export default function TokenDetailsScreen() {
             </TouchableOpacity>
             {!token.isExternal && (
               <TouchableOpacity onPress={copy}
-                style={[S.iconBtn, { backgroundColor:C.card, borderColor:C.border }]}>
+                style={[S.iconBtn, { backgroundColor:C.card }]}>
                 <Ionicons name="copy-outline" size={18} color={C.text} />
               </TouchableOpacity>
             )}
@@ -285,7 +285,7 @@ export default function TokenDetailsScreen() {
         </View>
 
         {/* ── السعر + Sparkline ── */}
-        <View style={[S.card, { backgroundColor:C.card, borderColor:C.border }]}>
+        <View style={S.hero}>
           <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
             <Text style={[S.priceLabel, { color:C.muted }]}>{t('current_price')}</Text>
             <Text style={[S.rankTxt, { color:C.dim }]}>#{metadata?.rank || token.rank || 'N/A'}</Text>
@@ -311,7 +311,7 @@ export default function TokenDetailsScreen() {
           {/* ✅ زر تنبيه السعر — جديد */}
           {!token.isExternal && (
             <TouchableOpacity
-              style={[S.alertBtn, { backgroundColor: primaryColor + '12', borderColor: primaryColor + '30' }]}
+              style={[S.alertBtn, { backgroundColor: primaryColor + '1C' }]}
               onPress={() => navigation.navigate('PriceAlerts', { preselectedToken: token })}
               activeOpacity={0.75}
             >
@@ -348,7 +348,7 @@ export default function TokenDetailsScreen() {
             )}
 
             <TouchableOpacity
-              style={[S.actionBtn, { backgroundColor: isDark?'#171730':'#ECECF4', borderColor:C.border, borderWidth:1 }]}
+              style={[S.actionBtn, { backgroundColor:C.card2 }]}
               onPress={openExp}
             >
               <Ionicons name="bar-chart-outline" size={15} color={C.text} />
@@ -358,7 +358,7 @@ export default function TokenDetailsScreen() {
         )}
 
         {/* ── التبويب الزمني ── */}
-        <View style={[S.card, { backgroundColor:C.card, borderColor:C.border, padding:12 }]}>
+        <View style={S.card}>
           <View style={S.tfRow}>
             {TIMEFRAMES.map(tf => (
               <TouchableOpacity
@@ -373,7 +373,7 @@ export default function TokenDetailsScreen() {
         </View>
 
         {/* ── الرسم البياني ── */}
-        <View style={[S.card, { backgroundColor:C.card, borderColor:C.border, minHeight:220 }]}>
+        <View style={[S.card, { minHeight:220 }]}>
           {loading ? (
             <View style={S.chartLoad}>
               <ActivityIndicator size="large" color={C.primary} />
@@ -405,7 +405,7 @@ export default function TokenDetailsScreen() {
         </View>
 
         {/* ── OHLC ── */}
-        <View style={[S.card, { backgroundColor:C.card, borderColor:C.border }]}>
+        <View style={S.card}>
           <Text style={[S.secTitle, { color:C.text }]}>{t('ohlc_stats')}</Text>
           <View style={S.grid}>
             {[
@@ -414,7 +414,7 @@ export default function TokenDetailsScreen() {
               { k:'ohlc_low',   v:fmtPrice(stats.low),     c:C.error   },
               { k:'ohlc_close', v:fmtPrice(stats.current), c:C.text    },
             ].map(item => (
-              <View key={item.k} style={[S.gridItem, { backgroundColor:C.bg, borderColor:C.border }]}>
+              <View key={item.k} style={[S.gridItem, { backgroundColor:C.card }]}>
                 <Text style={[S.gridLabel, { color:C.muted }]}>{t(item.k)}</Text>
                 <Text style={[S.gridValue, { color:item.c }]}>{item.v}</Text>
               </View>
@@ -423,7 +423,7 @@ export default function TokenDetailsScreen() {
         </View>
 
         {/* ── إحصائيات السوق ── */}
-        <View style={[S.card, { backgroundColor:C.card, borderColor:C.border }]}>
+        <View style={S.card}>
           <Text style={[S.secTitle, { color:C.text }]}>{t('market_stats')}</Text>
           <View style={S.grid}>
             {[
@@ -432,14 +432,14 @@ export default function TokenDetailsScreen() {
               { k:'circulating_supply', v:fmtSupply(stats.supply)   },
               { k:'max_supply',         v:stats.maxSupply>0 ? fmtSupply(stats.maxSupply) : '∞' },
             ].map(item => (
-              <View key={item.k} style={[S.gridItem, { backgroundColor:C.bg, borderColor:C.border }]}>
+              <View key={item.k} style={[S.gridItem, { backgroundColor:C.card }]}>
                 <Text style={[S.gridLabel, { color:C.muted }]}>{t(item.k)}</Text>
                 <Text style={[S.gridValue, { color:C.text }]}>{item.v}</Text>
               </View>
             ))}
           </View>
           {stats.ath > 0 && (
-            <View style={[S.athRow, { borderTopColor:C.border }]}>
+            <View style={S.athRow}>
               <View style={S.athItem}>
                 <View style={{ flexDirection:'row', alignItems:'center', gap:4, marginBottom:4 }}>
                   <Ionicons name="trophy" size={13} color="#FFB800" />
@@ -448,7 +448,6 @@ export default function TokenDetailsScreen() {
                 <Text style={[S.athVal, { color:C.text }]}>{fmtPrice(stats.ath)}</Text>
                 <Text style={[S.athChg, { color:C.error }]}>{fmtPct(stats.athChg)}</Text>
               </View>
-              <View style={[S.athDivider, { backgroundColor:C.border }]} />
               <View style={S.athItem}>
                 <View style={{ flexDirection:'row', alignItems:'center', gap:4, marginBottom:4 }}>
                   <Ionicons name="flag" size={13} color={C.success} />
@@ -462,7 +461,7 @@ export default function TokenDetailsScreen() {
 
         {/* ── الوصف ── */}
         {(metadata?.description || token.description) && (
-          <View style={[S.card, { backgroundColor:C.card, borderColor:C.border }]}>
+          <View style={S.card}>
             <Text style={[S.secTitle, { color:C.text }]}>{t('about_token')}</Text>
             <Text style={[S.desc, { color:C.muted }]}>
               {(metadata?.description || token.description || '').replace(/<[^>]+>/g,'').slice(0,400)}
@@ -473,7 +472,7 @@ export default function TokenDetailsScreen() {
 
         {/* ── الروابط ── */}
         {metadata?.links && Object.values(metadata.links).some(Boolean) && (
-          <View style={[S.card, { backgroundColor:C.card, borderColor:C.border }]}>
+          <View style={S.card}>
             <Text style={[S.secTitle, { color:C.text }]}>{t('official_links')}</Text>
             <View style={S.links}>
               {[
@@ -482,14 +481,14 @@ export default function TokenDetailsScreen() {
                 { key:'telegram',icon:'paper-plane-outline', color:'#0088CC', label:t('telegram') },
               ].filter(l => metadata.links[l.key]).map(l => (
                 <TouchableOpacity key={l.key}
-                  style={[S.linkBtn, { backgroundColor:C.bg, borderColor:C.border }]}
+                  style={[S.linkBtn, { backgroundColor:C.card }]}
                   onPress={() => openUrl(metadata.links[l.key])}>
                   <Ionicons name={l.icon} size={14} color={l.color} />
                   <Text style={[S.linkTxt, { color:C.text }]}>{l.label}</Text>
                 </TouchableOpacity>
               ))}
               {!token.isExternal && (
-                <TouchableOpacity style={[S.linkBtn, { backgroundColor:C.bg, borderColor:C.border }]} onPress={openExp}>
+                <TouchableOpacity style={[S.linkBtn, { backgroundColor:C.card }]} onPress={openExp}>
                   <Ionicons name="bar-chart-outline" size={14} color={C.primary} />
                   <Text style={[S.linkTxt, { color:C.text }]}>Solscan</Text>
                 </TouchableOpacity>
@@ -500,12 +499,12 @@ export default function TokenDetailsScreen() {
 
         {/* ── عنوان العقد (غير معروض للعملات الخارجية) ── */}
         {token.mint && !token.isExternal && (
-          <View style={[S.card, { backgroundColor:C.card, borderColor:C.border }]}>
+          <View style={S.card}>
             <Text style={[S.mintLabel, { color:C.muted }]}>{t('contract_address')}</Text>
-            <View style={S.mintRow}>
+            <View style={[S.mintRow, { backgroundColor:C.card }]}>
               <Text style={[S.mintAddr, { color:C.text }]} numberOfLines={1}>{token.mint}</Text>
               <TouchableOpacity onPress={copy}
-                style={[S.copyIconWrap, { backgroundColor:C.bg, borderColor:C.border }]}>
+                style={[S.copyIconWrap, { backgroundColor:C.card2 }]}>
                 <Ionicons name="copy" size={14} color={C.primary} />
               </TouchableOpacity>
             </View>
@@ -520,15 +519,16 @@ const S = StyleSheet.create({
   root:       { flex:1 },
   scroll:     { padding:20, paddingBottom:60 },
   header:     { flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:16 },
-  iconBtn:    { width:40, height:40, borderRadius:12, justifyContent:'center', alignItems:'center', borderWidth:1 },
+  iconBtn:    { width:40, height:40, borderRadius:20, justifyContent:'center', alignItems:'center' },
   tokenHead:  { flex:1, flexDirection:'row', alignItems:'center', gap:10, paddingHorizontal:12 },
   tokenImg:   { width:34, height:34, borderRadius:17 },
   sym:        { fontSize:16, fontWeight:'800' },
   nam:        { fontSize:11, marginTop:1 },
-  card:       { borderRadius:18, padding:16, marginBottom:12, borderWidth:1, elevation:1, shadowOffset:{width:0,height:2}, shadowOpacity:0.02, shadowRadius:4 },
+  card:       { marginBottom:22 },
+  hero:       { marginBottom:18, paddingTop:4 },
   priceLabel: { fontSize:12, fontWeight:'600' },
   rankTxt:    { fontSize:11, fontWeight:'600' },
-  price:      { fontSize:30, fontWeight:'800', letterSpacing:-0.5 },
+  price:      { fontSize:38, fontWeight:'800', letterSpacing:-0.5 },
   changePill: { flexDirection:'row', alignItems:'center', paddingHorizontal:10, paddingVertical:5, borderRadius:12, gap:4 },
   changeTxt:  { fontSize:12, fontWeight:'700' },
   sparkWrap:  { flexDirection:'row', alignItems:'flex-end', height:32, marginTop:14, gap:2 },
@@ -541,9 +541,8 @@ const S = StyleSheet.create({
     gap: 10,
     paddingVertical: 12,
     paddingHorizontal: 14,
-    borderRadius: 12,
-    borderWidth: 1,
-    marginTop: 14,
+    borderRadius: 999,
+    marginTop: 16,
   },
   alertBtnIcon: {
     width: 28,
@@ -558,12 +557,12 @@ const S = StyleSheet.create({
     fontWeight: '700',
   },
 
-  actions:    { flexDirection:'row', gap:8, marginBottom:12 },
-  actionBtn:  { flex:1, flexDirection:'row', alignItems:'center', justifyContent:'center', paddingVertical:12, borderRadius:14, gap:6 },
+  actions:    { flexDirection:'row', gap:8, marginBottom:22 },
+  actionBtn:  { flex:1, flexDirection:'row', alignItems:'center', justifyContent:'center', paddingVertical:13, borderRadius:999, gap:6 },
   actionTxt:  { fontSize:12, fontWeight:'700', color:'#FFF' },
-  secTitle:   { fontSize:14, fontWeight:'800', marginBottom:12 },
+  secTitle:   { fontSize:20, fontWeight:'800', marginBottom:12 },
   tfRow:      { flexDirection:'row', justifyContent:'space-between', width:'100%' },
-  tfBtn:      { flex:1, paddingVertical:8, alignItems:'center', borderRadius:10, marginHorizontal:2 },
+  tfBtn:      { flex:1, paddingVertical:8, alignItems:'center', borderRadius:999, marginHorizontal:2 },
   tfTxt:      { fontSize:12, fontWeight:'700' },
   chartArea:  { flexDirection:'row', justifyContent:'space-between', paddingHorizontal:4, overflow:'hidden' },
   chartLoad:  { alignItems:'center', justifyContent:'center', height:180, gap:8 },
@@ -571,21 +570,20 @@ const S = StyleSheet.create({
   wick:       { position:'absolute', width:1 },
   body:       { position:'absolute', width:'55%', borderRadius:1 },
   grid:       { flexDirection:'row', flexWrap:'wrap', justifyContent:'space-between', gap:8 },
-  gridItem:   { width:'48%', paddingVertical:10, paddingHorizontal:12, borderRadius:12, borderWidth:1 },
+  gridItem:   { width:'48%', paddingVertical:10, paddingHorizontal:12, borderRadius:16 },
   gridLabel:  { fontSize:11, marginBottom:4 },
   gridValue:  { fontSize:14, fontWeight:'700' },
-  athRow:     { flexDirection:'row', alignItems:'center', marginTop:14, paddingTop:14, borderTopWidth:1 },
-  athItem:    { flex:1, alignItems:'center', gap:2 },
-  athDivider: { width:1, height:44, marginHorizontal:12 },
+  athRow:     { flexDirection:'row', alignItems:'center', marginTop:8 },
+  athItem:    { flex:1, alignItems:'center', gap:2, backgroundColor:'#111122', borderRadius:16, paddingVertical:12, marginHorizontal:4 },
   athLabel:   { fontSize:11, fontWeight:'600' },
   athVal:     { fontSize:14, fontWeight:'700' },
   athChg:     { fontSize:11, fontWeight:'600' },
   desc:       { fontSize:13, lineHeight:18 },
   links:      { flexDirection:'row', flexWrap:'wrap', gap:8 },
-  linkBtn:    { flexDirection:'row', alignItems:'center', paddingHorizontal:12, paddingVertical:8, borderRadius:12, borderWidth:1, gap:6 },
+  linkBtn:    { flexDirection:'row', alignItems:'center', paddingHorizontal:12, paddingVertical:9, borderRadius:999, gap:6 },
   linkTxt:    { fontSize:12, fontWeight:'600' },
   mintLabel:  { fontSize:11, marginBottom:6, fontWeight:'600' },
-  mintRow:    { flexDirection:'row', alignItems:'center', gap:8 },
+  mintRow:    { flexDirection:'row', alignItems:'center', gap:8, borderRadius:16, paddingVertical:10, paddingHorizontal:14 },
   mintAddr:   { flex:1, fontSize:11, fontFamily:'monospace' },
-  copyIconWrap:{ width:32, height:32, borderRadius:8, justifyContent:'center', alignItems:'center', borderWidth:1 },
+  copyIconWrap:{ width:32, height:32, borderRadius:16, justifyContent:'center', alignItems:'center' },
 });
