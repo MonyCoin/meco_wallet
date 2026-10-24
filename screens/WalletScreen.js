@@ -489,7 +489,7 @@ export default function WalletScreen() {
     const up = (item.price_change_percentage_24h || 0) >= 0;
     return (
       <TouchableOpacity
-        style={[styles.tradeCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+        style={[styles.tradeCard, { backgroundColor: colors.card }]}
         onPress={() => handleOpenQuickTrade(item)}
         activeOpacity={0.85}
       >
@@ -642,7 +642,7 @@ export default function WalletScreen() {
             style={[
               styles.headerCardRing,
               {
-                backgroundColor: primaryColor + '55',
+                backgroundColor: 'transparent',
                 opacity: fadeAnim,
                 transform: [{ translateY: slideAnim }],
                 marginHorizontal: 20,
@@ -654,8 +654,6 @@ export default function WalletScreen() {
                 styles.headerCard,
                 {
                   backgroundColor: colors.card,
-                  borderColor: colors.border,
-                  borderWidth: 1,
                   borderRadius: 22,
                   paddingTop: 18,
                 },
@@ -669,13 +667,6 @@ export default function WalletScreen() {
                       styles.walletIconWrapper,
                       {
                         backgroundColor: primaryColor + '18',
-                        borderColor: primaryColor + '80',
-                        borderWidth: 1.5,
-                        shadowColor: primaryColor,
-                        shadowOffset: { width: 0, height: 2 },
-                        shadowOpacity: 0.15,
-                        shadowRadius: 4,
-                        elevation: 2,
                       },
                     ]}
                     activeOpacity={0.7}
@@ -705,7 +696,7 @@ export default function WalletScreen() {
                 <View style={styles.topBarActions}>
                   <TouchableOpacity
                     onPress={handleOpenNotifications}
-                    style={[styles.bellButton, { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1 }]}
+                    style={[styles.bellButton, { backgroundColor: colors.background }]}
                   >
                     <Ionicons name="notifications-outline" size={18} color={colors.text} />
                     {unreadCount > 0 && (
@@ -719,7 +710,7 @@ export default function WalletScreen() {
 
                   <TouchableOpacity
                     onPress={() => setMenuVisible(true)}
-                    style={[styles.dotsButton, { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1 }]}
+                    style={[styles.dotsButton, { backgroundColor: colors.background }]}
                   >
                     <Ionicons name="ellipsis-vertical" size={18} color={colors.text} />
                   </TouchableOpacity>
@@ -755,14 +746,14 @@ export default function WalletScreen() {
 
           <View style={styles.actionsGrid}>
             {[
-              { icon:'arrow-up',        color:colors.success, screen:'Send',    label:t('send')              },
-              { icon:'arrow-down',      color:'#6366F1',      screen:'Receive', label:t('receive')           },
-              { icon:'swap-horizontal', color:'#F59E0B',      screen:'Swap',    label:t('swap_title')        },
-              { icon:'trending-up',     color:'#EC4899',      screen:'Staking', label:t('staking.stake_tab') },
+              { icon:'arrow-up',        screen:'Send',    label:t('send')              },
+              { icon:'arrow-down',      screen:'Receive', label:t('receive')           },
+              { icon:'swap-horizontal', screen:'Swap',    label:t('swap_title')        },
+              { icon:'trending-up',     screen:'Staking', label:t('staking.stake_tab') },
             ].map(btn => (
               <TouchableOpacity key={btn.screen} style={styles.actionBtn} onPress={() => navigation.navigate(btn.screen)}>
-                <View style={[styles.actionCircle, { backgroundColor: btn.color + '12' }]}>
-                  <Ionicons name={btn.icon} size={22} color={btn.color} />
+                <View style={[styles.actionCircle, { backgroundColor: colors.card }]}>
+                  <Ionicons name={btn.icon} size={22} color={primaryColor} />
                 </View>
                 <Text style={[styles.actionLabel, { color: colors.text }]}>{btn.label}</Text>
               </TouchableOpacity>
@@ -823,7 +814,7 @@ export default function WalletScreen() {
             </View>
 
             {hasStaked ? (
-              <View style={[styles.stakingCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <View style={[styles.stakingCard, { backgroundColor: colors.card }]}>
                 <View style={styles.stakingRow}>
                   <View style={styles.stakingCol}>
                     <Text style={[styles.stakingLabel, { color: colors.textSecondary }]}>
@@ -855,7 +846,7 @@ export default function WalletScreen() {
               </View>
             ) : (
               <TouchableOpacity
-                style={[styles.stakingEmptyCard, { backgroundColor: colors.card, borderColor: primaryColor + '35' }]}
+                style={[styles.stakingEmptyCard, { backgroundColor: colors.card }]}
                 onPress={() => navigation.navigate('Staking')}
                 activeOpacity={0.85}
               >
@@ -883,7 +874,7 @@ export default function WalletScreen() {
             </View>
 
             <TouchableOpacity
-              style={[styles.activityCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+              style={[styles.activityCard, { backgroundColor: colors.card }]}
               onPress={() => navigation.navigate('ActivityHistory')}
               activeOpacity={0.75}
             >
@@ -898,7 +889,7 @@ export default function WalletScreen() {
                   {t('activity.subtitle')}
                 </Text>
               </View>
-              <View style={[styles.viewPill, { backgroundColor: primaryColor + '15', borderColor: primaryColor + '30' }]}>
+              <View style={[styles.viewPill, { backgroundColor: primaryColor + '15' }]}>
                 <Text style={[styles.viewPillTxt, { color: primaryColor }]}>
                   {t('activity.view')}
                 </Text>
@@ -910,7 +901,7 @@ export default function WalletScreen() {
 
         <Modal visible={menuVisible} transparent animationType="fade" onRequestClose={() => setMenuVisible(false)}>
           <TouchableOpacity style={styles.menuOverlay} activeOpacity={1} onPress={() => setMenuVisible(false)}>
-            <View style={[styles.menuCard, { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1 }]}>
+            <View style={[styles.menuCard, { backgroundColor: colors.card }]}>
 
               <View style={[styles.menuHeader, { borderBottomColor: colors.border }]}>
                 <TouchableOpacity onPress={() => setMenuVisible(false)} style={styles.menuCloseBtn}>
@@ -1115,12 +1106,7 @@ const styles = StyleSheet.create({
 
   headerCardRing: {
     borderRadius: 24,
-    padding: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 5,
+    padding: 0,
     zIndex: 10,
   },
 
@@ -1134,10 +1120,10 @@ const styles = StyleSheet.create({
   walletName:   { fontSize:18, fontWeight:'800' },
   inlineCopyBtn:{ padding:4 },
   accountsCount:{ fontSize:11, fontWeight:'500', marginTop:2 },
-  dotsButton:   { width:40, height:40, borderRadius:12, justifyContent:'center', alignItems:'center', borderWidth: 1 },
+  dotsButton:   { width:40, height:40, borderRadius:12, justifyContent:'center', alignItems:'center' },
 
   topBarActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  bellButton:    { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center', position: 'relative', borderWidth: 1 },
+  bellButton:    { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center', position: 'relative' },
   bellBadge:     { position: 'absolute', top: -3, right: -3, minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 5, justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: 'transparent' },
   bellBadgeTxt:  { color: '#FFF', fontSize: 10, fontWeight: '800' },
 
@@ -1150,7 +1136,7 @@ const styles = StyleSheet.create({
 
   actionsGrid:  { flexDirection:'row', justifyContent:'space-around', width: '100%', paddingHorizontal: 4, marginTop: 16, marginBottom: 12 },
   actionBtn:    { alignItems:'center', gap:6, flex: 1 },
-  actionCircle: { width:48, height:48, borderRadius:24, justifyContent:'center', alignItems:'center', shadowColor:'#000', shadowOffset:{width:0,height:2}, shadowOpacity:0.05, shadowRadius:6, elevation:2 },
+  actionCircle: { width:48, height:48, borderRadius:24, justifyContent:'center', alignItems:'center' },
   actionLabel:  { fontSize:12, fontWeight:'600' },
 
   tradingSection: { marginTop: 4, marginBottom: 14 },
@@ -1161,7 +1147,6 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 14,
     borderRadius: 18,
-    borderWidth: 1,
     gap: 10,
   },
   tradeCardIcon: {
@@ -1225,7 +1210,7 @@ const styles = StyleSheet.create({
   emptyText:    { fontSize:13, marginTop:4 },
 
   stakingSection: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 4 },
-  stakingCard:    { borderRadius: 18, borderWidth: 1, padding: 16 },
+  stakingCard:    { borderRadius: 18, padding: 16 },
   stakingRow:     { flexDirection: 'row', alignItems: 'center' },
   stakingCol:     { flex: 1 },
   stakingDivider: { width: 1, height: 36, marginHorizontal: 14 },
@@ -1233,17 +1218,17 @@ const styles = StyleSheet.create({
   stakingValue:   { fontSize: 17, fontWeight: '800' },
   stakingBtn:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 14, paddingVertical: 11, borderRadius: 12 },
   stakingBtnTxt:  { color: '#FFF', fontSize: 13, fontWeight: '700' },
-  stakingEmptyCard: { flexDirection: 'row', alignItems: 'center', borderRadius: 18, borderWidth: 1.5, borderStyle: 'dashed', padding: 14, gap: 12 },
+  stakingEmptyCard: { flexDirection: 'row', alignItems: 'center', borderRadius: 18, padding: 14, gap: 12 },
   stakingEmptyIcon: { width: 44, height: 44, borderRadius: 13, justifyContent: 'center', alignItems: 'center' },
   stakingEmptyTitle:{ fontSize: 14, fontWeight: '700', marginBottom: 2 },
   stakingEmptySub:  { fontSize: 11 },
 
   activitySection:  { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 20 },
-  activityCard:     { flexDirection: 'row', alignItems: 'center', padding: 14, borderRadius: 18, borderWidth: 1, gap: 12 },
+  activityCard:     { flexDirection: 'row', alignItems: 'center', padding: 14, borderRadius: 18, gap: 12 },
   activityIconWrap: { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
   activityLabel:    { fontSize: 14, fontWeight: '700' },
   activitySub:      { fontSize: 11, marginTop: 3 },
-  viewPill:         { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, borderWidth: 1 },
+  viewPill:         { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12 },
   viewPillTxt:      { fontSize: 12, fontWeight: '700' },
 
   menuOverlay:  { flex:1, backgroundColor:'rgba(0,0,0,0.2)', justifyContent:'flex-start', alignItems:'flex-end', paddingTop:Platform.OS==='ios'?100:80, paddingRight:20 },

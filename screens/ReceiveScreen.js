@@ -36,11 +36,11 @@ export default function ReceiveScreen() {
   
   // Theme colors
   const colors = {
-    background: isDark ? '#0A0A0F' : '#F8FAFD',
-    card: isDark ? '#1A1A2E' : '#FFFFFF',
-    text: isDark ? '#FFFFFF' : '#1A1A2E',
-    textSecondary: isDark ? '#A0A0B0' : '#6B7280',
-    border: isDark ? '#2A2A3E' : '#E5E7EB',
+    background: '#07070F',
+    card: '#111122',
+    text: '#EEEEFF',
+    textSecondary: '#7E7EAA',
+    border: '#1E1E38',
     success: '#10B981',
     warning: '#F59E0B',
   };
@@ -123,7 +123,7 @@ export default function ReceiveScreen() {
           </View>
 
           {/* Main QR Code Card */}
-          <View style={[styles.qrCard, { backgroundColor: colors.card }]}>
+          <View style={styles.qrCard}>
             <View style={styles.qrHeader}>
               <Ionicons name="qr-code-outline" size={24} color={primaryColor} />
               <Text style={[styles.qrTitle, { color: colors.text }]}>
@@ -138,7 +138,7 @@ export default function ReceiveScreen() {
                     data={walletPublicKey}
                     size={width * 0.55}
                     color={colors.text}
-                    bgColor={colors.card}
+                    bgColor={colors.background}
                     padding={16}
                     pieceSize={8}
                     pieceBorderRadius={4}
@@ -164,7 +164,7 @@ export default function ReceiveScreen() {
           </View>
 
           {/* Address Card */}
-          <View style={[styles.addressCard, { backgroundColor: colors.card }]}>
+          <View style={styles.addressCard}>
             <View style={styles.addressHeader}>
               <Ionicons name="wallet-outline" size={20} color={primaryColor} />
               <Text style={[styles.addressTitle, { color: colors.text }]}>
@@ -172,7 +172,7 @@ export default function ReceiveScreen() {
               </Text>
             </View>
             
-            <View style={[styles.addressContainer, { backgroundColor: colors.background }]}>
+            <View style={[styles.addressContainer, { backgroundColor: colors.card }]}>
               <Text style={[styles.addressText, { color: colors.text }]}>
                 {getTruncatedAddress(walletPublicKey)}
               </Text>
@@ -189,10 +189,7 @@ export default function ReceiveScreen() {
               style={[
                 styles.actionButton,
                 styles.copyButton,
-                { 
-                  backgroundColor: copied ? colors.success : primaryColor,
-                  borderColor: copied ? colors.success : primaryColor
-                }
+                { backgroundColor: copied ? colors.success : primaryColor }
               ]}
               onPress={copyToClipboard}
               disabled={!walletPublicKey}
@@ -211,10 +208,7 @@ export default function ReceiveScreen() {
               style={[
                 styles.actionButton,
                 styles.shareButton,
-                { 
-                  backgroundColor: colors.card,
-                  borderColor: colors.border
-                }
+                { backgroundColor: colors.card }
               ]}
               onPress={shareAddress}
               disabled={!walletPublicKey}
@@ -227,7 +221,7 @@ export default function ReceiveScreen() {
           </View>
 
           {/* Security Tips */}
-          <View style={[styles.securityCard, { backgroundColor: colors.card }]}>
+          <View style={styles.securityCard}>
             <View style={styles.securityHeader}>
               <Ionicons name="shield-checkmark-outline" size={20} color={colors.warning} />
               <Text style={[styles.securityTitle, { color: colors.text }]}>
@@ -301,14 +295,9 @@ const styles = StyleSheet.create({
   qrCard: {
     width: '100%',
     borderRadius: 24,
-    padding: 24,
+    paddingVertical: 8,
     marginBottom: 20,
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.1,
-    shadowRadius: 20,
-    elevation: 10,
   },
   qrHeader: {
     flexDirection: 'row',
@@ -324,13 +313,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 16,
   },
-  qrCode: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 6,
-  },
+  qrCode: {},
   qrHint: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -338,7 +321,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: 'rgba(0,0,0,0.03)',
+    backgroundColor: 'rgba(255,255,255,0.05)',
   },
   hintText: {
     fontSize: 12,
@@ -354,14 +337,8 @@ const styles = StyleSheet.create({
   },
   addressCard: {
     width: '100%',
-    borderRadius: 20,
-    padding: 20,
+    paddingVertical: 8,
     marginBottom: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.08,
-    shadowRadius: 16,
-    elevation: 6,
   },
   addressHeader: {
     flexDirection: 'row',
@@ -404,13 +381,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 16,
-    borderRadius: 16,
-    borderWidth: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+    borderRadius: 999,
   },
   copyButton: {
     backgroundColor: '#007AFF',
@@ -431,11 +402,8 @@ const styles = StyleSheet.create({
   },
   securityCard: {
     width: '100%',
-    borderRadius: 20,
-    padding: 20,
+    paddingVertical: 8,
     marginBottom: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(245, 158, 11, 0.2)',
   },
   securityHeader: {
     flexDirection: 'row',

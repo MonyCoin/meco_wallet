@@ -348,7 +348,7 @@ export default function SwapScreen() {
       >
         <TouchableOpacity
           activeOpacity={1}
-          style={[styles.modalContent, { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1 }]}
+          style={[styles.modalContent, { backgroundColor: colors.card }]}
         >
           <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
 
@@ -367,7 +367,7 @@ export default function SwapScreen() {
             showsVerticalScrollIndicator={false}
             renderItem={({ item }) => (
               <TouchableOpacity
-                style={[styles.tokenItem, { borderBottomColor: colors.border }]}
+                style={styles.tokenItem}
                 onPress={() => { onSelect(item); onClose(); }}
               >
                 <View style={[styles.tokenIconWrapper, { backgroundColor: isDark ? '#171730' : '#ECECF4' }]}>
@@ -397,7 +397,7 @@ export default function SwapScreen() {
     if (!errorMsg) return null;
     const isNetworkErr = errorType === ERROR_TYPE.NETWORK;
     return (
-      <View style={[styles.errCard, { backgroundColor: colors.error + '12', borderColor: colors.error + '30' }]}>
+      <View style={[styles.errCard, { backgroundColor: colors.error + '14' }]}>
         <Ionicons name={isNetworkErr ? 'cloud-offline-outline' : 'warning-outline'} size={16} color={colors.error} />
         <Text style={[styles.errTxt, { color: colors.error }]}>{errorMsg}</Text>
         {isNetworkErr && (
@@ -414,7 +414,7 @@ export default function SwapScreen() {
       <Animated.View style={[styles.mainContent, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
 
         <View style={styles.headerSection}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={[styles.backButton, { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1 }]}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
             <Ionicons name="arrow-back" size={18} color={colors.text} />
           </TouchableOpacity>
           <View style={styles.headerTitle}>
@@ -426,7 +426,7 @@ export default function SwapScreen() {
         <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 80 }]} showsVerticalScrollIndicator={false}>
 
           {activeAccount && (
-            <View style={[styles.accountBar, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={[styles.accountBar, { backgroundColor: colors.card }]}>
               <View style={[styles.accountIconWrapper, { backgroundColor: primaryColor + '12' }]}>
                 <Ionicons name="wallet-outline" size={16} color={primaryColor} />
               </View>
@@ -440,13 +440,13 @@ export default function SwapScreen() {
           )}
 
           {isOffline && (
-            <View style={[styles.offlineBanner, { backgroundColor: colors.warning + '12', borderColor: colors.warning + '30' }]}>
+            <View style={[styles.offlineBanner, { backgroundColor: colors.warning + '14' }]}>
               <Ionicons name="cloud-offline" size={16} color={colors.warning} />
               <Text style={[styles.offlineText, { color: colors.warning }]}>{t('offline_mode')}</Text>
             </View>
           )}
 
-          <View style={[styles.unifiedSwapContainer, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={[styles.unifiedSwapContainer, { backgroundColor: colors.card }]}>
 
             <View style={styles.swapInputRow}>
               <View style={styles.swapInputLeft}>
@@ -469,7 +469,7 @@ export default function SwapScreen() {
                   <Text style={{ color: primaryColor, fontWeight: '700', fontSize: 11 }}>{t('swap_max')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.tokenSelectorPill, { backgroundColor: colors.background, borderColor: colors.border }]}
+                  style={[styles.tokenSelectorPill, { backgroundColor: colors.background }]}
                   onPress={() => setFromModalVisible(true)}
                 >
                   <Image source={{ uri: fromToken.image }} style={styles.tokenImage} />
@@ -482,7 +482,7 @@ export default function SwapScreen() {
             <View style={[styles.swapDivider, { backgroundColor: colors.border }]}>
               <TouchableOpacity
                 onPress={swapTokens}
-                style={[styles.swapButtonCircle, { backgroundColor: colors.card, borderColor: colors.border }]}
+                style={[styles.swapButtonCircle, { backgroundColor: colors.background }]}
                 activeOpacity={0.8}
               >
                 <Animated.View style={{ transform: [{ rotate: rotateInterpolate }] }}>
@@ -499,11 +499,11 @@ export default function SwapScreen() {
                 </Text>
               </View>
               <View style={styles.swapInputRight}>
-                <TouchableOpacity onPress={() => copyMintAddress(toToken.mint)} style={[styles.copyPill, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                <TouchableOpacity onPress={() => copyMintAddress(toToken.mint)} style={[styles.copyPill, { backgroundColor: colors.background }]}>
                   <Ionicons name="link" size={12} color={primaryColor} />
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.tokenSelectorPill, { backgroundColor: colors.background, borderColor: colors.border }]}
+                  style={[styles.tokenSelectorPill, { backgroundColor: colors.background }]}
                   onPress={() => setToModalVisible(true)}
                 >
                   <Image source={{ uri: toToken.image }} style={styles.tokenImage} />
@@ -516,14 +516,14 @@ export default function SwapScreen() {
           </View>
 
           {quoteLoading && (
-            <View style={[styles.loadingCard, { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1 }]}>
+            <View style={[styles.loadingCard, { backgroundColor: colors.card }]}>
               <ActivityIndicator size="small" color={primaryColor} />
               <Text style={[styles.loadingText, { color: colors.textSecondary }]}>{t('swap_loading_quote')}</Text>
             </View>
           )}
 
           {rate && !quoteLoading && (
-            <Animated.View style={[styles.rateCard, { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1 }]}>
+            <Animated.View style={[styles.rateCard, { backgroundColor: colors.card }]}>
               <View style={styles.rateRow}>
                 <View style={styles.rateLabelWrapper}>
                   <Ionicons name="swap-horizontal" size={14} color={colors.textSecondary} />
@@ -616,17 +616,17 @@ const styles = StyleSheet.create({
 
   accountBar: {
     flexDirection: 'row', alignItems: 'center',
-    borderRadius: 14, padding: 10, marginBottom: 16, borderWidth: 1, gap: 10
+    borderRadius: 14, padding: 10, marginBottom: 16, gap: 10
   },
   accountIconWrapper: { width: 32, height: 32, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
   accountName:        { fontSize: 14, fontWeight: '700' },
   accountAddress:     { fontSize: 12, fontWeight: '500' },
   copyBtn:            { padding: 6 },
 
-  offlineBanner: { flexDirection: 'row', alignItems: 'center', padding: 10, borderRadius: 12, marginBottom: 16, gap: 8, borderWidth: 1 },
+  offlineBanner: { flexDirection: 'row', alignItems: 'center', padding: 10, borderRadius: 12, marginBottom: 16, gap: 8 },
   offlineText:   { fontSize: 12, fontWeight: '700' },
 
-  unifiedSwapContainer: { borderRadius: 20, borderWidth: 1, overflow: 'hidden' },
+  unifiedSwapContainer: { borderRadius: 20, overflow: 'hidden' },
   swapInputRow: { padding: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   swapInputLeft: { flex: 1, alignItems: 'flex-start' },
   swapInputRight: { alignItems: 'flex-end', gap: 6 },
@@ -635,15 +635,15 @@ const styles = StyleSheet.create({
   amountOutput: { fontSize: 26, fontWeight: '800', height: 36, paddingVertical: 0 },
   balanceHint: { fontSize: 11, marginTop: 6, fontWeight: '600' },
   maxBtn: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10 },
-  tokenSelectorPill: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 14, borderWidth: 1, gap: 6 },
+  tokenSelectorPill: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 14, gap: 6 },
   tokenImage: { width: 22, height: 22, borderRadius: 11 },
   tokenSelectorTxt: { fontSize: 13, fontWeight: '700' },
-  copyPill: { width: 32, height: 32, borderRadius: 8, justifyContent: 'center', alignItems: 'center', borderWidth: 1 },
+  copyPill: { width: 32, height: 32, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
 
   swapDivider: { height: 1, position: 'relative', alignItems: 'center', justifyContent: 'center', zIndex: 10 },
-  swapButtonCircle: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, justifyContent: 'center', alignItems: 'center', position: 'absolute' },
+  swapButtonCircle: { width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center', position: 'absolute' },
 
-  loadingCard: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 12, borderRadius: 16, marginTop: 14, gap: 8, borderWidth: 1 },
+  loadingCard: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 12, borderRadius: 16, marginTop: 14, gap: 8 },
   loadingText: { fontSize: 13, fontWeight: '600' },
 
   rateCard: { borderRadius: 16, padding: 14, marginTop: 14 },
@@ -653,7 +653,7 @@ const styles = StyleSheet.create({
   rateValue:          { fontSize: 12, fontWeight: '700' },
   rateValueHighlight: { fontSize: 14, fontWeight: '800' },
 
-  errCard:    { flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 14, marginTop: 14, gap: 8, borderWidth: 1 },
+  errCard:    { flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 14, marginTop: 14, gap: 8 },
   errTxt:     { flex: 1, fontSize: 12, fontWeight: '600' },
   retryBtn:   { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
 
@@ -703,7 +703,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  tokenItem:     { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1 },
+  tokenItem:     { flexDirection: 'row', alignItems: 'center', paddingVertical: 12 },
   tokenIconWrapper:   { width: 40, height: 40, borderRadius: 10, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
   tokenIcon:          { width: 24, height: 24, borderRadius: 12 },
   tokenInfo:          { flex: 1 },

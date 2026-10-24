@@ -101,7 +101,7 @@ export default function ActivityHistoryScreen() {
 
     return (
       <TouchableOpacity
-        style={[S.item, { backgroundColor: colors.card, borderColor: colors.border }]}
+        style={S.item}
         activeOpacity={0.7}
         onPress={() => openSolscan(tx.signature)}
       >
@@ -131,10 +131,10 @@ export default function ActivityHistoryScreen() {
     <View style={[S.root, { backgroundColor: colors.background }]}>
       <View style={{ height: insets.top }} />
 
-      <View style={[S.header, { borderBottomColor: colors.border }]}>
+      <View style={S.header}>
         <TouchableOpacity
           onPress={() => navigation.goBack()}
-          style={[S.backBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
+          style={S.backBtn}
         >
           <Ionicons name="arrow-back" size={18} color={colors.text} />
         </TouchableOpacity>
@@ -193,12 +193,12 @@ export default function ActivityHistoryScreen() {
 
 const S = StyleSheet.create({
   root:      { flex: 1 },
-  header:    { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1 },
-  backBtn:   { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center', borderWidth: 1 },
+  header:    { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12 },
+  backBtn:   { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
   title:     { fontSize: 16, fontWeight: '800' },
   center:    { flex: 1, justifyContent: 'center', alignItems: 'center' },
 
-  item:      { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 14, borderRadius: 14, borderWidth: 1, marginBottom: 8, gap: 12 },
+  item:      { flexDirection: 'row', alignItems: 'center', paddingVertical: 13, paddingHorizontal: 2, gap: 12 },
   iconWrap:  { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
   label:     { fontSize: 14, fontWeight: '700' },
   time:      { fontSize: 11, marginTop: 3 },

@@ -103,17 +103,13 @@ export default function NotificationsScreen() {
       <TouchableOpacity
         style={[
           S.notifCard,
-          {
-            backgroundColor: item.read ? C.card : C.unreadBg,
-            borderColor:     C.border,
-            borderRightColor: item.read ? C.border : color,
-          }
+          { opacity: item.read ? 0.82 : 1 }
         ]}
         onPress={() => handlePress(item)}
         onLongPress={() => handleDelete(item)}
         activeOpacity={0.75}
       >
-        <View style={[S.iconWrap, { backgroundColor: color + '18' }]}>
+        <View style={S.iconWrap}>
           <Text style={S.iconEmoji}>{item.icon}</Text>
         </View>
         <View style={S.notifContent}>
@@ -151,10 +147,10 @@ export default function NotificationsScreen() {
   return (
     <View style={[S.root, { backgroundColor: C.bg, paddingTop: Platform.OS === 'ios' ? insets.top : 0 }]}>
       {/* ── Header ── */}
-      <View style={[S.header, { backgroundColor: C.card, borderBottomColor: C.border }]}>
+      <View style={S.header}>
         <TouchableOpacity
           onPress={() => navigation.goBack()}
-          style={[S.iconBtn, { backgroundColor: C.bg }]}
+          style={S.iconBtn}
         >
           <Ionicons name="arrow-back" size={18} color={C.text} />
         </TouchableOpacity>
@@ -171,7 +167,7 @@ export default function NotificationsScreen() {
         {notifications.length > 0 ? (
           <TouchableOpacity
             onPress={handleMarkAllRead}
-            style={[S.iconBtn, { backgroundColor: C.bg }]}
+            style={S.iconBtn}
           >
             <Ionicons name="checkmark-done" size={18} color={primaryColor} />
           </TouchableOpacity>
@@ -183,7 +179,7 @@ export default function NotificationsScreen() {
         <View style={S.actionsRow}>
           <TouchableOpacity
             onPress={handleMarkAllRead}
-            style={[S.actionBtn, { borderColor: C.border }]}
+            style={[S.actionBtn, { backgroundColor: primaryColor + '1A' }]}
           >
             <Ionicons name="checkmark-done-outline" size={14} color={primaryColor} />
             <Text style={[S.actionTxt, { color: primaryColor }]}>
@@ -192,7 +188,7 @@ export default function NotificationsScreen() {
           </TouchableOpacity>
           <TouchableOpacity
             onPress={handleClearAll}
-            style={[S.actionBtn, { borderColor: C.border }]}
+            style={[S.actionBtn, { backgroundColor: '#EF44441A' }]}
           >
             <Ionicons name="trash-outline" size={14} color="#EF4444" />
             <Text style={[S.actionTxt, { color: '#EF4444' }]}>
@@ -224,7 +220,6 @@ const S = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    borderBottomWidth: 1,
     paddingTop: Platform.OS === 'android' ? 40 : 12,
   },
   iconBtn: {
@@ -253,7 +248,7 @@ const S = StyleSheet.create({
   actionBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
     paddingHorizontal: 12, paddingVertical: 6,
-    borderRadius: 10, borderWidth: 1,
+    borderRadius: 999,
   },
   actionTxt: { fontSize: 12, fontWeight: '700' },
 
@@ -263,14 +258,11 @@ const S = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 12,
-    padding: 14,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderRightWidth: 3,
-    marginBottom: 10,
+    paddingVertical: 14,
+    paddingHorizontal: 2,
   },
   iconWrap: {
-    width: 42, height: 42, borderRadius: 12,
+    width: 36, height: 36,
     justifyContent: 'center', alignItems: 'center',
     flexShrink: 0,
   },

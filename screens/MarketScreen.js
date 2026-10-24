@@ -160,7 +160,7 @@ const ForexTicker = ({ data, isDark }) => {
           const digits = item.digits ?? 4;
           return (
             <View key={`${item.id}-${i}`} style={S.tickerItem}>
-              <View style={[S.tickerCard, { backgroundColor: C.card, borderColor: C.border }]}>
+              <View style={[S.tickerCard, { backgroundColor: C.card }]}>
                 {/* الأعلام: دائرتان متداخلتان */}
                 <View style={S.fxFlagsWrap}>
                   <View style={[S.fxFlagCircle, { backgroundColor: C.flagBg, borderColor: C.card }]}>
@@ -217,7 +217,7 @@ const ForexTicker = ({ data, isDark }) => {
 // ═════════════════════════════════════════════════════════════════════════════
 const MECO_MINT_ADDR = 'A5Ln25cfww33kfUSzBb89bMha7j1PnFQTy7H3FsQHN7W';
 const HERO_W      = width - 40;           // عرض محتوى الشاشة (هامش 20 على الجانبين)
-const HERO_H      = 176;
+const HERO_H      = 196;
 const HERO_N      = 48;                    // عدد نقاط المنحنى
 const HERO_GREEN  = '#10B981';
 const HERO_RED    = '#EF4444';
@@ -229,7 +229,7 @@ const buildHeroCurve = (up) => {
     const wave  = Math.sin(t * 9.4) * 0.07 + Math.sin(t * 21 + 1.3) * 0.035 + Math.sin(t * 4.1 + 0.6) * 0.05;
     const trend = (up ? 1 : -1) * (t - 0.5) * 0.55;
     const v     = Math.min(0.95, Math.max(0.05, 0.5 + trend + wave));
-    pts.push({ x: t * HERO_W, y: 154 - v * 76 });
+    pts.push({ x: t * HERO_W, y: 186 - v * 48 });
   }
   // مسار سلس عبر نقاط المنتصف (Quadratic)
   let line = `M ${pts[0].x.toFixed(1)} ${pts[0].y.toFixed(1)}`;
@@ -396,14 +396,14 @@ const MarketOverviewCard = React.memo(({ data, isDark, primaryColor }) => {
   };
   const up = (data?.marketCapChange24h || 0) >= 0;
   return (
-    <View style={[S.overviewCard, { backgroundColor:C.card, borderColor:C.border }]}>
+    <View style={[S.overviewCard, { backgroundColor:C.card }]}>
       <View style={S.overviewRow}>
         {[
           { k:'market_cap_label', v: data?.totalMarketCapFormatted || 'N/A' },
           { k:'market_volume',    v: data?.totalVolume24hFormatted  || 'N/A' },
           { k:'btc_dominance',    v: `${data?.btcDominance?.toFixed(1)||'0'}%` },
         ].map((item, i) => (
-          <View key={item.k} style={[S.overviewItem, i===1 && { borderLeftWidth:1, borderRightWidth:1, borderColor:C.border }]}>
+          <View key={item.k} style={S.overviewItem}>
             <Text style={[S.overviewLabel, { color:C.muted }]}>{t(item.k)}</Text>
             <Text style={[S.overviewValue, { color:C.text }]}>{item.v}</Text>
           </View>
@@ -521,7 +521,7 @@ const GlobalMarketCard = ({ item, isDark, onPress }) => {
 
   return (
     <TouchableOpacity
-      style={[S.extCard, { backgroundColor: C.card, borderColor: C.border }]}
+      style={[S.extCard, { backgroundColor: C.card }]}
       onPress={onPress}
       activeOpacity={0.85}
     >
@@ -598,6 +598,7 @@ export default function MarketScreen() {
   const [watchlist,    setWatchlist]    = useState([]);
   const [overview,     setOverview]     = useState(null);
   const [sortBy,       setSortBy]       = useState('rank');
+  const [showAll,      setShowAll]      = useState(false);
   const [addModal,     setAddModal]     = useState(false);
   const [mintInput,    setMintInput]    = useState('');
   const [fetching,     setFetching]     = useState(false);
@@ -788,7 +789,7 @@ export default function MarketScreen() {
           <Text style={[S.headerSub,   { color:C.muted }]}>{t('market_subtitle')}</Text>
         </View>
         <TouchableOpacity
-          style={[S.headerBtn, { backgroundColor:C.card, borderColor:C.border }]}
+          style={[S.headerBtn, { backgroundColor:C.card }]}
           onPress={() => setSearchActive(v => !v)}
         >
           <Ionicons name={searchActive?'close':'search'} size={18} color={C.text} />
@@ -799,7 +800,7 @@ export default function MarketScreen() {
 
       {searchActive && (
         <View style={S.searchRow}>
-          <View style={[S.searchWrap, { backgroundColor:C.card, borderColor:C.border }]}>
+          <View style={[S.searchWrap, { backgroundColor:C.card }]}>
             <Ionicons name="search" size={14} color={C.muted} style={{ marginLeft:12 }} />
             <TextInput
               style={[S.searchInput, { color:C.text }]}
@@ -847,7 +848,6 @@ export default function MarketScreen() {
               key={tab.id}
               style={[S.tab, {
                 backgroundColor: activeTab===tab.id ? primaryColor : C.card,
-                borderColor: C.border,
               }]}
               onPress={() => setActiveTab(tab.id)}
             >
@@ -863,8 +863,7 @@ export default function MarketScreen() {
             <TouchableOpacity
               key={opt.id}
               style={[S.sortBtn, {
-                backgroundColor: sortBy===opt.id ? primaryColor+'15' : 'transparent',
-                borderColor:     sortBy===opt.id ? primaryColor+'35' : 'transparent',
+                backgroundColor: sortBy===opt.id ? primaryColor+'1F' : 'transparent',
               }]}
               onPress={() => setSortBy(opt.id)}
             >
@@ -883,7 +882,7 @@ export default function MarketScreen() {
                 {activeTab==='watchlist' ? t('watchlist_empty') : t('no_results')}
               </Text>
             </View>
-          ) : filtered.map(token => (
+          ) : (showAll || searchQuery ? filtered : filtered.slice(0, 5)).map(token => (
             <TokenListItem
               key={token.mint||token.id}
               token={token}
@@ -893,6 +892,14 @@ export default function MarketScreen() {
               onLongPress={tk => tk.isCustom ? handleDelete(tk) : toggleWatch(tk)}
             />
           ))}
+          {!searchQuery && filtered.length > 5 && (
+            <TouchableOpacity style={S.showMoreBtn} onPress={() => setShowAll(v => !v)} activeOpacity={0.7}>
+              <Ionicons name={showAll ? 'chevron-up' : 'chevron-down'} size={14} color={C.muted} />
+              <Text style={[S.showMoreTxt, { color:C.muted }]}>
+                {showAll ? t('market_show_less', 'عرض أقل') : t('market_show_more', 'عرض المزيد من العملات')}
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {!searchQuery && (
@@ -1020,7 +1027,7 @@ const S = StyleSheet.create({
   headerTitle: { fontSize:28, fontWeight:'800', letterSpacing:-0.5 },
   headerSub:   { fontSize:13, marginTop:2 },
   headerBtn:   { width:40, height:40, borderRadius:12, justifyContent:'center',
-                 alignItems:'center', borderWidth:1 },
+                 alignItems:'center' },
 
   tickerWrap: {
     height: 54,
@@ -1042,7 +1049,6 @@ const S = StyleSheet.create({
   tickerCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1,
     borderRadius: 12,
     height: 44,
     paddingHorizontal: 6,
@@ -1061,7 +1067,7 @@ const S = StyleSheet.create({
   fxChgTxt:      { fontSize: 9, fontWeight: '800' },
 
   searchRow:   { flexDirection:'row', alignItems:'center', paddingHorizontal:20, paddingTop:12, paddingBottom:12 },
-  searchWrap:  { flex:1, flexDirection:'row', alignItems:'center', borderWidth:1, borderRadius:12, height:44 },
+  searchWrap:  { flex:1, flexDirection:'row', alignItems:'center', borderRadius:12, height:44 },
   searchInput: { flex:1, paddingHorizontal:10, fontSize:14, paddingVertical:0 },
   addBtn:      { width:32, height:32, borderRadius:8, justifyContent:'center', alignItems:'center', marginRight:4 },
   cancelBtn:   { paddingLeft:12, paddingVertical:10 },
@@ -1084,11 +1090,11 @@ const S = StyleSheet.create({
   heroCtaTxt:    { color:'#FFFFFF', fontSize:12, fontWeight:'800' },
   heroBottom:    { position:'absolute', top:52, left:16, right:16 },
   heroPrice:     { color:'#FFFFFF', fontSize:32, fontWeight:'800', letterSpacing:-0.5, maxWidth:'70%' },
-  heroChgChip:   { flexDirection:'row', alignItems:'center', gap:4, alignSelf:'flex-start', paddingHorizontal:9, paddingVertical:3, borderRadius:999, marginTop:4 },
+  heroChgChip:   { flexDirection:'row', alignItems:'center', gap:4, alignSelf:'flex-start', paddingHorizontal:9, paddingVertical:3, borderRadius:999, marginTop:10 },
   heroChgTxt:    { fontSize:12, fontWeight:'800' },
   heroChgSub:    { color:'rgba(255,255,255,0.5)', fontSize:10, fontWeight:'600', marginLeft:2 },
 
-  overviewCard:  { borderRadius:18, padding:16, marginBottom:14, borderWidth:1 },
+  overviewCard:  { borderRadius:18, padding:16, marginBottom:14 },
   overviewRow:   { flexDirection:'row', justifyContent:'space-between' },
   overviewItem:  { flex:1, alignItems:'center' },
   overviewLabel: { fontSize:11, marginBottom:4 },
@@ -1097,14 +1103,16 @@ const S = StyleSheet.create({
                    marginTop:12, paddingVertical:6, borderRadius:12, gap:6 },
   overviewBarTxt:{ fontSize:13, fontWeight:'600' },
 
-  tab:         { paddingHorizontal:14, paddingVertical:6, borderRadius:12, borderWidth:1 },
+  tab:         { paddingHorizontal:14, paddingVertical:6, borderRadius:12 },
   tabTxt:      { fontSize:13, fontWeight:'600' },
 
   sortRow:     { flexDirection:'row', marginBottom:12, gap:6 },
-  sortBtn:     { paddingHorizontal:10, paddingVertical:5, borderRadius:8, borderWidth:1 },
+  sortBtn:     { paddingHorizontal:10, paddingVertical:5, borderRadius:8 },
   sortTxt:     { fontSize:12, fontWeight:'600' },
 
   listFlat:    { marginBottom:20 },
+  showMoreBtn: { flexDirection:'row', alignItems:'center', justifyContent:'center', gap:6, paddingVertical:14 },
+  showMoreTxt: { fontSize:13, fontWeight:'600' },
   tokenRow:    { flexDirection:'row', alignItems:'center', paddingVertical:13, paddingHorizontal:2 },
   tokenLeft:   { flexDirection:'row', alignItems:'center', flex:1, gap:10 },
   tokenIcon:   { width:36, height:36, borderRadius:18, justifyContent:'center', alignItems:'center' },
@@ -1132,7 +1140,6 @@ const S = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 14,
     borderRadius: 18,
-    borderWidth: 1,
     gap: 10,
   },
   extEmojiIcon: {

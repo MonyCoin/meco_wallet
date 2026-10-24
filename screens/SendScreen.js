@@ -513,8 +513,7 @@ export default function SendScreen() {
         style={[
           styles.tokenItem,
           {
-            backgroundColor: isSelected ? primaryColor + '10' : colors.card,
-            borderColor:     isSelected ? primaryColor : colors.border,
+            backgroundColor: isSelected ? primaryColor + '14' : 'transparent',
           },
         ]}
         onPress={() => setState(prev => ({ ...prev, currency: item.symbol, modalVisible: false, amount: '' }))}
@@ -549,8 +548,8 @@ export default function SendScreen() {
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.background }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       
       {/* ── الهيدر ── */}
-      <View style={[styles.headerNew, { backgroundColor: colors.card, paddingTop: Platform.OS === 'ios' ? 0 : insets.top }]}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={[styles.backButton, { backgroundColor: colors.background, borderColor: colors.border, borderWidth: 1 }]}>
+      <View style={[styles.headerNew, { backgroundColor: colors.background, paddingTop: Platform.OS === 'ios' ? 0 : insets.top }]}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={18} color={colors.text} />
         </TouchableOpacity>
 
@@ -565,7 +564,7 @@ export default function SendScreen() {
 
         <TouchableOpacity
           onPress={handleOpenAddressBook}
-          style={[styles.addressBookButton, { backgroundColor: colors.background, borderColor: colors.border, borderWidth: 1 }]}
+          style={[styles.addressBookButton, { backgroundColor: primaryColor + '1A' }]}
         >
           <Ionicons name="book-outline" size={16} color={primaryColor} />
           <Text style={[styles.addressBookLabel, { color: primaryColor }]} numberOfLines={1}>
@@ -586,7 +585,7 @@ export default function SendScreen() {
               </TouchableOpacity>
             </View>
             
-            <View style={[styles.inputContainerNew, { backgroundColor: colors.card, borderColor: colors.border, height: 64 }]}>
+            <View style={[styles.inputContainerNew, { backgroundColor: colors.card, height: 64 }]}>
               <TextInput
                 style={[styles.inputNew, { color: colors.text, fontSize: 24, fontWeight: '800', paddingVertical: 0 }]}
                 placeholder="0.00"
@@ -597,7 +596,7 @@ export default function SendScreen() {
                 autoCorrect={false}
               />
               
-              <TouchableOpacity style={[styles.tokenSelectorPill, { backgroundColor: colors.background, borderColor: colors.border }]} onPress={handleOpenTokenModal}>
+              <TouchableOpacity style={[styles.tokenSelectorPill, { backgroundColor: colors.background }]} onPress={handleOpenTokenModal}>
                 <Image source={{ uri: currentToken.image }} style={styles.selectedTokenIcon} />
                 <Text style={[styles.tokenSymbolText, { color: colors.text }]}>{state.currency}</Text>
                 <Ionicons name="chevron-down" size={13} color={colors.textSecondary} />
@@ -616,7 +615,7 @@ export default function SendScreen() {
           {/* ── حقل المستلم ── */}
           <View style={styles.inputSection}>
             <Text style={[styles.inputLabel, { color: colors.text }]}>{t('sendScreen.inputs.recipient')}</Text>
-            <View style={[styles.inputContainerNew, { backgroundColor: colors.card, borderColor: state.recipientExists === false ? colors.error : colors.border }]}>
+            <View style={[styles.inputContainerNew, { backgroundColor: colors.card }, state.recipientExists === false && { borderWidth: 1, borderColor: colors.error }]}>
               <TextInput
                 style={[styles.inputNew, { color: colors.text, fontSize: 14, paddingVertical: 0 }]}
                 placeholder={t('sendScreen.inputs.recipientPlaceholder')}
@@ -648,8 +647,6 @@ export default function SendScreen() {
                     styles.quickActionBtn,
                     {
                       backgroundColor: isRecipientSaved ? 'rgba(16,185,129,0.08)' : 'rgba(245,158,11,0.08)',
-                      borderColor:     isRecipientSaved ? colors.success + '30' : colors.warning + '30',
-                      borderWidth: 1,
                     },
                   ]}
                   onPress={handleOpenSaveModal}
@@ -733,7 +730,7 @@ export default function SendScreen() {
       {/* ═══ Modal: حفظ/تعديل العنوان ═══ */}
       <Modal visible={saveAddressModalVisible} transparent animationType="slide" onRequestClose={() => setSaveAddressModalVisible(false)}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalOverlay}>
-          <View style={[styles.saveSheet, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={[styles.saveSheet, { backgroundColor: colors.card }]}>
             <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
 
             <View style={styles.modalHeader}>
@@ -756,7 +753,7 @@ export default function SendScreen() {
 
             <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
-              <View style={[styles.addressPreview, { backgroundColor: colors.background, borderColor: colors.border, borderWidth: 1 }]}>
+              <View style={[styles.addressPreview, { backgroundColor: colors.background }]}>
                 <Text style={[styles.addressPreviewText, { color: colors.textSecondary }]}>
                   {state.recipient.slice(0, 14)}...{state.recipient.slice(-8)}
                 </Text>
@@ -765,7 +762,7 @@ export default function SendScreen() {
               <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>
                 {t('address_book.fields.name', 'الاسم')}
               </Text>
-              <View style={[styles.inputRow, { backgroundColor: colors.background, borderColor: colors.border, borderWidth: 1 }]}>
+              <View style={[styles.inputRow, { backgroundColor: colors.background }]}>
                 <Ionicons name="person-outline" size={16} color={colors.textSecondary} />
                 <TextInput
                   style={[styles.inputTxt, { color: colors.text }]}
@@ -790,8 +787,7 @@ export default function SendScreen() {
                       style={[
                         styles.catOption,
                         {
-                          backgroundColor: isActive ? cat.color + '20' : colors.background,
-                          borderColor:     isActive ? cat.color : colors.border,
+                          backgroundColor: isActive ? cat.color + '26' : colors.background,
                         },
                       ]}
                       onPress={() => setSaveFormCategory(cat.id)}
@@ -808,7 +804,7 @@ export default function SendScreen() {
               <Text style={[styles.fieldLabel, { color: colors.textSecondary, marginTop: 14 }]}>
                 {t('address_book.fields.note', 'ملاحظة (اختياري)')}
               </Text>
-              <View style={[styles.inputRow, { backgroundColor: colors.background, borderColor: colors.border, borderWidth: 1, height: 46 }]}>
+              <View style={[styles.inputRow, { backgroundColor: colors.background, height: 46 }]}>
                 <Ionicons name="create-outline" size={16} color={colors.textSecondary} />
                 <TextInput
                   style={[styles.inputTxt, { color: colors.text }]}
@@ -823,7 +819,7 @@ export default function SendScreen() {
 
               <View style={styles.sheetBtns}>
                 <TouchableOpacity
-                  style={[styles.sheetBtn, { backgroundColor: colors.background, borderColor: colors.border, borderWidth: 1 }]}
+                  style={[styles.sheetBtn, { backgroundColor: colors.background }]}
                   onPress={() => setSaveAddressModalVisible(false)}
                 >
                   <Text style={[styles.sheetBtnTxt, { color: colors.text }]}>{t('cancel')}</Text>
@@ -842,7 +838,7 @@ export default function SendScreen() {
 
               {savedItem && (
                 <TouchableOpacity
-                  style={[styles.deleteBtn, { borderColor: colors.error + '30' }]}
+                  style={[styles.deleteBtn, { backgroundColor: colors.error + '14' }]}
                   onPress={handleDeleteSavedAddress}
                 >
                   <Ionicons name="trash-outline" size={14} color={colors.error} />
@@ -863,7 +859,7 @@ export default function SendScreen() {
 const styles = StyleSheet.create({
   scrollContent:       { flexGrow: 1 },
   container:           { flex: 1, padding: 20 },
-  headerNew:           { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 16, borderBottomWidth: 1, gap: 10 },
+  headerNew:           { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 16, gap: 10 },
   backButton:          { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center', flexShrink: 0 },
 
   headerTitleContainer:{ flex: 1, alignItems: 'center', paddingHorizontal: 6 },
@@ -888,7 +884,7 @@ const styles = StyleSheet.create({
 
   inputSection:        { marginBottom: 16 },
   inputLabel:          { fontSize: 14, fontWeight: '700', marginBottom: 10 },
-  inputContainerNew:   { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: 14, paddingLeft: 12, paddingRight: 8, height: 48 },
+  inputContainerNew:   { flexDirection: 'row', alignItems: 'center', borderRadius: 14, paddingLeft: 12, paddingRight: 8, height: 48 },
   inputNew:            { fontSize: 15, flex: 1, height: '100%' },
   inputActions:        { flexDirection: 'row', alignItems: 'center', gap: 4 },
   iconBtn:             { width: 32, height: 32, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
@@ -918,7 +914,7 @@ const styles = StyleSheet.create({
   inputTxt:            { flex: 1, fontSize: 14, paddingVertical: 0 },
 
   catGrid:             { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  catOption:           { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 9, borderRadius: 12, borderWidth: 1, gap: 6 },
+  catOption:           { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 9, borderRadius: 12, gap: 6 },
   catOptionTxt:        { fontSize: 12, fontWeight: '700' },
 
   sheetBtns:           { flexDirection: 'row', gap: 10, marginTop: 20 },
@@ -927,7 +923,7 @@ const styles = StyleSheet.create({
   sheetBtnPrimary:     { flex: 1.5, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: 14, borderRadius: 12, gap: 6 },
   sheetBtnPrimaryTxt:  { color: '#FFF', fontSize: 14, fontWeight: '800' },
 
-  deleteBtn:           { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 12, borderRadius: 12, borderWidth: 1, marginTop: 12, gap: 6 },
+  deleteBtn:           { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 12, borderRadius: 12, marginTop: 12, gap: 6 },
   deleteBtnTxt:        { fontSize: 13, fontWeight: '700' },
 
   // ═══ Token Modal Styles ═══
@@ -956,7 +952,6 @@ const styles = StyleSheet.create({
   tokenItem: {
     borderRadius: 14,
     padding: 12,
-    borderWidth: 1.5,
   },
   tokenItemContent: {
     flexDirection: 'row',
@@ -999,7 +994,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 
-  tokenSelectorPill:   { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, borderWidth: 1, gap: 6 },
+  tokenSelectorPill:   { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, gap: 6 },
   selectedTokenIcon:   { width: 24, height: 24, borderRadius: 12 },
   tokenSymbolText:     { fontSize: 13, fontWeight: '700' },
   balanceHintText:     { fontSize: 11, marginTop: 6, fontWeight: '600', paddingLeft: 4 },
