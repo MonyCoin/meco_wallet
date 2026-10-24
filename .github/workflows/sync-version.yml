@@ -30,6 +30,25 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "tag=$TAG" >> $GITHUB_OUTPUT
 
+      - name: Get APK download URL
+        id: apk
+        run: |
+          # إذا كان التشغيل تلقائيًا عبر Release: نأخذ الرابط من بيانات الحدث مباشرة
+          # إذا كان التشغيل يدويًا: نجلبه من GitHub API لآخر إصدار
+          if [ -n "${{ github.event.release.tag_name }}" ]; then
+            URL=$(echo '${{ toJson(github.event.release.assets) }}' | jq -r '.[] | select(.name | endswith(".apk")) | .browser_download_url' | head -n 1)
+          else
+            URL=$(curl -s https://api.github.com/repos/MonyCoin/meco_wallet/releases/latest | jq -r '.assets[] | select(.name | endswith(".apk")) | .browser_download_url' | head -n 1)
+          fi
+          
+          # التحقق من وجود الرابط
+          if [ -z "$URL" ] || [ "$URL" = "null" ]; then
+            echo "Error: No APK asset found in the release"
+            exit 1
+          fi
+          
+          echo "url=$URL" >> $GITHUB_OUTPUT
+
       - name: Update version.json
         run: |
           cat > version.json <<EOF
@@ -37,7 +56,7 @@ jobs:
             "latestVersion": "${{ steps.version.outputs.version }}",
             "buildNumber": "${{ github.run_number }}",
             "releaseNotes": "تحديث تلقائي للإصدار ${{ steps.version.outputs.tag }}",
-            "downloadUrl": "https://github.com/MonyCoin/meco_wallet/releases/latest/download/MECO-wallet.apk"
+            "downloadUrl": "${{ steps.apk.outputs.url }}"
           }
           EOF
 
