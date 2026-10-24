@@ -228,16 +228,16 @@ export default function QRScannerScreen() {
           enableTorch={torch}
           barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
           onBarcodeScanned={scanned || processingImage ? undefined : handleBarCodeScanned}
-        >
-          <View style={styles.overlay}>
-            <View style={styles.scanArea}>
-              <View style={[styles.corner, styles.cornerTopLeft, { borderColor: primaryColor }]} />
-              <View style={[styles.corner, styles.cornerTopRight, { borderColor: primaryColor }]} />
-              <View style={[styles.corner, styles.cornerBottomLeft, { borderColor: primaryColor }]} />
-              <View style={[styles.corner, styles.cornerBottomRight, { borderColor: primaryColor }]} />
-            </View>
+        />
+        {/* الطبقة فوق الكاميرا كعنصر مستقل (CameraView لا يدعم children) */}
+        <View style={[StyleSheet.absoluteFill, styles.overlay]} pointerEvents="none">
+          <View style={styles.scanArea}>
+            <View style={[styles.corner, styles.cornerTopLeft, { borderColor: primaryColor }]} />
+            <View style={[styles.corner, styles.cornerTopRight, { borderColor: primaryColor }]} />
+            <View style={[styles.corner, styles.cornerBottomLeft, { borderColor: primaryColor }]} />
+            <View style={[styles.corner, styles.cornerBottomRight, { borderColor: primaryColor }]} />
           </View>
-        </CameraView>
+        </View>
       </View>
 
       <View style={[styles.instructions, { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1, marginBottom: insets.bottom > 0 ? insets.bottom + 16 : 20 }]}>

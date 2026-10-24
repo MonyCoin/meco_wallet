@@ -38,9 +38,7 @@ export default function AddressBookScreen() {
   const navigation   = useNavigation();
   const route        = useRoute();
   const { t }        = useTranslation();
-  const theme        = useAppStore(s => s.theme);
   const primaryColor = useAppStore(s => s.primaryColor || '#E74C3C');
-  const isDark       = theme === 'dark';
   const insets       = useSafeAreaInsets();
 
   const addressBook       = useAppStore(s => s.addressBook);
@@ -54,12 +52,12 @@ export default function AddressBookScreen() {
   const isSelectionMode = mode === 'select';
 
   const C = {
-    bg:      isDark ? '#07070F' : '#F4F5F9',
-    card:    isDark ? '#111122' : '#FFFFFF',
-    card2:   isDark ? '#171730' : '#ECECF4',
-    text:    isDark ? '#EEEEFF' : '#1C1C24',
-    muted:   isDark ? '#7E7EAA' : '#8A8A9E',
-    border:  isDark ? '#1E1E38' : '#E8E8F2',
+    bg:      '#07070F',
+    card:    '#111122',
+    card2:   '#171730',
+    text:    '#EEEEFF',
+    muted:   '#7E7EAA',
+    border:  '#1E1E38',
     success: '#10B981',
     error:   '#EF4444',
     warning: '#F59E0B',
@@ -236,7 +234,7 @@ export default function AddressBookScreen() {
 
     return (
       <TouchableOpacity
-        style={[S.itemCard, { backgroundColor: C.card, borderColor: C.border }]}
+        style={S.itemCard}
         onPress={() => handleSelect(item)}
         onLongPress={() => !isSelectionMode && handleDelete(item)}
         delayLongPress={500}
@@ -306,9 +304,9 @@ export default function AddressBookScreen() {
   return (
     <View style={[S.root, { backgroundColor: C.bg }]}>
 
-      <View style={[S.header, { backgroundColor: C.card, borderBottomColor: C.border, paddingTop: Platform.OS === 'ios' ? 12 : insets.top + 12 }]}>
+      <View style={[S.header, { paddingTop: Platform.OS === 'ios' ? 12 : insets.top + 12 }]}>
         <TouchableOpacity
-          style={[S.iconBtn, { backgroundColor: C.card2, borderColor: C.border }]}
+          style={S.iconBtn}
           onPress={() => navigation.goBack()}
         >
           <Ionicons name="arrow-back" size={18} color={C.text} />
@@ -327,13 +325,13 @@ export default function AddressBookScreen() {
 
         <View style={S.headerActions}>
           <TouchableOpacity
-            style={[S.iconBtn, { backgroundColor: C.card2, borderColor: C.border }]}
+            style={S.iconBtn}
             onPress={() => setSearchVisible(v => !v)}
           >
             <Ionicons name={searchVisible ? 'close' : 'search'} size={18} color={C.text} />
           </TouchableOpacity>
           <TouchableOpacity
-            style={[S.iconBtn, { backgroundColor: primaryColor, borderColor: primaryColor }]}
+            style={[S.iconBtn, { backgroundColor: primaryColor }]}
             onPress={openAddModal}
           >
             <Ionicons name="add" size={20} color="#FFF" />
@@ -342,8 +340,8 @@ export default function AddressBookScreen() {
       </View>
 
       {searchVisible && (
-        <View style={[S.searchWrap, { backgroundColor: C.card, borderBottomColor: C.border }]}>
-          <View style={[S.searchBar, { backgroundColor: C.card2, borderColor: C.border }]}>
+        <View style={S.searchWrap}>
+          <View style={[S.searchBar, { backgroundColor: C.card }]}>
             <Ionicons name="search" size={15} color={C.muted} />
             <TextInput
               style={[S.searchInput, { color: C.text }]}
@@ -363,7 +361,7 @@ export default function AddressBookScreen() {
         </View>
       )}
 
-      <View style={[S.filtersWrap, { backgroundColor: C.card, borderBottomColor: C.border }]}>
+      <View style={S.filtersWrap}>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -378,8 +376,7 @@ export default function AddressBookScreen() {
                 style={[
                   S.filterChip,
                   {
-                    backgroundColor: isActive ? cat.color : C.card2,
-                    borderColor:     isActive ? cat.color : C.border,
+                    backgroundColor: isActive ? cat.color : C.card,
                   },
                 ]}
                 onPress={() => setActiveCategory(cat.id)}
@@ -414,8 +411,7 @@ export default function AddressBookScreen() {
               style={[
                 S.sortBtn,
                 {
-                  backgroundColor: isActive ? primaryColor + '15' : C.card,
-                  borderColor:     isActive ? primaryColor + '35' : C.border,
+                  backgroundColor: isActive ? primaryColor + '1F' : C.card,
                 },
               ]}
               onPress={() => setSortBy(opt.id)}
@@ -467,7 +463,7 @@ export default function AddressBookScreen() {
                 <Text style={[S.fieldLabel, { color: C.muted }]}>
                   {t('address_book.fields.name')}
                 </Text>
-                <View style={[S.inputWrap, { backgroundColor: C.card2, borderColor: C.border }]}>
+                <View style={[S.inputWrap, { backgroundColor: C.card2 }]}>
                   <Ionicons name="person-outline" size={16} color={C.muted} />
                   <TextInput
                     style={[S.input, { color: C.text }]}
@@ -482,7 +478,7 @@ export default function AddressBookScreen() {
                 <Text style={[S.fieldLabel, { color: C.muted, marginTop: 14 }]}>
                   {t('address_book.fields.address')}
                 </Text>
-                <View style={[S.inputWrap, { backgroundColor: C.card2, borderColor: C.border }]}>
+                <View style={[S.inputWrap, { backgroundColor: C.card2 }]}>
                   <Ionicons name="link-outline" size={16} color={C.muted} />
                   <TextInput
                     style={[S.input, { color: C.text, fontFamily: 'monospace', fontSize: 12 }]}
@@ -510,8 +506,7 @@ export default function AddressBookScreen() {
                         style={[
                           S.catOption,
                           {
-                            backgroundColor: isActive ? cat.color + '20' : C.card2,
-                            borderColor:     isActive ? cat.color : C.border,
+                            backgroundColor: isActive ? cat.color + '26' : C.card2,
                           },
                         ]}
                         onPress={() => setFormCategory(cat.id)}
@@ -532,7 +527,7 @@ export default function AddressBookScreen() {
                 <Text style={[S.fieldLabel, { color: C.muted, marginTop: 14 }]}>
                   {t('address_book.fields.note')}
                 </Text>
-                <View style={[S.inputWrap, { backgroundColor: C.card2, borderColor: C.border, height: 46 }]}>
+                <View style={[S.inputWrap, { backgroundColor: C.card2, height: 46 }]}>
                   <Ionicons name="create-outline" size={16} color={C.muted} />
                   <TextInput
                     style={[S.input, { color: C.text }]}
@@ -546,7 +541,7 @@ export default function AddressBookScreen() {
                 </View>
 
                 {formError ? (
-                  <View style={[S.errorBox, { backgroundColor: C.error + '12', borderColor: C.error + '30' }]}>
+                  <View style={[S.errorBox, { backgroundColor: C.error + '14' }]}>
                     <Ionicons name="alert-circle" size={14} color={C.error} />
                     <Text style={[S.errorTxt, { color: C.error }]}>{formError}</Text>
                   </View>
@@ -554,7 +549,7 @@ export default function AddressBookScreen() {
 
                 <View style={S.actionRow}>
                   <TouchableOpacity
-                    style={[S.cancelBtn, { backgroundColor: C.card2, borderColor: C.border }]}
+                    style={[S.cancelBtn, { backgroundColor: C.card2 }]}
                     onPress={() => setFormModal(false)}
                   >
                     <Text style={[S.cancelBtnTxt, { color: C.text }]}>{t('cancel')}</Text>
@@ -580,7 +575,7 @@ export default function AddressBookScreen() {
 
                 {editingItem && (
                   <TouchableOpacity
-                    style={[S.deleteBtn, { borderColor: C.error + '30' }]}
+                    style={[S.deleteBtn, { backgroundColor: C.error + '14' }]}
                     onPress={() => { setFormModal(false); setTimeout(() => handleDelete(editingItem), 300); }}
                   >
                     <Ionicons name="trash-outline" size={14} color={C.error} />
@@ -608,32 +603,31 @@ const S = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingBottom: 14,
-    borderBottomWidth: 1,
     gap: 12,
   },
   iconBtn: {
     width: 40, height: 40, borderRadius: 12,
-    justifyContent: 'center', alignItems: 'center', borderWidth: 1,
+    justifyContent: 'center', alignItems: 'center',
   },
   headerCenter:  { flex: 1 },
   headerTitle:   { fontSize: 18, fontWeight: '800' },
   headerSub:     { fontSize: 12, marginTop: 2 },
   headerActions: { flexDirection: 'row', gap: 8 },
 
-  searchWrap: { paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1 },
+  searchWrap: { paddingHorizontal: 16, paddingVertical: 10 },
   searchBar:  {
     flexDirection: 'row', alignItems: 'center',
-    borderRadius: 12, borderWidth: 1,
+    borderRadius: 12,
     paddingHorizontal: 12, height: 44, gap: 8,
   },
   searchInput: { flex: 1, fontSize: 14, paddingVertical: 0 },
 
-  filtersWrap:    { borderBottomWidth: 1 },
+  filtersWrap:    {},
   filtersContent: { paddingHorizontal: 16, paddingVertical: 10, gap: 8 },
   filterChip: {
     flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: 12, paddingVertical: 7,
-    borderRadius: 20, borderWidth: 1, gap: 5,
+    borderRadius: 20, gap: 5,
   },
   filterChipTxt:  { fontSize: 12, fontWeight: '700' },
   filterCount: {
@@ -647,15 +641,15 @@ const S = StyleSheet.create({
   sortBtn: {
     flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: 10, paddingVertical: 6,
-    borderRadius: 10, borderWidth: 1, gap: 4,
+    borderRadius: 10, gap: 4,
   },
   sortBtnTxt: { fontSize: 11, fontWeight: '700' },
 
   list: { padding: 16 },
   itemCard: {
     flexDirection: 'row', alignItems: 'center',
-    padding: 12, borderRadius: 14, borderWidth: 1,
-    marginBottom: 10, gap: 12,
+    paddingVertical: 12, paddingHorizontal: 2,
+    gap: 12,
   },
   itemIcon:    { width: 44, height: 44, borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
   itemIconTxt: { fontSize: 18, fontWeight: '800' },
@@ -692,7 +686,7 @@ const S = StyleSheet.create({
 
   inputWrap: {
     flexDirection: 'row', alignItems: 'center',
-    borderRadius: 12, borderWidth: 1,
+    borderRadius: 12,
     paddingHorizontal: 12, height: 52, gap: 8,
   },
   input:    { flex: 1, fontSize: 14, paddingVertical: 0 },
@@ -705,13 +699,13 @@ const S = StyleSheet.create({
   catOption: {
     flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: 12, paddingVertical: 9,
-    borderRadius: 12, borderWidth: 1, gap: 6,
+    borderRadius: 12, gap: 6,
   },
   catOptionTxt: { fontSize: 12, fontWeight: '700' },
 
   errorBox: {
     flexDirection: 'row', alignItems: 'center',
-    padding: 10, borderRadius: 10, borderWidth: 1,
+    padding: 10, borderRadius: 10,
     marginTop: 14, gap: 8,
   },
   errorTxt: { flex: 1, fontSize: 12, fontWeight: '600' },
@@ -719,7 +713,7 @@ const S = StyleSheet.create({
   actionRow: { flexDirection: 'row', gap: 10, marginTop: 20 },
   cancelBtn: {
     flex: 1, paddingVertical: 14,
-    borderRadius: 12, alignItems: 'center', borderWidth: 1,
+    borderRadius: 12, alignItems: 'center',
   },
   cancelBtnTxt: { fontSize: 14, fontWeight: '800' },
   saveBtn: {
@@ -730,7 +724,7 @@ const S = StyleSheet.create({
 
   deleteBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    paddingVertical: 12, borderRadius: 12, borderWidth: 1,
+    paddingVertical: 12, borderRadius: 12,
     marginTop: 12, gap: 6,
   },
   deleteBtnTxt: { fontSize: 13, fontWeight: '700' },
