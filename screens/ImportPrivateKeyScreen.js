@@ -15,10 +15,8 @@ export default function ImportPrivateKeyScreen() {
   const [isImporting, setIsImporting] = useState(false);
   const navigation = useNavigation();
   const { t } = useTranslation();
-  const theme = useAppStore(state => state.theme);
   const primaryColor = useAppStore(state => state.primaryColor || '#6C63FF');
   const addAccountFromPrivateKey = useAppStore(state => state.addAccountFromPrivateKey);
-  const isDark = theme === 'dark';
 
   // ✅ ضبط العنوان الديناميكي لشريط التنقل العلوي
   useLayoutEffect(() => {
@@ -29,13 +27,13 @@ export default function ImportPrivateKeyScreen() {
   }, [navigation, t]);
 
   const colors = {
-    background: isDark ? '#0A0A0F' : '#F8FAFD',
-    text: isDark ? '#FFFFFF' : '#1A1A2E',
-    textSecondary: isDark ? '#A0A0B0' : '#6B7280',
-    card: isDark ? '#1A1A2E' : '#FFFFFF',
-    border: isDark ? '#2A2A3E' : '#E5E7EB',
-    warningBg: isDark ? '#2A1A1A' : '#FFF3CD',
-    warningText: isDark ? '#FFB74D' : '#856404',
+    background:    '#07070F',
+    text:          '#EEEEFF',
+    textSecondary: '#7E7EAA',
+    card:          '#111122',
+    border:        '#1E1E38',
+    warningBg:     'rgba(245,158,11,0.12)',
+    warningText:   '#FFB74D',
   };
 
   const handleImport = async () => {
@@ -88,12 +86,12 @@ export default function ImportPrivateKeyScreen() {
             </View>
           </View>
 
-          <View style={[styles.inputCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={styles.inputCard}>
             <Text style={[styles.inputLabel, { color: colors.text }]}>
               {t('import_private_key.account_name_label')}
             </Text>
             <TextInput
-              style={[styles.input, { color: colors.text, backgroundColor: isDark ? '#2A2A3E' : '#F8F8F8', borderColor: colors.border }]}
+              style={[styles.input, { color: colors.text, backgroundColor: colors.card }]}
               value={accountName}
               onChangeText={setAccountName}
               placeholder={t('import_private_key.account_name_placeholder')}
@@ -104,7 +102,7 @@ export default function ImportPrivateKeyScreen() {
               {t('import_private_key.private_key_label')}
             </Text>
             <TextInput
-              style={[styles.inputLarge, { color: colors.text, backgroundColor: isDark ? '#2A2A3E' : '#F8F8F8', borderColor: colors.border }]}
+              style={[styles.inputLarge, { color: colors.text, backgroundColor: colors.card }]}
               value={privateKey}
               onChangeText={setPrivateKey}
               placeholder={t('import_private_key.private_key_placeholder')}
@@ -149,15 +147,15 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
   backButton: { padding: 8 },
   title: { fontSize: 24, fontWeight: 'bold', textAlign: 'center' },
-  warningBox: { flexDirection: 'row', alignItems: 'flex-start', padding: 16, borderRadius: 12, marginBottom: 20 },
+  warningBox: { flexDirection: 'row', alignItems: 'flex-start', padding: 16, borderRadius: 14, marginBottom: 20 },
   warningContent: { flex: 1, marginLeft: 12 },
   warningText: { fontSize: 14, lineHeight: 20 },
-  inputCard: { borderRadius: 16, padding: 20, marginBottom: 20, borderWidth: 1 },
+  inputCard: { marginBottom: 20 },
   inputLabel: { fontSize: 16, fontWeight: '600', marginBottom: 8 },
-  input: { fontSize: 16, borderRadius: 12, padding: 14, borderWidth: 1 },
-  inputLarge: { fontSize: 14, lineHeight: 20, minHeight: 100, borderRadius: 12, padding: 14, borderWidth: 1, textAlignVertical: 'top' },
-  pasteButton: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: 14, borderRadius: 10, marginTop: 16 },
+  input: { fontSize: 16, borderRadius: 14, padding: 14 },
+  inputLarge: { fontSize: 14, lineHeight: 20, minHeight: 100, borderRadius: 14, padding: 14, textAlignVertical: 'top' },
+  pasteButton: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: 14, borderRadius: 999, marginTop: 16 },
   pasteButtonText: { color: '#FFF', fontSize: 16, fontWeight: '600', marginLeft: 8 },
-  importButton: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: 18, borderRadius: 12, marginTop: 8 },
+  importButton: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: 18, borderRadius: 999, marginTop: 8 },
   importButtonText: { color: '#FFF', fontSize: 18, fontWeight: 'bold', marginLeft: 8 },
 });

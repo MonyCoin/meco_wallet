@@ -7,11 +7,21 @@ import { useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { useAppStore } from '../store';
 import { Ionicons } from '@expo/vector-icons';
+import Svg, { Defs, RadialGradient, Stop, Circle } from 'react-native-svg';
+
+// شعار التطبيق داخل دائرة (الصورة الأصلية بخلفية بيضاء، فنقصّها بقناع دائري)
+const AppLogo = ({ size }) => (
+  <View style={{ width: size, height: size, borderRadius: size / 2, overflow: 'hidden' }}>
+    <Image
+      source={require('../assets/logo.png')}
+      style={{ position: 'absolute', width: size * 1.1, height: size * 1.1, left: -size * 0.05, top: -size * 0.05 }}
+    />
+  </View>
+);
 
 export default function HomeScreen() {
   const navigation = useNavigation();
   const { t, i18n } = useTranslation();
-  const theme = useAppStore(state => state.theme);
   const primaryColor = useAppStore(state => state.primaryColor || '#6C63FF');
   // ✅ محتاجينها عشان نحفظ اختيار اللغة صح (زي SettingsScreen بالظبط)
   const setLanguage = useAppStore(state => state.setLanguage);
@@ -25,15 +35,13 @@ export default function HomeScreen() {
 
   const currentLang = LANGUAGES.find(l => l.code === i18n.language) || LANGUAGES[0];
 
-  // ✅ نفس ثيم التطبيق بس، زي كل الشاشات التانية — مش هنخلط بثيم الجهاز
-  const isDark = theme === 'dark';
-  
+  // التطبيق يعمل بالنمط الغامق فقط
   const colors = {
-    background: isDark ? '#0A0A0F' : '#F8FAFD',
-    text: isDark ? '#FFFFFF' : '#1A1A2E',
-    textSecondary: isDark ? '#A0A0B0' : '#6B7280',
-    card: isDark ? '#1A1A2E' : '#FFFFFF',
-    border: isDark ? '#2A2A3E' : '#E5E7EB',
+    background: '#07070F',
+    text: '#EEEEFF',
+    textSecondary: '#7E7EAA',
+    card: '#111122',
+    border: '#1E1E38',
   };
 
   // ✅ بنحفظ الاختيار فى الـ store (بيتخزن فى AsyncStorage ويتزامن مع باقي
@@ -51,12 +59,12 @@ export default function HomeScreen() {
         {/* Header with Language Button */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
-            <Ionicons name="wallet" size={28} color={primaryColor} />
+            <AppLogo size={34} />
             <Text style={[styles.appName, { color: colors.text }]}>MECO Wallet</Text>
           </View>
           
           <TouchableOpacity 
-            style={[styles.langButton, { backgroundColor: colors.card, borderColor: colors.border }]}
+            style={[styles.langButton, { backgroundColor: colors.card }]}
             onPress={() => setLangModalVisible(true)}
           >
             <Text style={[styles.langText, { color: colors.text }]}>{currentLang.name}</Text>
@@ -66,11 +74,18 @@ export default function HomeScreen() {
 
         {/* Logo Section */}
         <View style={styles.logoContainer}>
-          <Image 
-            source={require('../assets/logo.png')} 
-            style={styles.logo} 
-          />
-          <View style={[styles.gradientCircle, { backgroundColor: `${primaryColor}20` }]} />
+          <View style={styles.glow} pointerEvents="none">
+            <Svg width={300} height={300}>
+              <Defs>
+                <RadialGradient id="homeGlow" cx="50%" cy="50%" r="50%">
+                  <Stop offset="0" stopColor={primaryColor} stopOpacity="0.32" />
+                  <Stop offset="1" stopColor={primaryColor} stopOpacity="0" />
+                </RadialGradient>
+              </Defs>
+              <Circle cx="150" cy="150" r="150" fill="url(#homeGlow)" />
+            </Svg>
+          </View>
+          <AppLogo size={136} />
         </View>
 
         {/* Welcome Text */}
@@ -107,10 +122,7 @@ export default function HomeScreen() {
             onPress={() => navigation.navigate('ImportWallet')}
             activeOpacity={0.8}
           >
-            <View style={[styles.importButton, { 
-              backgroundColor: colors.card,
-              borderColor: colors.border
-            }]}>
+            <View style={[styles.importButton, { backgroundColor: colors.card }]}>
               <View style={styles.buttonContent}>
                 <Ionicons name="download-outline" size={24} color={primaryColor} />
                 <Text style={[styles.importButtonText, { color: colors.text }]}>
@@ -124,7 +136,7 @@ export default function HomeScreen() {
         </View>
 
         {/* Features */}
-        <View style={[styles.featuresContainer, { backgroundColor: colors.card }]}>
+        <View style={styles.featuresContainer}>
           <View style={styles.featureItem}>
             <Ionicons name="shield-checkmark" size={20} color={primaryColor} />
             <Text style={[styles.featureText, { color: colors.textSecondary }]}>
@@ -169,7 +181,7 @@ export default function HomeScreen() {
             {LANGUAGES.map((lang) => (
               <TouchableOpacity
                 key={lang.code}
-                style={[styles.langItem, { borderBottomColor: colors.border }]}
+                style={styles.langItem}
                 onPress={() => changeLanguage(lang.code)}
               >
                 <Text style={[styles.langItemName, { color: colors.text }]}>
@@ -216,9 +228,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingVertical: 7,
     borderRadius: 20,
-    borderWidth: 1,
     gap: 4,
   },
   langText: {
@@ -231,19 +242,7 @@ const styles = StyleSheet.create({
     marginVertical: 20,
     position: 'relative',
   },
-  logo: {
-    width: 160,
-    height: 160,
-    resizeMode: 'contain',
-    zIndex: 2,
-  },
-  gradientCircle: {
-    position: 'absolute',
-    width: 200,
-    height: 200,
-    borderRadius: 100,
-    zIndex: 1,
-  },
+  glow: { position: 'absolute' },
   textContainer: {
     alignItems: 'center',
     marginBottom: 30,
@@ -263,28 +262,24 @@ const styles = StyleSheet.create({
     marginBottom: 30,
   },
   button: {
-    borderRadius: 16,
+    borderRadius: 999,
     overflow: 'hidden',
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
   },
   primaryButton: {
-    padding: 20,
-    borderRadius: 16,
+    paddingVertical: 18,
+    paddingHorizontal: 22,
+    borderRadius: 999,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
   importButton: {
-    padding: 20,
-    borderRadius: 16,
+    paddingVertical: 18,
+    paddingHorizontal: 22,
+    borderRadius: 999,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    borderWidth: 1,
   },
   buttonContent: {
     flexDirection: 'row',
@@ -302,16 +297,10 @@ const styles = StyleSheet.create({
     marginLeft: 12,
   },
   featuresContainer: {
-    borderRadius: 16,
-    padding: 20,
+    paddingVertical: 12,
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginTop: 10,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
   },
   featureItem: {
     alignItems: 'center',
@@ -349,7 +338,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingVertical: 16,
-    borderBottomWidth: 1,
   },
   langItemName: {
     fontSize: 16,

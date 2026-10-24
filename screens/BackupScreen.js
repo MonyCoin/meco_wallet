@@ -21,19 +21,16 @@ export default function BackupScreen() {
   const [biometricAvailable, setBiometricAvailable] = useState(false);
   const { t } = useTranslation();
   const navigation = useNavigation();
-  const theme = useAppStore(state => state.theme);
   const primaryColor = useAppStore(state => state.primaryColor || '#6C63FF');
-  
-  const isDark = theme === 'dark';
-  
+
   const colors = {
-    background: isDark ? '#0A0A0F' : '#F8FAFD',
-    text: isDark ? '#FFFFFF' : '#1A1A2E',
-    textSecondary: isDark ? '#A0A0B0' : '#6B7280',
-    card: isDark ? '#1A1A2E' : '#FFFFFF',
-    border: isDark ? '#2A2A3E' : '#E5E7EB',
-    warningBg: isDark ? '#2A1A1A' : '#FFF3CD',
-    warningText: isDark ? '#FFB74D' : '#856404',
+    background: '#07070F',
+    text: '#EEEEFF',
+    textSecondary: '#7E7EAA',
+    card: '#111122',
+    border: '#1E1E38',
+    warningBg: 'rgba(245,158,11,0.12)',
+    warningText: '#FFB74D',
   };
 
   useEffect(() => {
@@ -130,7 +127,7 @@ export default function BackupScreen() {
         </View>
 
         {/* Instructions */}
-        <View style={[styles.instructionsCard, { backgroundColor: colors.card }]}>
+        <View style={styles.instructionsCard}>
           <Ionicons name="shield-checkmark" size={24} color={primaryColor} />
           <Text style={[styles.instructionsText, { color: colors.text }]}>
             {t('backup_instructions')}
@@ -138,14 +135,14 @@ export default function BackupScreen() {
         </View>
 
         {/* كرت الكلمات */}
-        <View style={[styles.mnemonicCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <View style={styles.mnemonicCard}>
           <View style={styles.wordsGrid}>
             {words.map((word, index) => (
               <View 
                 key={index} 
                 style={[
                   styles.wordBox, 
-                  { backgroundColor: isDark ? '#2A2A3E' : '#F8FAFD', borderColor: colors.border }
+                  { backgroundColor: colors.card }
                 ]}
               >
                 <Text style={[styles.wordIndex, { color: colors.textSecondary }]}>{index + 1}.</Text>
@@ -157,7 +154,7 @@ export default function BackupScreen() {
 
         {/* زر النسخ */}
         <TouchableOpacity
-          style={[styles.copyButton, { backgroundColor: colors.card, borderColor: primaryColor }]}
+          style={[styles.copyButton, { backgroundColor: primaryColor + '1F' }]}
           onPress={handleCopy}
         >
           <Ionicons name="copy-outline" size={20} color={primaryColor} />
@@ -179,7 +176,7 @@ export default function BackupScreen() {
         </TouchableOpacity>
 
         {/* ملاحظة */}
-        <View style={[styles.noteCard, { backgroundColor: colors.card }]}>
+        <View style={styles.noteCard}>
           <Ionicons name="lock-closed" size={20} color={colors.textSecondary} />
           <Text style={[styles.noteText, { color: colors.textSecondary }]}>
             {t('backup_note')}
@@ -225,7 +222,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     padding: 16,
-    borderRadius: 12,
+    borderRadius: 14,
     marginBottom: 20,
   },
   warningContent: {
@@ -244,9 +241,8 @@ const styles = StyleSheet.create({
   instructionsCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 24,
+    paddingVertical: 8,
+    marginBottom: 20,
   },
   instructionsText: {
     flex: 1,
@@ -255,10 +251,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   mnemonicCard: {
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 24,
-    borderWidth: 1,
+    marginBottom: 20,
   },
   wordsGrid: {
     flexDirection: 'row',
@@ -270,9 +263,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     padding: 12,
-    borderRadius: 10,
+    borderRadius: 12,
     marginBottom: 12,
-    borderWidth: 1,
   },
   wordIndex: {
     fontSize: 14,
@@ -289,10 +281,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 2,
     padding: 16,
-    borderRadius: 12,
-    marginBottom: 16,
+    borderRadius: 999,
+    marginBottom: 14,
   },
   copyButtonText: {
     marginLeft: 8,
@@ -304,13 +295,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: 18,
-    borderRadius: 12,
-    marginBottom: 24,
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    borderRadius: 999,
+    marginBottom: 20,
   },
   proceedButtonText: {
     color: '#FFF',
@@ -321,8 +307,7 @@ const styles = StyleSheet.create({
   noteCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
-    borderRadius: 12,
+    paddingVertical: 8,
   },
   noteText: {
     flex: 1,

@@ -19,18 +19,16 @@ export default function CreateWalletScreen() {
   const [generating, setGenerating] = useState(true); // ✅ حالة التحميل
   const navigation   = useNavigation();
   const { t }        = useTranslation();
-  const theme        = useAppStore(state => state.theme);
   const primaryColor = useAppStore(state => state.primaryColor || '#6C63FF');
-  const isDark       = theme === 'dark';
 
   const colors = {
-    background:    isDark ? '#0A0A0F' : '#F8FAFD',
-    text:          isDark ? '#FFFFFF' : '#1A1A2E',
-    textSecondary: isDark ? '#A0A0B0' : '#6B7280',
-    card:          isDark ? '#1A1A2E' : '#FFFFFF',
-    border:        isDark ? '#2A2A3E' : '#E5E7EB',
-    warningBg:     isDark ? '#2A1A1A' : '#FDEAEA',
-    warningText:   isDark ? '#FF9999' : '#C0392B',
+    background:    '#07070F',
+    text:          '#EEEEFF',
+    textSecondary: '#7E7EAA',
+    card:          '#111122',
+    border:        '#1E1E38',
+    warningBg:     'rgba(239,68,68,0.12)',
+    warningText:   '#FF9999',
   };
 
   useEffect(() => {
@@ -117,13 +115,13 @@ export default function CreateWalletScreen() {
         </View>
 
         {/* تعليمات */}
-        <View style={[styles.instructionsCard, { backgroundColor: colors.card }]}>
+        <View style={styles.instructionsCard}>
           <Ionicons name="information-circle" size={24} color={primaryColor} />
           <Text style={[styles.instructionsText, { color: colors.text }]}>{t('recovery_phrase_instructions')}</Text>
         </View>
 
         {/* كرت الكلمات */}
-        <View style={[styles.mnemonicCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <View style={styles.mnemonicCard}>
           {generating ? (
             // ✅ مؤشر تحميل أثناء توليد العبارة
             <View style={styles.loadingWrap}>
@@ -136,7 +134,7 @@ export default function CreateWalletScreen() {
                   key={`${word}-${index}`}
                   style={[
                     styles.wordItem,
-                    { backgroundColor: isDark ? '#2A2A3E' : '#F8FAFD', borderColor: colors.border },
+                    { backgroundColor: colors.card },
                   ]}
                 >
                   <Text style={[styles.wordIndex, { color: colors.textSecondary }]}>{index + 1}</Text>
@@ -149,7 +147,7 @@ export default function CreateWalletScreen() {
 
         {/* زر النسخ */}
         <TouchableOpacity
-          style={[styles.copyButton, { borderColor: primaryColor, backgroundColor: colors.card, opacity: !mnemonic ? 0.5 : 1 }]}
+          style={[styles.copyButton, { backgroundColor: primaryColor + '1F', opacity: !mnemonic ? 0.5 : 1 }]}
           onPress={copyMnemonic}
           disabled={!mnemonic}
         >
@@ -178,20 +176,20 @@ const styles = StyleSheet.create({
   header:           { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
   backButton:       { padding: 8 },
   title:            { fontSize: 24, fontWeight: 'bold', textAlign: 'center' },
-  warningBox:       { flexDirection: 'row', alignItems: 'flex-start', padding: 16, borderRadius: 12, marginBottom: 20 },
+  warningBox:       { flexDirection: 'row', alignItems: 'flex-start', padding: 16, borderRadius: 14, marginBottom: 20 },
   warningContent:   { flex: 1, marginLeft: 12 },
   warningTitle:     { fontSize: 16, fontWeight: 'bold', marginBottom: 4 },
   warningText:      { fontSize: 14, lineHeight: 20 },
-  instructionsCard: { flexDirection: 'row', alignItems: 'center', padding: 16, borderRadius: 12, marginBottom: 24 },
+  instructionsCard: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, marginBottom: 20 },
   instructionsText: { flex: 1, marginLeft: 12, fontSize: 14, lineHeight: 20 },
-  mnemonicCard:     { borderRadius: 16, padding: 20, marginBottom: 24, borderWidth: 1 },
+  mnemonicCard:     { marginBottom: 20 },
   loadingWrap:      { height: 120, justifyContent: 'center', alignItems: 'center' },
   wordsGrid:        { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
-  wordItem:         { width: '48%', flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 10, marginBottom: 12, borderWidth: 1 },
+  wordItem:         { width: '48%', flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 12, marginBottom: 12 },
   wordIndex:        { fontSize: 12, fontWeight: '600', marginRight: 8, minWidth: 20 },
   wordText:         { fontSize: 16, fontWeight: '500' },
-  copyButton:       { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', borderWidth: 2, padding: 16, borderRadius: 12, marginBottom: 16 },
+  copyButton:       { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: 16, borderRadius: 999, marginBottom: 14 },
   copyText:         { marginLeft: 8, fontSize: 16, fontWeight: '600' },
-  continueButton:   { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: 18, borderRadius: 12, elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4 },
+  continueButton:   { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: 18, borderRadius: 999 },
   continueButtonText: { color: '#FFF', fontSize: 18, fontWeight: 'bold', marginRight: 8 },
 });
