@@ -221,9 +221,39 @@ export async function listPositions(ownerAddress, force = false) {
     pairs.forEach(([addr, d]) => entries.push([addr, d]));
   }
   if (entries.some(([, d]) => !d || !d.whirlpool || d.liquidity === undefined)) throw new Error('UNEXPECTED_SHAPE');
-  // تشخيص مؤقت: ما أعادته المكتبة فعليًا
-  const dbg = `wallet ${ownerAddress.slice(0, 4)}..${ownerAddress.slice(-4)} | sdk positions: ${entries.length}` +
+  // تشخيص مؤقت: ما أعادته المكتبة فعليًا + فحص مستقل يتجاوز المكتبة
+  let dbg = `wallet ${ownerAddress.slice(0, 4)}..${ownerAddress.slice(-4)} | sdk positions: ${entries.length}` +
     (entries.length ? ' → ' + entries.map(([, d]) => d.whirlpool.toBase58().slice(0, 4) + (d.liquidity.isZero() ? '(0)' : '')).join(',') : '');
+  if (entries.length === 0) {
+    try {
+      const conn = ctx.connection;
+      const progs = ['TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA', 'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb'];
+      let nft = 0, found = 0, decodeErr = '';
+      for (const pid of progs) {
+        const res = await conn.getParsedTokenAccountsByOwner(owner, { programId: new web3.PublicKey(pid) });
+        const mints = res.value
+          .map(v => v.account.data.parsed.info)
+          .filter(i => i.tokenAmount && i.tokenAmount.amount === '1' && i.tokenAmount.decimals === 0)
+          .map(i => new web3.PublicKey(i.mint));
+        nft += mints.length;
+        if (!mints.length) continue;
+        const pdas = mints.map(m => orca.PDAUtil.getPosition(orca.ORCA_WHIRLPOOL_PROGRAM_ID, m).publicKey);
+        const infos = await conn.getMultipleAccountsInfo(pdas);
+        infos.forEach((info) => {
+          if (info && info.owner.equals(orca.ORCA_WHIRLPOOL_PROGRAM_ID)) {
+            found += 1;
+            if (!decodeErr) {
+              try { orca.WHIRLPOOL_CODER.decode(orca.AccountName.Position, info.data); decodeErr = 'decode-ok'; }
+              catch (e) { decodeErr = 'decode-ERR ' + String((e && e.message) || e).slice(0, 70); }
+            }
+          }
+        });
+      }
+      dbg += ` | nft:${nft} posAcc:${found} ${decodeErr}`;
+    } catch (e) {
+      dbg += ' | scanErr ' + String((e && e.message) || e).slice(0, 80);
+    }
+  }
 
   const out = [];
   for (const meta of MECO_POOLS) {
