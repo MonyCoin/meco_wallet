@@ -149,6 +149,7 @@ export default function LiquidityScreen() {
   const S = (i18n.language || 'ar').startsWith('ar') ? STR.ar : STR.en;
 
   const [pools, setPools] = useState([]);
+  const [posDebug, setPosDebug] = useState('');
   const [positions, setPositions] = useState(null);   // null=لم يُحمّل، 'error'، أو مصفوفة
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -168,9 +169,9 @@ export default function LiquidityScreen() {
     if (!owner) { setPositions([]); return; }
     try {
       const list = await listPositions(owner, true);
-      if (mounted.current) setPositions(list);
+      if (mounted.current) { setPositions(list); setPosDebug(list.debug || ''); }
     } catch (e) {
-      if (mounted.current) setPositions('error');
+      if (mounted.current) { setPositions('error'); setPosDebug(String((e && e.message) || e).slice(0, 160)); }
     }
   }, [owner]);
 
@@ -230,10 +231,10 @@ export default function LiquidityScreen() {
   const renderMine = (p) => {
     let body;
     if (positions === null) body = <ActivityIndicator color={primary} style={{ marginVertical: 8 }} />;
-    else if (positions === 'error') body = <Text style={st.unavailable}>{S.mine_fail}</Text>;
+    else if (positions === 'error') body = <><Text style={st.unavailable}>{S.mine_fail}</Text><Text style={[st.unavailable, { fontSize: 10 }]}>{posDebug}</Text></>;
     else {
       const mine = positions.filter(x => x.poolId === p.id);
-      if (mine.length === 0) body = <Text style={st.unavailable}>{S.mine_none}</Text>;
+      if (mine.length === 0) body = <><Text style={st.unavailable}>{S.mine_none}</Text><Text style={[st.unavailable, { fontSize: 10 }]}>{posDebug}</Text></>;
       else body = mine.map(pos => (
         <View key={pos.address} style={st.posBox}>
           <Row label={S.pos_value} value={`${amt(pos.mecoAmount)} MECO + ${amt(pos.otherAmount)} ${pos.otherSymbol}`} />

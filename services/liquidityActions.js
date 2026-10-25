@@ -221,6 +221,9 @@ export async function listPositions(ownerAddress, force = false) {
     pairs.forEach(([addr, d]) => entries.push([addr, d]));
   }
   if (entries.some(([, d]) => !d || !d.whirlpool || d.liquidity === undefined)) throw new Error('UNEXPECTED_SHAPE');
+  // تشخيص مؤقت: ما أعادته المكتبة فعليًا
+  const dbg = `wallet ${ownerAddress.slice(0, 4)}..${ownerAddress.slice(-4)} | sdk positions: ${entries.length}` +
+    (entries.length ? ' → ' + entries.map(([, d]) => d.whirlpool.toBase58().slice(0, 4) + (d.liquidity.isZero() ? '(0)' : '')).join(',') : '');
 
   const out = [];
   for (const meta of MECO_POOLS) {
@@ -277,6 +280,7 @@ export async function listPositions(ownerAddress, force = false) {
       });
     }
   }
+  out.debug = dbg;
   _listCache = { owner: ownerAddress, at: Date.now(), data: out };
   return out;
 }
