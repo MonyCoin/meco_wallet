@@ -35,7 +35,7 @@ import TokenDetailsScreen       from './screens/TokenDetailsScreen';
 import AssetDetailsScreen       from './screens/AssetDetailsScreen';
 import QRScannerScreen          from './screens/QRScannerScreen';
 import SwapScreen               from './screens/SwapScreen';
-import StakingScreen            from './screens/StakingScreen';
+import LiquidityScreen          from './screens/LiquidityScreen';
 import PortfolioScreen          from './screens/PortfolioScreen';
 import DappBrowserScreen        from './screens/DappBrowserScreen';
 import NotificationsScreen      from './screens/NotificationsScreen';
@@ -261,7 +261,7 @@ export default function AppContainer() {
           <Stack.Screen name="Receive"            component={ReceiveScreen}            options={{ title: t('receive') }} />
           <Stack.Screen name="Backup"             component={BackupScreen}             options={{ title: t('backup_wallet') }} />
           <Stack.Screen name="Swap"               component={SwapScreen}               options={{ title: t('swap_title')||'تبادل', headerBackTitle: t('back')||'رجوع' }} />
-          <Stack.Screen name="Staking"            component={StakingScreen}            options={{ title: t('staking.title')||'تخزين السيولة', headerBackTitle: t('back')||'رجوع' }} />
+          <Stack.Screen name="Liquidity"          component={LiquidityScreen}          options={{ title: t('liquidity_title')||'السيولة', headerBackTitle: t('back')||'رجوع' }} />
           <Stack.Screen name="QRScanner"          component={QRScannerScreen}          options={{ headerShown:false }} />
           <Stack.Screen name="TokenDetails"       component={TokenDetailsScreen}       options={{ title: t('token_details'), headerBackTitle: t('back') }} />
           <Stack.Screen name="AssetDetails"       component={AssetDetailsScreen}       options={{ headerShown: false }} />

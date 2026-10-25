@@ -15,7 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getSolBalance, getTokenAccounts, getAccountsOverview, clearBalanceCache } from '../services/heliusService';
 import { CORE_TOKENS, getJupiterMarketData, getCustomTokens } from '../services/jupiterMarketService';
-import { getUserStakingData } from '../services/stakingService';
+import { listPositions } from '../services/liquidityActions';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { getUnreadCount } from '../services/notificationsService';
 
@@ -57,7 +57,8 @@ const fmtTradePrice = (p) => {
 
 export default function WalletScreen() {
   const navigation   = useNavigation();
-  const { t }        = useTranslation();
+  const { t, i18n }  = useTranslation();
+  const isAr         = (i18n.language || 'ar').startsWith('ar');
   const theme        = useAppStore(state => state.theme);
   const primaryColor = useAppStore(state => state.primaryColor || '#6C63FF');
   const isDark       = theme === 'dark';
@@ -86,7 +87,8 @@ export default function WalletScreen() {
   const [totalBalanceUSD,       setTotalBalanceUSD]       = useState(0);
   const [assets,                setAssets]                = useState([]);
   const [tradableTokens,        setTradableTokens]        = useState([]);
-  const [stakingData,           setStakingData]           = useState({ stakedAmount: 0, pendingRewards: 0, apy: 0, plan: null });
+  const [liqSummary,            setLiqSummary]            = useState(null);   // null | { count, meco, fees }
+  const liqOwner = useAppStore(state => state.accounts?.[state.activeAccountIndex]?.publicKey || null);
   const [refreshing,            setRefreshing]            = useState(false);
   const [modalVisible,          setModalVisible]          = useState(false);
   const [tempWalletName,        setTempWalletName]        = useState('');
@@ -109,6 +111,24 @@ export default function WalletScreen() {
   const scaleAnim = useRef(new Animated.Value(0.95)).current;
   const swipeableRefs        = useRef({});
   const accountSwipeableRefs = useRef({});
+
+  // ملخص مراكز السيولة للمستخدم نفسه فقط (يُحدَّث عند العودة للشاشة)
+  useFocusEffect(useCallback(() => {
+    let alive = true;
+    if (!liqOwner) { setLiqSummary(null); return undefined; }
+    listPositions(liqOwner)
+      .then(list => {
+        if (!alive) return;
+        const mine = list.filter(x => x.hasLiquidity);
+        if (mine.length === 0) { setLiqSummary(null); return; }
+        const meco = mine.reduce((sum, x) => sum + (x.mecoAmount || 0), 0);
+        const hasFees = mine.some(x => x.feeMeco !== null);
+        const fees = hasFees ? mine.reduce((sum, x) => sum + (x.feeMeco || 0), 0) : null;
+        setLiqSummary({ count: mine.length, meco, fees });
+      })
+      .catch(() => { if (alive) setLiqSummary(null); });
+    return () => { alive = false; };
+  }, [liqOwner]));
 
   useEffect(() => {
     const initial = CORE_TOKENS
@@ -174,15 +194,12 @@ export default function WalletScreen() {
       if (!silent) setIsSwitchingAccount(true);
       const addr = typeof publicKey === 'string' ? publicKey : publicKey.toString();
 
-      const [solBal, tokenAccounts, marketData, customTokensList, stakingInfo] = await Promise.all([
+      const [solBal, tokenAccounts, marketData, customTokensList] = await Promise.all([
         getSolBalance(true, addr).catch(() => 0),
         getTokenAccounts(addr).catch(() => []),
         getJupiterMarketData().catch(() => []),
         getCustomTokens().catch(() => []),
-        getUserStakingData(addr).catch(() => ({ stakedAmount: 0, pendingRewards: 0, apy: 0, plan: null })),
       ]);
-
-      setStakingData(stakingInfo);
 
       // التسعير بحسب عنوان العقد (mint) لتفادي تعارض الرموز المتشابهة
       const priceMap = {};
@@ -618,7 +635,6 @@ export default function WalletScreen() {
     );
   };
 
-  const hasStaked = stakingData.stakedAmount > 0;
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
@@ -749,7 +765,7 @@ export default function WalletScreen() {
               { icon:'arrow-up',        screen:'Send',    label:t('send')              },
               { icon:'arrow-down',      screen:'Receive', label:t('receive')           },
               { icon:'swap-horizontal', screen:'Swap',    label:t('swap_title')        },
-              { icon:'trending-up',     screen:'Staking', label:t('staking.stake_tab') },
+              { icon:'water-outline',     screen:'Liquidity', label:isAr ? 'السيولة' : 'Liquidity' },
             ].map(btn => (
               <TouchableOpacity key={btn.screen} style={styles.actionBtn} onPress={() => navigation.navigate(btn.screen)}>
                 <View style={[styles.actionCircle, { backgroundColor: colors.card }]}>
@@ -809,56 +825,56 @@ export default function WalletScreen() {
           <View style={styles.stakingSection}>
             <View style={styles.assetsHeader}>
               <Text style={[styles.sectionTitle, { color: colors.text }]}>
-                {t('staking_summary_title', 'ملخص التخزين')}
+                {isAr ? 'ملخص السيولة' : 'Liquidity summary'}
               </Text>
             </View>
 
-            {hasStaked ? (
+            {liqSummary ? (
               <View style={[styles.stakingCard, { backgroundColor: colors.card }]}>
                 <View style={styles.stakingRow}>
                   <View style={styles.stakingCol}>
                     <Text style={[styles.stakingLabel, { color: colors.textSecondary }]}>
-                      {t('staking_summary_staked_label', 'المبلغ المخزّن')}
+                      {isAr ? 'MECO في مراكزك' : 'MECO in your positions'}
                     </Text>
                     <Text style={[styles.stakingValue, { color: colors.text }]}>
-                      {stakingData.stakedAmount.toLocaleString('en-US', { maximumFractionDigits: 4 })} MECO
+                      {liqSummary.meco.toLocaleString('en-US', { maximumFractionDigits: 2 })} MECO
                     </Text>
                   </View>
                   <View style={[styles.stakingDivider, { backgroundColor: colors.border }]} />
                   <View style={styles.stakingCol}>
                     <Text style={[styles.stakingLabel, { color: colors.textSecondary }]}>
-                      {t('staking_summary_rewards_label', 'الأرباح المتراكمة')}
+                      {isAr ? 'الرسوم المتراكمة' : 'Accrued fees'}
                     </Text>
                     <Text style={[styles.stakingValue, { color: colors.success }]}>
-                      +{(stakingData.pendingRewards || 0).toLocaleString('en-US', { maximumFractionDigits: 6 })}
+                      {liqSummary.fees === null ? '—' : '+' + liqSummary.fees.toLocaleString('en-US', { maximumFractionDigits: 6 })}
                     </Text>
                   </View>
                 </View>
                 <TouchableOpacity
                   style={[styles.stakingBtn, { backgroundColor: primaryColor }]}
-                  onPress={() => navigation.navigate('Staking')}
+                  onPress={() => navigation.navigate('Liquidity')}
                 >
-                  <Ionicons name="trending-up" size={16} color="#FFF" />
+                  <Ionicons name="water-outline" size={16} color="#FFF" />
                   <Text style={styles.stakingBtnTxt}>
-                    {t('staking_summary_view_btn', 'عرض التفاصيل')}
+                    {isAr ? 'عرض التفاصيل' : 'View details'}
                   </Text>
                 </TouchableOpacity>
               </View>
             ) : (
               <TouchableOpacity
                 style={[styles.stakingEmptyCard, { backgroundColor: colors.card }]}
-                onPress={() => navigation.navigate('Staking')}
+                onPress={() => navigation.navigate('Liquidity')}
                 activeOpacity={0.85}
               >
                 <View style={[styles.stakingEmptyIcon, { backgroundColor: primaryColor + '15' }]}>
-                  <Ionicons name="trending-up" size={22} color={primaryColor} />
+                  <Ionicons name="water-outline" size={22} color={primaryColor} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.stakingEmptyTitle, { color: colors.text }]}>
-                    {t('staking_summary_cta', 'ابدأ التخزين الآن')}
+                    {isAr ? 'ابدأ بفتح مركزك' : 'Open your first position'}
                   </Text>
                   <Text style={[styles.stakingEmptySub, { color: colors.textSecondary }]}>
-                    {t('staking_summary_cta_sub', 'خزّن MECO واكسب أرباحًا يومية')}
+                    {isAr ? 'أودع MECO في مجمع Orca واكسب رسوم التداول' : 'Deposit MECO into an Orca pool and earn trading fees'}
                   </Text>
                 </View>
                 <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />

@@ -42,38 +42,51 @@ const OPERATION_LABEL_KEYS = {
 
 export default function WalletConnectSignModal() {
   const { t }        = useTranslation();
-  const theme        = useAppStore(s => s.theme);
   const primaryColor = useAppStore(s => s.primaryColor || '#6C63FF');
-  const isDark       = theme === 'dark';
 
   const [visible, setVisible] = useState(false);
   const [loading, setLoading] = useState(false);
   const [request, setRequest] = useState(null);
   const slideAnim = useRef(new Animated.Value(height)).current;
 
+  // التطبيق يعمل بالنمط الغامق فقط (نمط مسطح بلا حدود)
   const C = {
-    bg:        isDark ? '#0A0A0F' : '#FFFFFF',
+    bg:        '#111122',
     overlay:   'rgba(0,0,0,0.65)',
-    card:      isDark ? '#1A1A2E' : '#F8F9FF',
-    cardAlt:   isDark ? '#15152A' : '#F0F2FF',
-    text:      isDark ? '#FFFFFF' : '#1A1A2E',
-    secondary: isDark ? '#A0A0B0' : '#6B7280',
-    border:    isDark ? '#2A2A3E' : '#E5E7EB',
+    card:      '#171730',
+    cardAlt:   '#1C1C3A',
+    text:      '#EEEEFF',
+    secondary: '#7E7EAA',
+    border:    'transparent',
     success:   '#10B981',
     error:     '#EF4444',
     warning:   '#F59E0B',
   };
 
+  const currentRef = useRef(null);   // الطلب المعروض الآن
+  const queueRef   = useRef([]);     // طلبات وصلت أثناء عرض طلب آخر
+
+  const showRequest = (data) => {
+    currentRef.current = data;
+    setRequest(data);
+    setVisible(true);
+    setLoading(false);
+    Animated.spring(slideAnim, {
+      toValue: 0, useNativeDriver: true, damping: 20, stiffness: 180,
+    }).start();
+  };
+
   useEffect(() => {
     WCEvents.on('sign_request', (data) => {
-      setRequest(data);
-      setVisible(true);
-      setLoading(false);
-      Animated.spring(slideAnim, {
-        toValue: 0, useNativeDriver: true, damping: 20, stiffness: 180,
-      }).start();
+      // لا نستبدل الطلب المعروض: الطلب الجديد ينتظر دوره حتى لا يبقى أي طلب بلا رد
+      if (currentRef.current) { queueRef.current.push(data); return; }
+      showRequest(data);
     });
-    return () => WCEvents.off('sign_request');
+    return () => {
+      WCEvents.off('sign_request');
+      queueRef.current.forEach(d => { try { d.onReject(); } catch (_) {} });
+      queueRef.current = [];
+    };
   }, []);
 
   const closeModal = () => {
@@ -83,6 +96,9 @@ export default function WalletConnectSignModal() {
       setVisible(false);
       setRequest(null);
       setLoading(false);
+      currentRef.current = null;
+      const next = queueRef.current.shift();
+      if (next) showRequest(next);
     });
   };
 
@@ -146,7 +162,7 @@ export default function WalletConnectSignModal() {
       <View style={[S.overlay, { backgroundColor: C.overlay }]}>
         <Animated.View style={[S.sheet, { backgroundColor: C.bg, transform: [{ translateY: slideAnim }] }]}>
 
-          <View style={[S.handle, { backgroundColor: C.border }]} />
+          <View style={[S.handle, { backgroundColor: '#2A2A4A' }]} />
 
           {/* ── بطاقة dApp ── */}
           <View style={[S.appRow, { backgroundColor: C.card, borderColor: C.border }]}>
@@ -264,7 +280,7 @@ export default function WalletConnectSignModal() {
                   key={i}
                   style={[
                     S.detailRow,
-                    i > 0 && { borderTopWidth: 1, borderTopColor: C.border, marginTop: 10, paddingTop: 10 },
+                    i > 0 && { marginTop: 12 },
                   ]}
                 >
                   <Text style={[S.detailLabel, { color: C.secondary }]}>{row.label}</Text>
@@ -284,7 +300,7 @@ export default function WalletConnectSignModal() {
                 <Text style={[S.detailValue, { color: C.text }]}>{request.details.instructionCount}</Text>
               </View>
               {request.details.programs?.length > 0 && (
-                <View style={[S.programsBlock, { borderTopWidth: 1, borderTopColor: C.border }]}>
+                <View style={S.programsBlock}>
                   <Text style={[S.detailLabel, { color: C.secondary, marginBottom: 8 }]}>
                     <Ionicons name="code-slash-outline" size={13} /> {t('walletConnect.programs_involved')}
                   </Text>
@@ -326,7 +342,7 @@ export default function WalletConnectSignModal() {
           {/* ── الأزرار ── */}
           <View style={S.buttonsRow}>
             <TouchableOpacity
-              style={[S.rejectBtn, { borderColor: C.error + '60' }]}
+              style={[S.rejectBtn, { backgroundColor: C.error + '22' }]}
               onPress={handleReject}
               disabled={loading}
             >
@@ -360,7 +376,7 @@ const S = StyleSheet.create({
   handle:  { width: 44, height: 5, borderRadius: 3, alignSelf: 'center', marginBottom: 20 },
 
   // dApp row
-  appRow:      { flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 16, borderWidth: 1, marginBottom: 20, gap: 10 },
+  appRow:      { flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 16, marginBottom: 20, gap: 10 },
   appIconWrap: { width: 44, height: 44, borderRadius: 13, justifyContent: 'center', alignItems: 'center' },
   appIcon:     { width: 34, height: 34, borderRadius: 10 },
   appInfo:     { flex: 1 },
@@ -372,52 +388,52 @@ const S = StyleSheet.create({
 
   // Hero
   heroWrap:     { alignItems: 'center', marginBottom: 20 },
-  heroIconWrap: { width: 64, height: 64, borderRadius: 20, borderWidth: 1.5, justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
+  heroIconWrap: { width: 64, height: 64, borderRadius: 20, justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
   heroTitle:    { fontSize: 21, fontWeight: '900', textAlign: 'center' },
   heroSubtitle: { fontSize: 13, marginTop: 4, textAlign: 'center' },
 
   // Hero Amount (صف واحد)
-  heroAmountCard:  { alignItems: 'center', paddingVertical: 20, paddingHorizontal: 16, borderRadius: 18, borderWidth: 1.5, marginBottom: 12 },
+  heroAmountCard:  { alignItems: 'center', paddingVertical: 20, paddingHorizontal: 16, borderRadius: 18, marginBottom: 12 },
   heroAmountLabel: { fontSize: 12, fontWeight: '600', marginBottom: 8 },
   heroAmountValue: { fontSize: 28, fontWeight: '900', letterSpacing: -0.5, textAlign: 'center' },
 
   // Pair (صفان بنفس الاتجاه)
-  pairCard:    { flexDirection: 'row', alignItems: 'center', padding: 16, borderRadius: 18, borderWidth: 1, marginBottom: 12 },
+  pairCard:    { flexDirection: 'row', alignItems: 'center', padding: 16, borderRadius: 18, marginBottom: 12 },
   pairSide:    { flex: 1, alignItems: 'center' },
   pairIcon:    { width: 30, height: 30, borderRadius: 10, justifyContent: 'center', alignItems: 'center', marginBottom: 8 },
   pairValue:   { fontSize: 15, fontWeight: '800', textAlign: 'center' },
   pairDivider: { width: 1, height: 40, marginHorizontal: 8 },
 
   // Flow (صفان متعاكسان)
-  flowCard:  { flexDirection: 'row', alignItems: 'center', padding: 16, borderRadius: 18, borderWidth: 1, marginBottom: 12, gap: 10 },
+  flowCard:  { flexDirection: 'row', alignItems: 'center', padding: 16, borderRadius: 18, marginBottom: 12, gap: 10 },
   flowSide:  { flex: 1, alignItems: 'center' },
   flowIcon:  { width: 30, height: 30, borderRadius: 10, justifyContent: 'center', alignItems: 'center', marginBottom: 8 },
   flowLabel: { fontSize: 11, fontWeight: '600', marginBottom: 4 },
   flowValue: { fontSize: 15, fontWeight: '800', textAlign: 'center' },
-  flowArrow: { width: 32, height: 32, borderRadius: 16, borderWidth: 1, justifyContent: 'center', alignItems: 'center' },
+  flowArrow: { width: 32, height: 32, borderRadius: 16, justifyContent: 'center', alignItems: 'center' },
 
   // Details list
-  detailsCard: { padding: 14, borderRadius: 16, borderWidth: 1, marginBottom: 12 },
+  detailsCard: { padding: 14, borderRadius: 16, marginBottom: 12 },
   detailRow:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   detailLabel: { fontSize: 13 },
   detailValue: { fontSize: 13, fontWeight: '700', maxWidth: '55%' },
 
   programsBlock: { marginTop: 10, paddingTop: 10 },
   chipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  chip:     { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10, borderWidth: 1, maxWidth: 160 },
+  chip:     { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10, maxWidth: 160 },
   chipText: { fontSize: 11, fontWeight: '600' },
 
   // Fee
-  feeRow:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 12, borderRadius: 12, borderWidth: 1, marginBottom: 12 },
+  feeRow:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 12, borderRadius: 12, marginBottom: 12 },
   feeLeft: { flexDirection: 'row', alignItems: 'center' },
 
   // Warning
-  warningRow: { flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 12, borderWidth: 1, marginBottom: 22, gap: 8 },
+  warningRow: { flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 12, marginBottom: 22, gap: 8 },
   warningTxt: { flex: 1, fontSize: 13, fontWeight: '600' },
 
   // Buttons
   buttonsRow: { flexDirection: 'row', gap: 12 },
-  rejectBtn:  { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 18, borderRadius: 18, borderWidth: 1.5, gap: 8 },
+  rejectBtn:  { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 18, borderRadius: 18, gap: 8 },
   rejectTxt:  { fontSize: 16, fontWeight: '700' },
   approveBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 18, borderRadius: 18, gap: 8 },
   approveTxt: { fontSize: 16, fontWeight: '700', color: '#FFF' },
