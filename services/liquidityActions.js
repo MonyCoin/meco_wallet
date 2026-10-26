@@ -80,6 +80,19 @@ function runRealProbe(data) {
       try { const l = mk(); l.decode(data, off); off += l.span; res.push(name + ':ok'); }
       catch (e) { res.push(name + ':ERR(' + String((e && e.message) || e).slice(0, 25) + ')'); break; }
     }
+    // بُنى تدريجية: أول عدد من الحقول يفشل معه الفك
+    try {
+      const mk9 = [() => borsh.publicKey('a'), () => borsh.publicKey('b'), () => borsh.u128('c'), () => borsh.i32('d'), () => borsh.i32('e'),
+        () => borsh.u128('f'), () => borsh.u64('g'), () => borsh.u128('h'), () => borsh.u64('i')];
+      for (let k = 1; k <= mk9.length; k += 1) {
+        try { borsh.struct(mk9.slice(0, k).map(f => f())).decode(data.subarray(8)); res.push('s' + k + ':ok'); }
+        catch (e) { res.push('s' + k + ':ERR(' + String((e && e.message) || e).slice(0, 20) + ')'); break; }
+      }
+    } catch (e) { res.push('progERR'); }
+    try { borsh.array(borsh.struct([borsh.u128('x'), borsh.u64('y')]), 3).decode(Buffer.alloc(72), 0); res.push('arrStruct:ok'); }
+    catch (e) { res.push('arrStruct:ERR(' + String((e && e.message) || e).slice(0, 20) + ')'); }
+    try { borsh.struct([borsh.u8('p'), borsh.array(borsh.u8(), 3, 'q')]).decode(Buffer.alloc(4), 0); res.push('structArr:ok'); }
+    catch (e) { res.push('structArr:ERR(' + String((e && e.message) || e).slice(0, 20) + ')'); }
     // وبنية كاملة كما يبنيها Anchor
     try {
       const st = borsh.struct([borsh.publicKey('a'), borsh.publicKey('b'), borsh.u128('c'), borsh.i32('d'), borsh.i32('e'),
