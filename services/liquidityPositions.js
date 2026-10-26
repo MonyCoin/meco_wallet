@@ -3,6 +3,7 @@
 import { PublicKey } from '@solana/web3.js';
 import heliusService from './heliusService';
 import { MECO_POOLS } from './liquidityService';
+import { ensureBufferSubarray } from './bufferFix';
 
 let _cache = null; // { owner, at, data }
 export function clearPositionsCache() { _cache = null; }
@@ -17,6 +18,7 @@ const readOnlyWallet = (publicKey) => ({
 
 // تحميل المكتبة عند الحاجة فقط حتى لا يتأثر تشغيل التطبيق
 function loadSdk() {
+  ensureBufferSubarray();
   // eslint-disable-next-line global-require
   return require('@orca-so/whirlpools-sdk');
 }

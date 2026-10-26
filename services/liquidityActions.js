@@ -6,6 +6,7 @@ import bs58 from 'bs58';
 import heliusService, { getSolBalance, getTokenBalance, clearBalanceCache } from './heliusService';
 import { MECO_POOLS } from './liquidityService';
 import { clearPositionsCache } from './liquidityPositions';
+import { ensureBufferSubarray } from './bufferFix';
 
 export const MECO_MINT = 'A5Ln25cfww33kfUSzBb89bMha7j1PnFQTy7H3FsQHN7W';
 export const SLIPPAGE_PCT = 1;          // 1%
@@ -36,6 +37,7 @@ const OTHER_SYMBOL = { usdt: 'USDT', sol: 'SOL' };
 const NATIVE_MINT = 'So11111111111111111111111111111111111111112';
 
 function loadLibs() {
+  ensureBufferSubarray();
   // eslint-disable-next-line global-require
   const orca = require('@orca-so/whirlpools-sdk');
   // eslint-disable-next-line global-require
@@ -43,66 +45,6 @@ function loadLibs() {
   // eslint-disable-next-line global-require
   const DecimalMod = require('decimal.js');
   return { orca, common, Decimal: DecimalMod.default || DecimalMod };
-}
-
-// تشخيص مؤقت: يعزل أي لبنة ترميز تفشل داخل بيئة التطبيق
-function runDecodeProbes() {
-  const out = [];
-  const t = (name, fn) => { try { fn(); out.push(name + '=ok'); } catch (e) { out.push(name + '=ERR(' + String((e && e.message) || e).slice(0, 30) + ')'); } };
-  let BN, bl, borsh;
-  t('req', () => { BN = require('bn.js'); bl = require('buffer-layout'); borsh = require('@coral-xyz/borsh'); });
-  if (BN) t('bn', () => new BN(Buffer.alloc(16), 10, 'le'));
-  if (bl) t('blob', () => bl.blob(16).decode(Buffer.alloc(16), 0));
-  if (bl) t('u8', () => bl.u8().decode(Buffer.alloc(4), 0));
-  if (bl) t('u32', () => bl.u32().decode(Buffer.alloc(4), 0));
-  if (bl) t('s32', () => bl.s32().decode(Buffer.alloc(4), 0));
-  if (borsh) t('u64', () => borsh.u64().decode(Buffer.alloc(8), 0));
-  if (borsh) t('u128', () => borsh.u128().decode(Buffer.alloc(16), 0));
-  if (borsh) t('pk', () => borsh.publicKey().decode(Buffer.alloc(32), 0));
-  if (borsh) t('struct', () => borsh.struct([borsh.u8('a'), borsh.u128('b')]).decode(Buffer.alloc(17), 0));
-  if (borsh) t('array', () => borsh.array(borsh.u8(), 3).decode(Buffer.alloc(3), 0));
-  t('sub', () => Buffer.alloc(8).subarray(2));
-  return out.join(' ');
-}
-
-// تشخيص مؤقت: يفك بيانات المركز الحقيقية حقلًا حقلًا بنفس لبنات Anchor لمعرفة الحقل الذي يفشل
-function runRealProbe(data) {
-  try {
-    if (!data) return 'nodata';
-    const borsh = require('@coral-xyz/borsh');
-    const spec = [
-      ['pk1', () => borsh.publicKey()], ['pk2', () => borsh.publicKey()], ['liq', () => borsh.u128()],
-      ['tl', () => borsh.i32()], ['tu', () => borsh.i32()], ['fgA', () => borsh.u128()], ['foA', () => borsh.u64()],
-      ['fgB', () => borsh.u128()], ['foB', () => borsh.u64()], ['r0g', () => borsh.u128()], ['r0a', () => borsh.u64()],
-    ];
-    let off = 8; const res = [];
-    for (const [name, mk] of spec) {
-      try { const l = mk(); l.decode(data, off); off += l.span; res.push(name + ':ok'); }
-      catch (e) { res.push(name + ':ERR(' + String((e && e.message) || e).slice(0, 25) + ')'); break; }
-    }
-    // بُنى تدريجية: أول عدد من الحقول يفشل معه الفك
-    try {
-      const mk9 = [() => borsh.publicKey('a'), () => borsh.publicKey('b'), () => borsh.u128('c'), () => borsh.i32('d'), () => borsh.i32('e'),
-        () => borsh.u128('f'), () => borsh.u64('g'), () => borsh.u128('h'), () => borsh.u64('i')];
-      for (let k = 1; k <= mk9.length; k += 1) {
-        try { borsh.struct(mk9.slice(0, k).map(f => f())).decode(data.subarray(8)); res.push('s' + k + ':ok'); }
-        catch (e) { res.push('s' + k + ':ERR(' + String((e && e.message) || e).slice(0, 20) + ')'); break; }
-      }
-    } catch (e) { res.push('progERR'); }
-    try { borsh.array(borsh.struct([borsh.u128('x'), borsh.u64('y')]), 3).decode(Buffer.alloc(72), 0); res.push('arrStruct:ok'); }
-    catch (e) { res.push('arrStruct:ERR(' + String((e && e.message) || e).slice(0, 20) + ')'); }
-    try { borsh.struct([borsh.u8('p'), borsh.array(borsh.u8(), 3, 'q')]).decode(Buffer.alloc(4), 0); res.push('structArr:ok'); }
-    catch (e) { res.push('structArr:ERR(' + String((e && e.message) || e).slice(0, 20) + ')'); }
-    // وبنية كاملة كما يبنيها Anchor
-    try {
-      const st = borsh.struct([borsh.publicKey('a'), borsh.publicKey('b'), borsh.u128('c'), borsh.i32('d'), borsh.i32('e'),
-        borsh.u128('f'), borsh.u64('g'), borsh.u128('h'), borsh.u64('i'),
-        borsh.array(borsh.struct([borsh.u128('x'), borsh.u64('y')]), 3, 'rw')]);
-      st.decode(data.subarray(8));
-      res.push('fullStruct:ok');
-    } catch (e) { res.push('fullStruct:ERR(' + String((e && e.message) || e).slice(0, 25) + ')'); }
-    return res.join(' ');
-  } catch (e) { return 'probeERR ' + String((e && e.message) || e).slice(0, 40); }
 }
 
 export function getKeypairFromStore(storePrivateKey) {
@@ -282,40 +224,8 @@ export async function listPositions(ownerAddress, force = false) {
   }
   if (entries.some(([, d]) => !d || !d.whirlpool || d.liquidity === undefined)) throw new Error('UNEXPECTED_SHAPE');
   // تشخيص مؤقت: ما أعادته المكتبة فعليًا + فحص مستقل يتجاوز المكتبة
-  let dbg = `wallet ${ownerAddress.slice(0, 4)}..${ownerAddress.slice(-4)} | sdk positions: ${entries.length}` +
+  const dbg = `wallet ${ownerAddress.slice(0, 4)}..${ownerAddress.slice(-4)} | sdk positions: ${entries.length}` +
     (entries.length ? ' → ' + entries.map(([, d]) => d.whirlpool.toBase58().slice(0, 4) + (d.liquidity.isZero() ? '(0)' : '')).join(',') : '');
-  if (entries.length === 0) {
-    try {
-      const conn = ctx.connection;
-      const progs = ['TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA', 'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb'];
-      let nft = 0, found = 0, decodeErr = '', realData = null;
-      for (const pid of progs) {
-        const res = await conn.getParsedTokenAccountsByOwner(owner, { programId: new web3.PublicKey(pid) });
-        const mints = res.value
-          .map(v => v.account.data.parsed.info)
-          .filter(i => i.tokenAmount && i.tokenAmount.amount === '1' && i.tokenAmount.decimals === 0)
-          .map(i => new web3.PublicKey(i.mint));
-        nft += mints.length;
-        if (!mints.length) continue;
-        const pdas = mints.map(m => orca.PDAUtil.getPosition(orca.ORCA_WHIRLPOOL_PROGRAM_ID, m).publicKey);
-        const infos = await conn.getMultipleAccountsInfo(pdas);
-        infos.forEach((info) => {
-          if (info && info.owner.equals(orca.ORCA_WHIRLPOOL_PROGRAM_ID)) {
-            found += 1;
-            if (!realData) realData = info.data;
-            if (!decodeErr) {
-              try { orca.WHIRLPOOL_CODER.decode(orca.AccountName.Position, info.data); decodeErr = 'decode-ok'; }
-              catch (e) { decodeErr = 'decode-ERR ' + String((e && e.message) || e).slice(0, 50) + ' @ ' + String((e && e.stack) || '').split('\n').slice(1, 6).map(l => l.trim().slice(0, 55)).join(' ; '); }
-            }
-          }
-        });
-      }
-      dbg += ` | nft:${nft} posAcc:${found} ${decodeErr.slice(0, 40)}`;
-      if (decodeErr.startsWith('decode-ERR')) dbg += ' | probes: ' + runDecodeProbes() + ' | real: ' + runRealProbe(realData);
-    } catch (e) {
-      dbg += ' | scanErr ' + String((e && e.message) || e).slice(0, 80);
-    }
-  }
 
   const out = [];
   for (const meta of MECO_POOLS) {
