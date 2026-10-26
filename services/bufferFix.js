@@ -1,4 +1,5 @@
 // services/bufferFix.js
+// الإصدار 1.0 - إصلاح subarray في Hermes
 // إصلاح لبيئة Hermes: Buffer.prototype.subarray تُرجع Uint8Array عادية بلا دوال Buffer
 // (مثل readInt32LE)، فيفشل فك بيانات الحسابات في مكتبة Orca/Anchor.
 // يُطبَّق فقط إذا ثبت العطل، ويحافظ على نفس سلوك Node (ذاكرة مشتركة).
