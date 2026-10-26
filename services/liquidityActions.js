@@ -45,6 +45,26 @@ function loadLibs() {
   return { orca, common, Decimal: DecimalMod.default || DecimalMod };
 }
 
+// تشخيص مؤقت: يعزل أي لبنة ترميز تفشل داخل بيئة التطبيق
+function runDecodeProbes() {
+  const out = [];
+  const t = (name, fn) => { try { fn(); out.push(name + '=ok'); } catch (e) { out.push(name + '=ERR(' + String((e && e.message) || e).slice(0, 30) + ')'); } };
+  let BN, bl, borsh;
+  t('req', () => { BN = require('bn.js'); bl = require('buffer-layout'); borsh = require('@coral-xyz/borsh'); });
+  if (BN) t('bn', () => new BN(Buffer.alloc(16), 10, 'le'));
+  if (bl) t('blob', () => bl.blob(16).decode(Buffer.alloc(16), 0));
+  if (bl) t('u8', () => bl.u8().decode(Buffer.alloc(4), 0));
+  if (bl) t('u32', () => bl.u32().decode(Buffer.alloc(4), 0));
+  if (bl) t('s32', () => bl.s32().decode(Buffer.alloc(4), 0));
+  if (borsh) t('u64', () => borsh.u64().decode(Buffer.alloc(8), 0));
+  if (borsh) t('u128', () => borsh.u128().decode(Buffer.alloc(16), 0));
+  if (borsh) t('pk', () => borsh.publicKey().decode(Buffer.alloc(32), 0));
+  if (borsh) t('struct', () => borsh.struct([borsh.u8('a'), borsh.u128('b')]).decode(Buffer.alloc(17), 0));
+  if (borsh) t('array', () => borsh.array(borsh.u8(), 3).decode(Buffer.alloc(3), 0));
+  t('sub', () => Buffer.alloc(8).subarray(2));
+  return out.join(' ');
+}
+
 export function getKeypairFromStore(storePrivateKey) {
   if (!storePrivateKey) throw new Error('NO_KEY');
   const secretKey = storePrivateKey.startsWith('[')
@@ -249,7 +269,8 @@ export async function listPositions(ownerAddress, force = false) {
           }
         });
       }
-      dbg += ` | nft:${nft} posAcc:${found} ${decodeErr}`;
+      dbg += ` | nft:${nft} posAcc:${found} ${decodeErr.slice(0, 40)}`;
+      if (decodeErr.startsWith('decode-ERR')) dbg += ' | probes: ' + runDecodeProbes();
     } catch (e) {
       dbg += ' | scanErr ' + String((e && e.message) || e).slice(0, 80);
     }
