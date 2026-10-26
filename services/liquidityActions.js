@@ -65,6 +65,33 @@ function runDecodeProbes() {
   return out.join(' ');
 }
 
+// تشخيص مؤقت: يفك بيانات المركز الحقيقية حقلًا حقلًا بنفس لبنات Anchor لمعرفة الحقل الذي يفشل
+function runRealProbe(data) {
+  try {
+    if (!data) return 'nodata';
+    const borsh = require('@coral-xyz/borsh');
+    const spec = [
+      ['pk1', () => borsh.publicKey()], ['pk2', () => borsh.publicKey()], ['liq', () => borsh.u128()],
+      ['tl', () => borsh.i32()], ['tu', () => borsh.i32()], ['fgA', () => borsh.u128()], ['foA', () => borsh.u64()],
+      ['fgB', () => borsh.u128()], ['foB', () => borsh.u64()], ['r0g', () => borsh.u128()], ['r0a', () => borsh.u64()],
+    ];
+    let off = 8; const res = [];
+    for (const [name, mk] of spec) {
+      try { const l = mk(); l.decode(data, off); off += l.span; res.push(name + ':ok'); }
+      catch (e) { res.push(name + ':ERR(' + String((e && e.message) || e).slice(0, 25) + ')'); break; }
+    }
+    // وبنية كاملة كما يبنيها Anchor
+    try {
+      const st = borsh.struct([borsh.publicKey('a'), borsh.publicKey('b'), borsh.u128('c'), borsh.i32('d'), borsh.i32('e'),
+        borsh.u128('f'), borsh.u64('g'), borsh.u128('h'), borsh.u64('i'),
+        borsh.array(borsh.struct([borsh.u128('x'), borsh.u64('y')]), 3, 'rw')]);
+      st.decode(data.subarray(8));
+      res.push('fullStruct:ok');
+    } catch (e) { res.push('fullStruct:ERR(' + String((e && e.message) || e).slice(0, 25) + ')'); }
+    return res.join(' ');
+  } catch (e) { return 'probeERR ' + String((e && e.message) || e).slice(0, 40); }
+}
+
 export function getKeypairFromStore(storePrivateKey) {
   if (!storePrivateKey) throw new Error('NO_KEY');
   const secretKey = storePrivateKey.startsWith('[')
@@ -248,7 +275,7 @@ export async function listPositions(ownerAddress, force = false) {
     try {
       const conn = ctx.connection;
       const progs = ['TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA', 'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb'];
-      let nft = 0, found = 0, decodeErr = '';
+      let nft = 0, found = 0, decodeErr = '', realData = null;
       for (const pid of progs) {
         const res = await conn.getParsedTokenAccountsByOwner(owner, { programId: new web3.PublicKey(pid) });
         const mints = res.value
@@ -262,6 +289,7 @@ export async function listPositions(ownerAddress, force = false) {
         infos.forEach((info) => {
           if (info && info.owner.equals(orca.ORCA_WHIRLPOOL_PROGRAM_ID)) {
             found += 1;
+            if (!realData) realData = info.data;
             if (!decodeErr) {
               try { orca.WHIRLPOOL_CODER.decode(orca.AccountName.Position, info.data); decodeErr = 'decode-ok'; }
               catch (e) { decodeErr = 'decode-ERR ' + String((e && e.message) || e).slice(0, 50) + ' @ ' + String((e && e.stack) || '').split('\n').slice(1, 6).map(l => l.trim().slice(0, 55)).join(' ; '); }
@@ -270,7 +298,7 @@ export async function listPositions(ownerAddress, force = false) {
         });
       }
       dbg += ` | nft:${nft} posAcc:${found} ${decodeErr.slice(0, 40)}`;
-      if (decodeErr.startsWith('decode-ERR')) dbg += ' | probes: ' + runDecodeProbes();
+      if (decodeErr.startsWith('decode-ERR')) dbg += ' | probes: ' + runDecodeProbes() + ' | real: ' + runRealProbe(realData);
     } catch (e) {
       dbg += ' | scanErr ' + String((e && e.message) || e).slice(0, 80);
     }
