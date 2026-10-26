@@ -213,6 +213,47 @@ async function parseTransactionDetails(method, params) {
   }
 }
 
+
+// ── تحقق تطابق حساب الجلسة مع الحساب النشط ──
+function isArabicUi() {
+  try { return String(i18n.language || '').startsWith('ar'); } catch (_) { return true; }
+}
+
+function sessionAccounts(session) {
+  const out = [];
+  try {
+    Object.values(session?.namespaces || {}).forEach((ns) => {
+      (ns?.accounts || []).forEach((a) => {
+        const pk = String(a).split(':').pop();
+        if (pk) out.push(pk);
+      });
+    });
+  } catch (_) {}
+  return out;
+}
+
+// true إذا كانت الجلسة تخص الحساب النشط، أو إذا تعذّر تحديد حساب الجلسة (سلوك سابق)
+function sessionMatchesActive(session, activePubkey) {
+  const accs = sessionAccounts(session);
+  if (accs.length === 0 || !activePubkey) return true;
+  return accs.includes(activePubkey);
+}
+
+function mismatchMessage() {
+  return isArabicUi()
+    ? 'هذه الجلسة مرتبطة بحساب آخر غير الحساب النشط حالياً. بدّل إلى الحساب المرتبط بها أو أعد الاتصال بالموقع.'
+    : 'This session belongs to a different account than the active one. Switch to the linked account or reconnect to the site.';
+}
+
+async function rejectMismatch(topic, id) {
+  try {
+    await web3wallet.respondSessionRequest({
+      topic,
+      response: { id, jsonrpc: '2.0', error: { code: 4001, message: 'Session account does not match the active account' } },
+    });
+  } catch (_) {}
+}
+
 async function getWalletKeypair() {
   const activeIndex = useAppStore.getState().activeAccountIndex;
   let privateKeyStr = await SecureStore.getItemAsync(`wallet_private_key_${activeIndex}`);
@@ -271,6 +312,13 @@ function setupEventListeners() {
     const appName  = session?.peer?.metadata?.name       || 'dApp';
     const appUrl   = session?.peer?.metadata?.url        || '';
     const appIcon  = session?.peer?.metadata?.icons?.[0] || null;
+
+    // حماية: لا نوقّع بحساب غير الذي ارتبطت به الجلسة
+    if (!sessionMatchesActive(session, useAppStore.getState().walletPublicKey)) {
+      Alert.alert(i18n.t('error'), mismatchMessage());
+      await rejectMismatch(topic, id);
+      return;
+    }
 
     if (listeners['sign_request']) {
       const { instructionCount, programs, operation, estimatedFee } = await parseTransactionDetails(request.method, request.params);
@@ -338,6 +386,13 @@ async function handleRequestApproval(event) {
 
   try {
     const keypair    = await getWalletKeypair();
+    // فحص ثانٍ لحظة التوقيع (قد يتبدل الحساب بين ظهور النافذة والموافقة)
+    const sess = (web3wallet.getActiveSessions?.() || {})[topic];
+    if (!sessionMatchesActive(sess, keypair.publicKey.toBase58())) {
+      Alert.alert(i18n.t('error'), mismatchMessage());
+      await rejectMismatch(topic, id);
+      return;
+    }
     const connection = await heliusService.getConnection();
     let   result;
 
@@ -394,7 +449,14 @@ async function handleRequestApproval(event) {
           { skipPreflight: false }
         );
       }
-      await connection.confirmTransaction(signature, 'confirmed');
+      const conf = await connection.confirmTransaction(signature, 'confirmed');
+      if (conf?.value?.err) {
+        // المعاملة أُدرجت لكنها فشلت على السلسلة: لا نبلغ الموقع بنجاح كاذب
+        throw new Error(
+          (isArabicUi() ? 'فشلت المعاملة على الشبكة' : 'Transaction failed on-chain') +
+          ` (${JSON.stringify(conf.value.err)})`
+        );
+      }
       result = { signature };
     }
 

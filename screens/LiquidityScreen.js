@@ -62,6 +62,11 @@ const STR = {
     e_NOT_SPLASH_POOL: 'هذا المجمع غير مدعوم داخل التطبيق.',
     e_POSITION_NOT_FOUND: 'لم يُعثر على المركز في محفظتك.',
     e_NO_KEY: 'تعذر الوصول إلى المفتاح، أعد فتح المحفظة.',
+    e_POSITION_LOCKED: 'هذا المركز مقفل بشكل دائم ولا يمكن سحبه.',
+    e_TIMEOUT: 'انتهت مهلة المعاملة قبل تأكيدها. لم يُنفَّذ شيء، حاول مرة أخرى.',
+    e_CANCELLED: 'أُلغيت العملية.',
+    e_GENERIC: 'تعذّر تنفيذ العملية على المجمع. لم يتم خصم شيء سوى رسوم الشبكة إن وُجدت. حاول لاحقًا.',
+    locked_pos: 'مقفل نهائيًا 🔒',
     manage_note: 'قد تحتاج المراكز المقفلة إلى Orca نفسها.',
     service_fee: 'رسوم الخدمة',
     fee_info: 'رسوم خدمة التطبيق 0.0005 SOL على الإيداع والسحب فقط (لا رسوم على جمع الرسوم). تُجمع في محفظة معلنة وتُضاف إلى دعم المشروع وسيولته.',
@@ -112,6 +117,11 @@ const STR = {
     e_NOT_SPLASH_POOL: 'This pool is not supported in the app.',
     e_POSITION_NOT_FOUND: 'Position not found in your wallet.',
     e_NO_KEY: 'Could not access the key, reopen the wallet.',
+    e_POSITION_LOCKED: 'This position is permanently locked and cannot be withdrawn.',
+    e_TIMEOUT: 'The transaction expired before confirmation. Nothing was executed, try again.',
+    e_CANCELLED: 'Operation cancelled.',
+    e_GENERIC: 'The operation could not be completed on the pool. Nothing was charged except possible network fees. Try again later.',
+    locked_pos: 'Permanently locked 🔒',
     manage_note: 'Locked positions may need Orca itself.',
     service_fee: 'Service fee',
     fee_info: 'App service fee of 0.0005 SOL on deposits and withdrawals only (no fee on collecting fees). It goes to a public wallet that supports the project and its liquidity.',
@@ -137,6 +147,15 @@ function errText(S, e) {
   const code = String((e && e.message) || e || '');
   const known = S['e_' + code];
   if (known) return known;
+  // رسائل الشبكة الخام: لا تُعرض للمستخدم
+  if (/locked/i.test(code)) return S.e_POSITION_LOCKED;
+  if (/insufficient lamports|insufficient funds|Attempt to debit/i.test(code)) return S.e_INSUFFICIENT_SOL_FEES;
+  if (/blockhash|block height exceeded|expired/i.test(code)) return S.e_TIMEOUT;
+  if (/User rejected|cancel/i.test(code)) return S.e_CANCELLED;
+  if (/Simulation failed|custom program error|Transaction simulation|failed to send/i.test(code)) {
+    const m = code.match(/custom program error: (0x[0-9a-f]+)/i);
+    return S.e_GENERIC + (m ? ` (${m[1]})` : '');
+  }
   return `${S.fail}\n${code.slice(0, 140)}`;
 }
 
@@ -248,12 +267,18 @@ export default function LiquidityScreen() {
                 ? <ActivityIndicator size="small" color={primary} />
                 : <Text style={[st.smallTxt, { color: primary }]}>{S.collect}</Text>}
             </TouchableOpacity>
-            <TouchableOpacity style={[st.smallBtn, { backgroundColor: C.card }]} disabled={!!busyKey}
-              onPress={() => onWithdraw(pos)}>
-              {busyKey === 'w' + pos.address
-                ? <ActivityIndicator size="small" color={C.error} />
-                : <Text style={[st.smallTxt, { color: C.error }]}>{S.withdraw}</Text>}
-            </TouchableOpacity>
+            {pos.locked ? (
+              <View style={[st.smallBtn, { backgroundColor: C.card }]}>
+                <Text style={[st.smallTxt, { color: C.muted }]}>{S.locked_pos}</Text>
+              </View>
+            ) : (
+              <TouchableOpacity style={[st.smallBtn, { backgroundColor: C.card }]} disabled={!!busyKey}
+                onPress={() => onWithdraw(pos)}>
+                {busyKey === 'w' + pos.address
+                  ? <ActivityIndicator size="small" color={C.error} />
+                  : <Text style={[st.smallTxt, { color: C.error }]}>{S.withdraw}</Text>}
+              </TouchableOpacity>
+            )}
           </View>
         </View>
       ));

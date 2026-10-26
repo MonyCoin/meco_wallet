@@ -227,6 +227,18 @@ export async function listPositions(ownerAddress, force = false) {
   const dbg = `wallet ${ownerAddress.slice(0, 4)}..${ownerAddress.slice(-4)} | sdk positions: ${entries.length}` +
     (entries.length ? ' → ' + entries.map(([, d]) => d.whirlpool.toBase58().slice(0, 4) + (d.liquidity.isZero() ? '(0)' : '')).join(',') : '');
 
+  // المراكز المقفلة: حساب رمز المركز (Token-2022) مجمّد
+  const frozenMints = new Set();
+  try {
+    const tok = await ctx.connection.getParsedTokenAccountsByOwner(
+      owner, { programId: new web3.PublicKey('TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb') },
+    );
+    tok.value.forEach(({ account }) => {
+      const info = account?.data?.parsed?.info;
+      if (info && info.state === 'frozen') frozenMints.add(info.mint);
+    });
+  } catch (e) { /* إن تعذر الفحص نعتمد على ترجمة رسالة الخطأ */ }
+
   const out = [];
   for (const meta of MECO_POOLS) {
     const mine = entries.filter(([, d]) => d.whirlpool.toBase58() === meta.address);
@@ -279,6 +291,7 @@ export async function listPositions(ownerAddress, force = false) {
         feeMeco,
         feeOther,
         hasLiquidity: !d.liquidity.isZero(),
+        locked: !!(d.positionMint && frozenMints.has(d.positionMint.toBase58())),
       });
     }
   }
@@ -301,7 +314,8 @@ export async function withdrawPosition({ privateKey, positionAddress }) {
   const { orca, common } = libs;
   const kp = getKeypairFromStore(privateKey);
   const owner = kp.publicKey;
-  await assertOwnPosition(owner.toBase58(), positionAddress);
+  const found = await assertOwnPosition(owner.toBase58(), positionAddress);
+  if (found.locked) throw new Error('POSITION_LOCKED');
 
   const { client, connection } = await makeContext(signerWallet(kp));
   const position = await client.getPosition(positionAddress, orca.IGNORE_CACHE);
