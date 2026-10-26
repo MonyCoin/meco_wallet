@@ -1,5 +1,5 @@
 // services/liquidityActions.js
-// إيداع/سحب/جمع رسوم سيولة MECO على Orca (مجمعات Splash - نطاق كامل فقط)
+// إيداع/سحب/جمع رسوم سيولة MECO على Orca (مراكز بنطاق كامل فقط)
 // ⚠️ معاملات بأموال حقيقية - كل دالة تتحقق قبل التنفيذ.
 import * as web3 from '@solana/web3.js';
 import bs58 from 'bs58';
@@ -94,7 +94,7 @@ async function loadPool(client, ctx, poolId) {
   const meta = poolMeta(poolId);
   const pool = await client.getPool(meta.address, orca.IGNORE_CACHE);
   const data = pool.getData();
-  if (data.tickSpacing < orca.FULL_RANGE_ONLY_TICK_SPACING_THRESHOLD) throw new Error('NOT_SPLASH_POOL');
+  // النطاق الكامل يُحسب من tickSpacing الفعلي لأي مجمع (Splash أو غيره)
   const mecoIsA = data.tokenMintA.toBase58() === MECO_MINT;
   const mecoIsB = data.tokenMintB.toBase58() === MECO_MINT;
   if (!mecoIsA && !mecoIsB) throw new Error('POOL_WITHOUT_MECO');
