@@ -244,7 +244,7 @@ export async function listPositions(ownerAddress, force = false) {
             found += 1;
             if (!decodeErr) {
               try { orca.WHIRLPOOL_CODER.decode(orca.AccountName.Position, info.data); decodeErr = 'decode-ok'; }
-              catch (e) { decodeErr = 'decode-ERR ' + String((e && e.message) || e).slice(0, 70); }
+              catch (e) { decodeErr = 'decode-ERR ' + String((e && e.message) || e).slice(0, 50) + ' @ ' + String((e && e.stack) || '').split('\n').slice(1, 6).map(l => l.trim().slice(0, 55)).join(' ; '); }
             }
           }
         });
