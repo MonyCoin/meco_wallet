@@ -121,10 +121,19 @@ export default function WalletScreen() {
         if (!alive) return;
         const mine = list.filter(x => x.hasLiquidity);
         if (mine.length === 0) { setLiqSummary(null); return; }
-        const meco = mine.reduce((sum, x) => sum + (x.mecoAmount || 0), 0);
-        const hasFees = mine.some(x => x.feeMeco !== null);
-        const fees = hasFees ? mine.reduce((sum, x) => sum + (x.feeMeco || 0), 0) : null;
-        setLiqSummary({ count: mine.length, meco, fees });
+        // تجميع حسب العملة من مراكز الحساب الفعلية: MECO ثم العملات المقابلة الموجودة فقط
+        const assets = [{ sym: 'MECO', amount: 0, fee: 0, hasFee: false }];
+        mine.forEach(x => {
+          assets[0].amount += x.mecoAmount || 0;
+          if (x.feeMeco !== null && x.feeMeco !== undefined) { assets[0].fee += x.feeMeco; assets[0].hasFee = true; }
+          const sym = x.otherSymbol || '';
+          if (!sym) return;
+          let a = assets.find(r => r.sym === sym);
+          if (!a) { a = { sym, amount: 0, fee: 0, hasFee: false }; assets.push(a); }
+          a.amount += x.otherAmount || 0;
+          if (x.feeOther !== null && x.feeOther !== undefined) { a.fee += x.feeOther; a.hasFee = true; }
+        });
+        setLiqSummary({ count: mine.length, assets });
       })
       .catch(() => { if (alive) setLiqSummary(null); });
     return () => { alive = false; };
@@ -834,20 +843,30 @@ export default function WalletScreen() {
                 <View style={styles.stakingRow}>
                   <View style={styles.stakingCol}>
                     <Text style={[styles.stakingLabel, { color: colors.textSecondary }]}>
-                      {isAr ? 'MECO في مراكزك' : 'MECO in your positions'}
+                      {isAr ? 'مركزك' : 'Your position'}
                     </Text>
-                    <Text style={[styles.stakingValue, { color: colors.text }]}>
-                      {liqSummary.meco.toLocaleString('en-US', { maximumFractionDigits: 2 })} MECO
-                    </Text>
+                    {liqSummary.assets.map(a => (
+                      <View key={a.sym} style={styles.liqLine}>
+                        <Text style={[styles.liqSym, { color: colors.textSecondary }]}>{a.sym}</Text>
+                        <Text style={[styles.liqNum, { color: colors.text }]}>
+                          {a.amount.toLocaleString('en-US', { maximumFractionDigits: a.sym === 'MECO' ? 0 : 4 })}
+                        </Text>
+                      </View>
+                    ))}
                   </View>
                   <View style={[styles.stakingDivider, { backgroundColor: colors.border }]} />
                   <View style={styles.stakingCol}>
                     <Text style={[styles.stakingLabel, { color: colors.textSecondary }]}>
                       {isAr ? 'الرسوم المتراكمة' : 'Accrued fees'}
                     </Text>
-                    <Text style={[styles.stakingValue, { color: colors.success }]}>
-                      {liqSummary.fees === null ? '—' : '+' + liqSummary.fees.toLocaleString('en-US', { maximumFractionDigits: 6 })}
-                    </Text>
+                    {liqSummary.assets.map(a => (
+                      <View key={a.sym} style={styles.liqLine}>
+                        <Text style={[styles.liqSym, { color: colors.textSecondary }]}>{a.sym}</Text>
+                        <Text style={[styles.liqNum, { color: a.hasFee && a.fee > 0 ? colors.success : colors.text }]}>
+                          {a.hasFee ? a.fee.toLocaleString('en-US', { maximumFractionDigits: a.sym === 'MECO' ? 2 : 6 }) : '—'}
+                        </Text>
+                      </View>
+                    ))}
                   </View>
                 </View>
                 <TouchableOpacity
@@ -1230,6 +1249,9 @@ const styles = StyleSheet.create({
   stakingRow:     { flexDirection: 'row', alignItems: 'center' },
   stakingCol:     { flex: 1 },
   stakingDivider: { width: 1, height: 36, marginHorizontal: 14 },
+  liqLine: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginTop: 6, paddingHorizontal: 6 },
+  liqSym: { fontSize: 11, fontWeight: '600' },
+  liqNum: { fontSize: 12.5, fontWeight: '700' },
   stakingLabel:   { fontSize: 11, fontWeight: '600', marginBottom: 4 },
   stakingValue:   { fontSize: 17, fontWeight: '800' },
   stakingBtn:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 14, paddingVertical: 11, borderRadius: 12 },
