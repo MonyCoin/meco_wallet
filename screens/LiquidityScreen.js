@@ -31,7 +31,7 @@ const STR = {
     apr_note: 'تقدير سنوي محسوب من رسوم آخر 24 ساعة، ويتغير مع حجم التداول وليس وعدًا بعائد.',
     deposit: 'إيداع عبر Orca', open_orca: 'فتح على Orca',
     dep_how_title: 'الإيداع عبر Orca',
-    dep_how_body: 'يتم الإيداع على موقع Orca الرسمي ويبقى مالك المركز أنت.\n\n1) اضغط Connect Wallet في الموقع.\n2) اختر WalletConnect ليظهر رمز QR.\n3) اضغط أيقونة QR في شريط المتصفح وامسح الرمز ثم وافق على الاتصال.\n4) اضغط Create Position وأكمل الإيداع ووقّع.\n\nلا رسوم خدمة على الإيداع. قد تحتاج VPN.',
+    dep_how_body: 'يتم الإيداع على موقع Orca الرسمي ويبقى مالك المركز أنت.\n\n1) اضغط Connect Wallet في الموقع.\n2) اختر WalletConnect ليظهر رمز QR.\n3) التقط لقطة شاشة لرمز QR، ثم اضغط أيقونة QR في شريط المتصفح، واضغط أيقونة مجلد الصور في الماسح واختر اللقطة لقراءة الرمز، ثم وافق على الاتصال.\n4) اضغط Create Position وأكمل الإيداع ووقّع.\n\nلا رسوم خدمة على الإيداع. قد تحتاج VPN.',
     unavailable: 'تعذر تحميل بيانات هذا المجمع الآن',
     mine: 'مراكزي', mine_none: 'لا توجد لك حصة في هذا المجمع', mine_fail: 'تعذر قراءة حصتك الآن',
     pos_value: 'قيمة المركز', pos_fees: 'رسوم متراكمة', collect: 'جمع الرسوم', withdraw: 'سحب كامل',
@@ -90,7 +90,7 @@ const STR = {
     apr_note: 'Yearly estimate based on the last 24h of fees. It changes with trading volume and is not a promised return.',
     deposit: 'Deposit via Orca', open_orca: 'Open on Orca',
     dep_how_title: 'Deposit via Orca',
-    dep_how_body: 'The deposit is made on the official Orca site and you remain the owner of the position.\n\n1) Tap Connect Wallet on the site.\n2) Choose WalletConnect to show a QR code.\n3) Tap the QR icon in the browser bar, scan the code and approve the connection.\n4) Tap Create Position, complete the deposit and sign.\n\nNo service fee on deposits. A VPN may be required.',
+    dep_how_body: 'The deposit is made on the official Orca site and you remain the owner of the position.\n\n1) Tap Connect Wallet on the site.\n2) Choose WalletConnect to show a QR code.\n3) Take a screenshot of the QR code, tap the QR icon in the browser bar, tap the gallery icon in the scanner and pick the screenshot to read the code, then approve the connection.\n4) Tap Create Position, complete the deposit and sign.\n\nNo service fee on deposits. A VPN may be required.',
     unavailable: 'Could not load this pool right now',
     mine: 'My positions', mine_none: 'You have no position in this pool', mine_fail: 'Could not read your position now',
     pos_value: 'Position value', pos_fees: 'Accrued fees', collect: 'Collect fees', withdraw: 'Withdraw all',
@@ -176,7 +176,6 @@ export default function LiquidityScreen() {
   const S = (i18n.language || 'ar').startsWith('ar') ? STR.ar : STR.en;
 
   const [pools, setPools] = useState([]);
-  const [posDebug, setPosDebug] = useState('');
   const [positions, setPositions] = useState(null);   // null=لم يُحمّل، 'error'، أو مصفوفة
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -195,9 +194,9 @@ export default function LiquidityScreen() {
     if (!owner) { setPositions([]); return; }
     try {
       const list = await listPositions(owner, true);
-      if (mounted.current) { setPositions(list); setPosDebug(list.debug || ''); }
+      if (mounted.current) setPositions(list);
     } catch (e) {
-      if (mounted.current) { setPositions('error'); setPosDebug(String((e && e.message) || e).slice(0, 160)); }
+      if (mounted.current) setPositions('error');
     }
   }, [owner]);
 
@@ -264,10 +263,10 @@ export default function LiquidityScreen() {
   const renderMine = (p) => {
     let body;
     if (positions === null) body = <ActivityIndicator color={primary} style={{ marginVertical: 8 }} />;
-    else if (positions === 'error') body = <><Text style={st.unavailable}>{S.mine_fail}</Text><Text style={[st.unavailable, { fontSize: 10 }]}>{posDebug}</Text></>;
+    else if (positions === 'error') body = <Text style={st.unavailable}>{S.mine_fail}</Text>;
     else {
       const mine = positions.filter(x => x.poolId === p.id);
-      if (mine.length === 0) body = <><Text style={st.unavailable}>{S.mine_none}</Text><Text style={[st.unavailable, { fontSize: 10 }]}>{posDebug}</Text></>;
+      if (mine.length === 0) body = <Text style={st.unavailable}>{S.mine_none}</Text>;
       else body = mine.map(pos => (
         <View key={pos.address} style={st.posBox}>
           <Row label={S.pos_value} value={`${amt(pos.mecoAmount)} MECO + ${amt(pos.otherAmount)} ${pos.otherSymbol}`} />

@@ -1,17 +1,16 @@
 // services/liquidityActions.js
-// إيداع/سحب/جمع رسوم سيولة MECO على Orca (مراكز بنطاق كامل فقط)
+// سحب/جمع رسوم/قراءة مراكز سيولة MECO على Orca (الإيداع يتم على موقع Orca)
 // ⚠️ معاملات بأموال حقيقية - كل دالة تتحقق قبل التنفيذ.
 import * as web3 from '@solana/web3.js';
 import bs58 from 'bs58';
-import heliusService, { getSolBalance, getTokenBalance, clearBalanceCache } from './heliusService';
+import heliusService, { clearBalanceCache } from './heliusService';
 import { MECO_POOLS } from './liquidityService';
 import { clearPositionsCache } from './liquidityPositions';
 import { ensureBufferSubarray } from './bufferFix';
 
 export const MECO_MINT = 'A5Ln25cfww33kfUSzBb89bMha7j1PnFQTy7H3FsQHN7W';
 export const SLIPPAGE_PCT = 1;          // 1%
-export const SOL_RESERVE = 0.02;        // احتياطي SOL للرسوم وإيجار الحسابات
-export const SERVICE_FEE_SOL = 0.0005;  // رسوم خدمة التطبيق (إيداع وسحب فقط)
+export const SERVICE_FEE_SOL = 0.0005;  // رسوم خدمة التطبيق (سحب فقط)
 export const FEE_COLLECTOR_ADDRESS = 'BkaJsFAJKPQZgreBFLrY2pPUi44fTJzXhmeBc8LeuF5W';
 
 let _listCache = null; // { owner, at, data }
@@ -34,7 +33,6 @@ async function chargeServiceFee(connection, kp) {
 }
 
 const OTHER_SYMBOL = { usdt: 'USDT', sol: 'SOL' };
-const NATIVE_MINT = 'So11111111111111111111111111111111111111112';
 
 function loadLibs() {
   ensureBufferSubarray();
@@ -107,96 +105,6 @@ function toDec(common, bn, decimals) {
   return common.DecimalUtil.fromBN(bn, decimals).toNumber();
 }
 
-function buildQuote(libs, mecoAmount, p) {
-  const { orca, common, Decimal } = libs;
-  const amount = new Decimal(String(mecoAmount));
-  if (!amount.isFinite() || amount.lte(0)) throw new Error('INVALID_AMOUNT');
-  return orca.increaseLiquidityQuoteByInputTokenUsingPriceSlippage(
-    new web3.PublicKey(MECO_MINT),
-    amount,
-    p.lower,
-    p.upper,
-    common.Percentage.fromFraction(SLIPPAGE_PCT, 100),
-    p.pool,
-    p.extCtx,
-  );
-}
-
-function describeQuote(libs, quote, p) {
-  const { common } = libs;
-  const decA = p.pool.getTokenAInfo().decimals;
-  const decB = p.pool.getTokenBInfo().decimals;
-  const mecoDec = p.mecoIsA ? decA : decB;
-  const otherDec = p.mecoIsA ? decB : decA;
-  const otherMint = (p.mecoIsA ? p.data.tokenMintB : p.data.tokenMintA).toBase58();
-  return {
-    mecoEst: toDec(common, p.mecoIsA ? quote.tokenEstA : quote.tokenEstB, mecoDec),
-    mecoMax: toDec(common, p.mecoIsA ? quote.tokenMaxA : quote.tokenMaxB, mecoDec),
-    otherEst: toDec(common, p.mecoIsA ? quote.tokenEstB : quote.tokenEstA, otherDec),
-    otherMax: toDec(common, p.mecoIsA ? quote.tokenMaxB : quote.tokenMaxA, otherDec),
-    otherMint,
-    otherSymbol: OTHER_SYMBOL[p.meta.id] || '',
-    otherIsSol: otherMint === NATIVE_MINT,
-  };
-}
-
-/** معاينة الإيداع (بدون توقيع) */
-export async function previewDeposit(ownerAddress, poolId, mecoAmount) {
-  const libs = loadLibs();
-  const owner = new web3.PublicKey(ownerAddress);
-  const { ctx, client } = await makeContext(readOnlyWallet(owner));
-  const p = await loadPool(client, ctx, poolId);
-  const quote = buildQuote(libs, mecoAmount, p);
-  return describeQuote(libs, quote, p);
-}
-
-/** رصيد المستخدم من MECO والعملة المقابلة وSOL */
-export async function getDepositBalances(ownerAddress, otherMint) {
-  const [meco, sol, other] = await Promise.all([
-    getTokenBalance(MECO_MINT, true, ownerAddress),
-    getSolBalance(true, ownerAddress),
-    otherMint === NATIVE_MINT ? Promise.resolve(null) : getTokenBalance(otherMint, true, ownerAddress),
-  ]);
-  return { meco, sol, other: otherMint === NATIVE_MINT ? sol : other };
-}
-
-/** إيداع: يفتح مركزًا جديدًا بنطاق كامل. يرجع { signature, positionMint } */
-export async function depositToPool({ privateKey, poolId, mecoAmount }) {
-  const libs = loadLibs();
-  const { orca } = libs;
-  const kp = getKeypairFromStore(privateKey);
-  const owner = kp.publicKey;
-  const { ctx, client, connection } = await makeContext(signerWallet(kp));
-
-  const p = await loadPool(client, ctx, poolId);
-  const quote = buildQuote(libs, mecoAmount, p);
-  const info = describeQuote(libs, quote, p);
-
-  // التحقق من الأرصدة قبل أي معاملة
-  const bal = await getDepositBalances(owner.toBase58(), info.otherMint);
-  if (bal.meco < info.mecoMax) throw new Error('INSUFFICIENT_MECO');
-  if (info.otherIsSol) {
-    if (bal.sol < info.otherMax + SOL_RESERVE) throw new Error('INSUFFICIENT_SOL');
-  } else {
-    if (bal.other < info.otherMax) throw new Error('INSUFFICIENT_OTHER');
-    if (bal.sol < SOL_RESERVE) throw new Error('INSUFFICIENT_SOL_FEES');
-  }
-
-  // مصفوفات النطاق الكامل موجودة عادة؛ نهيئها فقط إن لم تكن
-  const initTx = await p.pool.initTickArrayForTicks([p.lower, p.upper], owner, orca.IGNORE_CACHE);
-  if (initTx) await initTx.buildAndExecute();
-
-  const { positionMint, tx } = await p.pool.openPositionWithMetadata(
-    p.lower, p.upper, quote, owner, owner, undefined, undefined, true,
-  );
-  const signature = await tx.buildAndExecute();
-
-  const feeCharged = await chargeServiceFee(connection, kp);
-  clearBalanceCache();
-  invalidateCaches();
-  return { signature, positionMint: positionMint.toBase58(), feeCharged };
-}
-
 /** قائمة مراكز المستخدم التفصيلية في مجمعي MECO */
 export async function listPositions(ownerAddress, force = false) {
   if (!force && _listCache && _listCache.owner === ownerAddress && Date.now() - _listCache.at < LIST_CACHE_MS) {
@@ -223,10 +131,6 @@ export async function listPositions(ownerAddress, force = false) {
     pairs.forEach(([addr, d]) => entries.push([addr, d]));
   }
   if (entries.some(([, d]) => !d || !d.whirlpool || d.liquidity === undefined)) throw new Error('UNEXPECTED_SHAPE');
-  // تشخيص مؤقت: ما أعادته المكتبة فعليًا + فحص مستقل يتجاوز المكتبة
-  const dbg = `wallet ${ownerAddress.slice(0, 4)}..${ownerAddress.slice(-4)} | sdk positions: ${entries.length}` +
-    (entries.length ? ' → ' + entries.map(([, d]) => d.whirlpool.toBase58().slice(0, 4) + (d.liquidity.isZero() ? '(0)' : '')).join(',') : '');
-
   // المراكز المقفلة: حساب رمز المركز (Token-2022) مجمّد
   const frozenMints = new Set();
   try {
@@ -295,7 +199,6 @@ export async function listPositions(ownerAddress, force = false) {
       });
     }
   }
-  out.debug = dbg;
   _listCache = { owner: ownerAddress, at: Date.now(), data: out };
   return out;
 }
