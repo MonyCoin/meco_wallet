@@ -53,6 +53,7 @@ const STR = {
     wd_confirm_body: 'سيُسحب المركز بالكامل مع الرسوم ويُغلق. تقريبًا:',
     col_confirm_title: 'جمع الرسوم',
     col_confirm_body: 'ستُنقل الرسوم المتراكمة إلى محفظتك، ويبقى المركز مفتوحًا.',
+    choose_pool: 'اختر المجمع', choose_pool_sub: 'اختر MECO/SOL أو MECO/USDT من الأعلى لعرض تفاصيله وحصتك وإضافة السيولة.',
     go: 'متابعة', fail: 'فشلت العملية',
     e_INSUFFICIENT_MECO: 'رصيد MECO غير كافٍ.',
     e_INSUFFICIENT_SOL: 'رصيد SOL غير كافٍ (يشمل احتياطي الرسوم).',
@@ -108,6 +109,7 @@ const STR = {
     wd_confirm_body: 'The whole position will be withdrawn with its fees and closed. Approximately:',
     col_confirm_title: 'Collect fees',
     col_confirm_body: 'Accrued fees will be sent to your wallet; the position stays open.',
+    choose_pool: 'Choose a pool', choose_pool_sub: 'Pick MECO/SOL or MECO/USDT above to see its details, your position and add liquidity.',
     go: 'Continue', fail: 'Operation failed',
     e_INSUFFICIENT_MECO: 'Not enough MECO.',
     e_INSUFFICIENT_SOL: 'Not enough SOL (including the fee reserve).',
@@ -174,7 +176,7 @@ export default function LiquidityScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [depositPool, setDepositPool] = useState(null);
   const [busyKey, setBusyKey] = useState(null);
-  const [tab, setTab] = useState('sol');
+  const [tab, setTab] = useState(null);   // لا مجمع افتراضي: يختار المستخدم
   const mounted = useRef(true);
 
   const owner = useAppStore(s => {
@@ -331,6 +333,11 @@ export default function LiquidityScreen() {
 
         {loading ? (
           <ActivityIndicator color={primary} style={{ marginVertical: 40 }} />
+        ) : !tab ? (
+          <View style={st.card}>
+            <Text style={st.poolTitle}>{S.choose_pool}</Text>
+            <Text style={st.body}>{S.choose_pool_sub}</Text>
+          </View>
         ) : pools.filter(p => p.id === tab).map(p => (
           <View key={p.id} style={st.card}>
             <Text style={st.poolTitle}>{p.pair || p.label}</Text>
