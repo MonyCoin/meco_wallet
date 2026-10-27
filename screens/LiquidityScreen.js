@@ -11,8 +11,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAppStore } from '../store';
 import { getAllPoolStats, orcaPoolUrl, explorerPoolUrl } from '../services/liquidityService';
 import {
-  listPositions, previewDeposit, getDepositBalances, depositToPool,
-  withdrawPosition, collectPositionFees, SOL_RESERVE, SLIPPAGE_PCT, SERVICE_FEE_SOL, FEE_COLLECTOR_ADDRESS,
+  listPositions, withdrawPosition, collectPositionFees, SERVICE_FEE_SOL, FEE_COLLECTOR_ADDRESS,
 } from '../services/liquidityActions';
 
 const C = {
@@ -30,7 +29,9 @@ const STR = {
     tvl: 'حجم المجمع', vol: 'التداول (24س)', fees: 'الرسوم (24س)', apr: 'عائد الرسوم التقريبي',
     feeTier: 'رسوم المجمع',
     apr_note: 'تقدير سنوي محسوب من رسوم آخر 24 ساعة، ويتغير مع حجم التداول وليس وعدًا بعائد.',
-    deposit: 'إيداع', open_orca: 'فتح على Orca',
+    deposit: 'إيداع عبر Orca', open_orca: 'فتح على Orca',
+    dep_how_title: 'الإيداع عبر Orca',
+    dep_how_body: 'يتم الإيداع على موقع Orca الرسمي ويبقى مالك المركز أنت.\n\n1) اضغط Connect Wallet في الموقع.\n2) اختر WalletConnect ليظهر رمز QR.\n3) اضغط أيقونة QR في شريط المتصفح وامسح الرمز ثم وافق على الاتصال.\n4) اضغط Create Position وأكمل الإيداع ووقّع.\n\nلا رسوم خدمة على الإيداع. قد تحتاج VPN.',
     unavailable: 'تعذر تحميل بيانات هذا المجمع الآن',
     mine: 'مراكزي', mine_none: 'لا توجد لك حصة في هذا المجمع', mine_fail: 'تعذر قراءة حصتك الآن',
     pos_value: 'قيمة المركز', pos_fees: 'رسوم متراكمة', collect: 'جمع الرسوم', withdraw: 'سحب كامل',
@@ -70,7 +71,7 @@ const STR = {
     locked_pos: 'مقفل نهائيًا 🔒',
     manage_note: 'قد تحتاج المراكز المقفلة إلى Orca نفسها.',
     service_fee: 'رسوم الخدمة',
-    fee_info: 'رسوم خدمة التطبيق 0.0005 SOL على الإيداع والسحب فقط (لا رسوم على جمع الرسوم). تُجمع في محفظة معلنة وتُضاف إلى دعم المشروع وسيولته.',
+    fee_info: 'رسوم خدمة التطبيق 0.0005 SOL على السحب فقط (لا رسوم على الإيداع ولا على جمع الرسوم). تُجمع في محفظة معلنة وتُضاف إلى دعم المشروع وسيولته.',
     fee_wallet: 'محفظة رسوم الخدمة',
     vpn_banner: 'تعذر تحميل بيانات المجمعات. قد يكون Orca محجوبًا في منطقتك، فإن لزم شغّل VPN ثم اسحب الشاشة للتحديث. الإيداع والسحب أنفسهما يتمان عبر شبكة سولانا مباشرة.',
     vpn_hint: '(قد يتطلب VPN)',
@@ -87,7 +88,9 @@ const STR = {
     tvl: 'Pool size', vol: 'Volume (24h)', fees: 'Fees (24h)', apr: 'Approx. fee yield',
     feeTier: 'Pool fee',
     apr_note: 'Yearly estimate based on the last 24h of fees. It changes with trading volume and is not a promised return.',
-    deposit: 'Deposit', open_orca: 'Open on Orca',
+    deposit: 'Deposit via Orca', open_orca: 'Open on Orca',
+    dep_how_title: 'Deposit via Orca',
+    dep_how_body: 'The deposit is made on the official Orca site and you remain the owner of the position.\n\n1) Tap Connect Wallet on the site.\n2) Choose WalletConnect to show a QR code.\n3) Tap the QR icon in the browser bar, scan the code and approve the connection.\n4) Tap Create Position, complete the deposit and sign.\n\nNo service fee on deposits. A VPN may be required.',
     unavailable: 'Could not load this pool right now',
     mine: 'My positions', mine_none: 'You have no position in this pool', mine_fail: 'Could not read your position now',
     pos_value: 'Position value', pos_fees: 'Accrued fees', collect: 'Collect fees', withdraw: 'Withdraw all',
@@ -126,7 +129,7 @@ const STR = {
     locked_pos: 'Permanently locked 🔒',
     manage_note: 'Locked positions may need Orca itself.',
     service_fee: 'Service fee',
-    fee_info: 'App service fee of 0.0005 SOL on deposits and withdrawals only (no fee on collecting fees). It goes to a public wallet that supports the project and its liquidity.',
+    fee_info: 'App service fee of 0.0005 SOL on withdrawals only (no fee on deposits or on collecting fees). It goes to a public wallet that supports the project and its liquidity.',
     fee_wallet: 'Service fee wallet',
     vpn_banner: 'Could not load pool data. Orca may be blocked in your region; if so, turn on a VPN and pull to refresh. Deposits and withdrawals themselves run directly on the Solana network.',
     vpn_hint: '(may need a VPN)',
@@ -156,7 +159,10 @@ function errText(S, e) {
   if (/User rejected|cancel/i.test(code)) return S.e_CANCELLED;
   if (/Simulation failed|custom program error|Transaction simulation|failed to send/i.test(code)) {
     const m = code.match(/custom program error: (0x[0-9a-f]+)/i);
-    return S.e_GENERIC + (m ? ` (${m[1]})` : '');
+    // اسم الخطأ كما تسجله الشبكة (للتشخيص)
+    const nm = code.match(/Error Code: (\w+)/);
+    const ms = code.match(/Error Message: ([^."\\]+)/);
+    return S.e_GENERIC + (m ? ` (${m[1]})` : '') + (nm ? `\n${nm[1]}` : '') + (ms ? ` — ${ms[1].trim()}` : '');
   }
   return `${S.fail}\n${code.slice(0, 140)}`;
 }
@@ -174,7 +180,6 @@ export default function LiquidityScreen() {
   const [positions, setPositions] = useState(null);   // null=لم يُحمّل، 'error'، أو مصفوفة
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [depositPool, setDepositPool] = useState(null);
   const [busyKey, setBusyKey] = useState(null);
   const [tab, setTab] = useState(null);   // لا مجمع افتراضي: يختار المستخدم
   const mounted = useRef(true);
@@ -219,6 +224,13 @@ export default function LiquidityScreen() {
       })
       .catch(e => Alert.alert(S.fail, errText(S, e)))
       .finally(() => { if (mounted.current) setBusyKey(null); });
+  };
+
+  const onDeposit = (pool) => {
+    Alert.alert(S.dep_how_title, S.dep_how_body, [
+      { text: S.dep_cancel, style: 'cancel' },
+      { text: S.go, onPress: () => openUrl(orcaPoolUrl(pool.address), 'Orca') },
+    ]);
   };
 
   const onWithdraw = (pos) => {
@@ -357,13 +369,11 @@ export default function LiquidityScreen() {
 
             <View style={st.actions}>
               <TouchableOpacity style={[st.addBtn, { backgroundColor: primary }]} disabled={!!busyKey}
-                onPress={() => setDepositPool(p)}>
+                onPress={() => onDeposit(p)}>
                 <Ionicons name="add-circle-outline" size={18} color="#fff" />
                 <Text style={st.addTxt}>{S.deposit}</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[st.orcaBtn]} onPress={() => openUrl(orcaPoolUrl(p.address), 'Orca')}>
-                <Text style={[st.smallTxt, { color: primary }]}>{S.open_orca} {S.vpn_hint}</Text>
-              </TouchableOpacity>
+              <Text style={st.hint}>{S.vpn_hint}</Text>
             </View>
           </View>
         ))}
@@ -394,174 +404,7 @@ export default function LiquidityScreen() {
         <Text style={st.footer}>{S.footer}</Text>
       </ScrollView>
 
-      {depositPool && (
-        <DepositModal
-          pool={depositPool}
-          owner={owner}
-          privateKey={privateKey}
-          S={S}
-          primary={primary}
-          onClose={() => setDepositPool(null)}
-          onDone={() => { setDepositPool(null); setTimeout(() => { loadPositions(); }, 2500); }}
-        />
-      )}
     </>
-  );
-}
-
-function DepositModal({ pool, owner, privateKey, S, primary, onClose, onDone }) {
-  const insets = useSafeAreaInsets();
-  const otherSymbol = pool.id === 'sol' ? 'SOL' : 'USDT';
-  const [amount, setAmount] = useState('');
-  const [preview, setPreview] = useState(null);
-  const [balances, setBalances] = useState(null);
-  const [calc, setCalc] = useState(false);
-  const [err, setErr] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const seq = useRef(0);
-  const alive = useRef(true);
-
-  useEffect(() => () => { alive.current = false; }, []);
-
-  // أرصدة المحفظة (MECO والعملة المقابلة تُعرف من المعاينة، لذا نجلب MECO وSOL أولًا)
-  useEffect(() => {
-    getDepositBalances(owner, pool.id === 'usdt' ? 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB' : 'So11111111111111111111111111111111111111112')
-      .then(b => { if (alive.current) setBalances(b); })
-      .catch(() => {});
-  }, [owner, pool.id]);
-
-  // معاينة مؤجلة عند تغيّر المبلغ
-  useEffect(() => {
-    setErr('');
-    const n = parseFloat(amount);
-    if (!amount || !(n > 0)) { setPreview(null); return undefined; }
-    const my = ++seq.current;
-    setCalc(true);
-    const timer = setTimeout(async () => {
-      try {
-        const pv = await previewDeposit(owner, pool.id, amount);
-        if (!alive.current || my !== seq.current) return;
-        setPreview(pv);
-        if (!pv.otherIsSol) {
-          const b = await getDepositBalances(owner, pv.otherMint);
-          if (alive.current && my === seq.current) setBalances(b);
-        }
-      } catch (e) {
-        if (alive.current && my === seq.current) { setPreview(null); setErr(errText(S, e)); }
-      } finally {
-        if (alive.current && my === seq.current) setCalc(false);
-      }
-    }, 600);
-    return () => clearTimeout(timer);
-  }, [amount, owner, pool.id]);
-
-  const setMax = () => { if (balances) setAmount(String(Math.floor(balances.meco * 1e4) / 1e4)); };
-
-  const enough = (() => {
-    if (!preview || !balances) return false;
-    if (balances.meco < preview.mecoMax) return false;
-    if (preview.otherIsSol) return balances.sol >= preview.otherMax + SOL_RESERVE;
-    return balances.other >= preview.otherMax && balances.sol >= SOL_RESERVE;
-  })();
-
-  const confirm = () => {
-    if (!preview) return;
-    Alert.alert(
-      S.dep_confirm_title,
-      `${pool.label}\n${amt(preview.mecoEst)} MECO + ${amt(preview.otherEst, 6)} ${preview.otherSymbol}\n` +
-      `${S.dep_need_max}: ${amt(preview.mecoMax)} MECO + ${amt(preview.otherMax, 6)} ${preview.otherSymbol}\n` +
-      `${S.service_fee}: ${SERVICE_FEE_SOL} SOL\n\n${S.dep_fees_note}`,
-      [
-        { text: S.dep_cancel, style: 'cancel' },
-        {
-          text: S.go,
-          onPress: async () => {
-            setSubmitting(true);
-            try {
-              await depositToPool({ privateKey, poolId: pool.id, mecoAmount: amount });
-              Alert.alert(S.dep_ok);
-              onDone();
-            } catch (e) {
-              setErr(errText(S, e));
-            } finally {
-              if (alive.current) setSubmitting(false);
-            }
-          },
-        },
-      ],
-    );
-  };
-
-  return (
-    <Modal visible transparent animationType="slide" onRequestClose={onClose}>
-      <KeyboardAvoidingView style={st.modalWrap} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <View style={[st.sheet, { paddingBottom: insets.bottom + 16 }]}>
-          <View style={st.handle} />
-          <Text style={st.sheetTitle}>{S.dep_title} · {pool.label}</Text>
-
-          {/* الحقل 1: MECO (يدخله المستخدم) */}
-          <View style={st.fieldHead}>
-            <Text style={st.fieldName}>{S.f_meco}</Text>
-            <Text style={st.hint}>{S.f_meco_sub}</Text>
-          </View>
-          <View style={st.inputRow}>
-            <TextInput
-              style={st.input}
-              value={amount}
-              onChangeText={t => setAmount(t.replace(',', '.').replace(/[^0-9.]/g, ''))}
-              keyboardType="decimal-pad"
-              placeholder="0.0"
-              placeholderTextColor={C.muted}
-              editable={!submitting}
-            />
-            <TouchableOpacity onPress={setMax} disabled={!balances || submitting}>
-              <Text style={[st.smallTxt, { color: primary }]}>{S.dep_max}</Text>
-            </TouchableOpacity>
-          </View>
-          {balances && (
-            <Text style={st.hint}>{S.dep_balance}: {amt(balances.meco)} MECO</Text>
-          )}
-
-          {/* الحقل 2: العملة المقابلة (تُحسب تلقائيًا) */}
-          <View style={[st.fieldHead, { marginTop: 14 }]}>
-            <Text style={st.fieldName}>{otherSymbol}</Text>
-            <Text style={st.hint}>{S.f_other_sub}</Text>
-          </View>
-          <View style={[st.inputRow, { opacity: 0.9 }]}>
-            <Text style={[st.input, { paddingVertical: 14 }]}>
-              {calc ? S.dep_calc : (preview ? amt(preview.otherEst, 6) : '—')}
-            </Text>
-          </View>
-          {balances && (
-            <Text style={st.hint}>
-              {S.dep_balance}: {otherSymbol === 'SOL' ? amt(balances.sol, 4) : amt(balances.other !== undefined && balances.other !== null ? balances.other : 0, 4)} {otherSymbol}
-            </Text>
-          )}
-          {preview ? (
-            <Text style={st.hint}>{S.dep_need_max}: {amt(preview.mecoMax)} MECO + {amt(preview.otherMax, 6)} {preview.otherSymbol} ({SLIPPAGE_PCT}%)</Text>
-          ) : null}
-          <Text style={st.hint}>{S.f_fee}: {SERVICE_FEE_SOL} SOL</Text>
-
-          {err ? <Text style={[st.hint, { color: C.error }]}>{err}</Text> : null}
-          {preview && balances && !enough ? (
-            <Text style={[st.hint, { color: C.warn }]}>
-              {balances.meco < preview.mecoMax ? S.e_INSUFFICIENT_MECO : (preview.otherIsSol ? S.e_INSUFFICIENT_SOL : S.e_INSUFFICIENT_OTHER)}
-            </Text>
-          ) : null}
-
-          <TouchableOpacity
-            style={[st.addBtn, { backgroundColor: primary, opacity: (preview && enough && !submitting) ? 1 : 0.4, marginTop: 14 }]}
-            disabled={!(preview && enough) || submitting}
-            onPress={confirm}
-          >
-            {submitting ? <ActivityIndicator color="#fff" /> : <Text style={st.addTxt}>{S.dep_confirm}</Text>}
-          </TouchableOpacity>
-          <TouchableOpacity style={{ alignItems: 'center', paddingVertical: 12 }} onPress={onClose} disabled={submitting}>
-            <Text style={st.hint}>{S.dep_cancel}</Text>
-          </TouchableOpacity>
-        </View>
-      </KeyboardAvoidingView>
-    </Modal>
   );
 }
 
