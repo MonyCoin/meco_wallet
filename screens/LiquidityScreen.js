@@ -255,6 +255,13 @@ export default function LiquidityScreen() {
     </View>
   );
 
+  const PosLine = ({ sym, value, green }) => (
+    <View style={st.posLine}>
+      <Text style={st.posSym}>{sym}</Text>
+      <Text style={[st.posNum, green && { color: C.success }]}>{value}</Text>
+    </View>
+  );
+
   const Row = ({ label, value, color }) => (
     <View style={st.row}>
       <Text style={st.rowLabel}>{label}</Text>
@@ -271,10 +278,19 @@ export default function LiquidityScreen() {
       if (mine.length === 0) body = <Text style={st.unavailable}>{S.mine_none}</Text>;
       else body = mine.map(pos => (
         <View key={pos.address} style={st.posBox}>
-          <Row label={S.pos_value} value={`${amt(pos.mecoAmount)} MECO + ${amt(pos.otherAmount)} ${pos.otherSymbol}`} />
-          {pos.feeMeco !== null && (
-            <Row label={S.pos_fees} value={`${amt(pos.feeMeco)} MECO + ${amt(pos.feeOther, 6)} ${pos.otherSymbol}`} color={C.success} />
-          )}
+          <View style={st.posCols}>
+            <View style={st.posCol}>
+              <Text style={st.posColHead}>{S.pos_value}</Text>
+              <PosLine sym="MECO" value={amt(pos.mecoAmount, 0)} />
+              <PosLine sym={pos.otherSymbol} value={amt(pos.otherAmount, 4)} />
+            </View>
+            <View style={st.posDivider} />
+            <View style={st.posCol}>
+              <Text style={st.posColHead}>{S.pos_fees}</Text>
+              <PosLine sym="MECO" value={pos.feeMeco === null ? '—' : amt(pos.feeMeco, 2)} green={pos.feeMeco > 0} />
+              <PosLine sym={pos.otherSymbol} value={pos.feeOther === null ? '—' : amt(pos.feeOther, 6)} green={pos.feeOther > 0} />
+            </View>
+          </View>
           <View style={st.posBtns}>
             <TouchableOpacity style={[st.smallBtn, { backgroundColor: C.card }]} disabled={!!busyKey}
               onPress={() => onCollect(pos)}>
@@ -434,6 +450,13 @@ const st = StyleSheet.create({
   mine: { backgroundColor: C.card2, borderRadius: 12, padding: 12, marginTop: 10 },
   mineTitle: { color: C.text, fontSize: 13, fontWeight: '700', marginBottom: 2 },
   posBox: { marginTop: 6 },
+  posCols: { flexDirection: 'row', alignItems: 'flex-start', marginTop: 6 },
+  posCol: { flex: 1 },
+  posDivider: { width: 1, alignSelf: 'stretch', backgroundColor: C.card, marginHorizontal: 12 },
+  posColHead: { color: C.muted, fontSize: 11, fontWeight: '600', marginBottom: 2 },
+  posLine: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginTop: 6, paddingHorizontal: 4 },
+  posSym: { color: C.muted, fontSize: 11, fontWeight: '600' },
+  posNum: { color: C.text, fontSize: 12.5, fontWeight: '700' },
   posBtns: { flexDirection: 'row', gap: 8, marginTop: 8 },
   smallBtn: { flex: 1, borderRadius: 20, paddingVertical: 10, alignItems: 'center', justifyContent: 'center' },
   smallTxt: { fontSize: 13, fontWeight: '700' },
