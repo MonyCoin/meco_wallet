@@ -26,9 +26,10 @@ async function chargeServiceFee(connection, kp) {
       lamports: Math.round(SERVICE_FEE_SOL * web3.LAMPORTS_PER_SOL),
     }));
     await web3.sendAndConfirmTransaction(connection, tx, [kp], { commitment: 'confirmed' });
-    return true;
+    return { ok: true };
   } catch (e) {
-    return false; // العملية الأساسية نجحت؛ لا نُفشل المستخدم بسبب الرسوم
+    // العملية الأساسية نجحت؛ لا نُفشل المستخدم بسبب الرسوم، لكن نُبلّغه بالنتيجة
+    return { ok: false, error: String((e && e.message) || e).slice(0, 120) };
   }
 }
 
@@ -235,10 +236,10 @@ export async function withdrawPosition({ privateKey, positionAddress }) {
     signatures.push(await tx.buildAndExecute());   // بالتسلسل
   }
 
-  const feeCharged = await chargeServiceFee(connection, kp);
+  const fee = await chargeServiceFee(connection, kp);
   clearBalanceCache();
   invalidateCaches();
-  return { signatures, feeCharged };
+  return { signatures, feeCharged: fee.ok, feeError: fee.error || null };
 }
 
 /** جمع الرسوم فقط (يبقى المركز مفتوحًا) */

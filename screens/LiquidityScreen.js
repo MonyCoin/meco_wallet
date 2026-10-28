@@ -60,6 +60,8 @@ const STR = {
     locked_pos: 'مقفل نهائيًا 🔒',
     manage_note: 'قد تحتاج المراكز المقفلة إلى Orca نفسها.',
     service_fee: 'رسوم الخدمة',
+    fee_ok: 'خُصمت رسوم الخدمة.',
+    fee_fail: 'تعذّر تحصيل رسوم الخدمة (السحب نفسه تم).',
     fee_wallet: 'محفظة رسوم الخدمة',
     vpn_banner: 'تعذر تحميل بيانات المجمعات. قد يكون Orca محجوبًا في منطقتك، فإن لزم شغّل VPN ثم اسحب الشاشة للتحديث. الإيداع والسحب أنفسهما يتمان عبر شبكة سولانا مباشرة.',
     vpn_hint: '(قد يتطلب VPN)',
@@ -116,6 +118,8 @@ const STR = {
     locked_pos: 'Permanently locked 🔒',
     manage_note: 'Locked positions may need Orca itself.',
     service_fee: 'Service fee',
+    fee_ok: 'Service fee was charged.',
+    fee_fail: 'The service fee could not be charged (the withdrawal itself succeeded).',
     fee_wallet: 'Service fee wallet',
     vpn_banner: 'Could not load pool data. Orca may be blocked in your region; if so, turn on a VPN and pull to refresh. Deposits and withdrawals themselves run directly on the Solana network.',
     vpn_hint: '(may need a VPN)',
@@ -221,8 +225,11 @@ export default function LiquidityScreen() {
   const runAction = (key, fn, okTitle) => {
     setBusyKey(key);
     fn()
-      .then(() => {
-        Alert.alert(okTitle);
+      .then((res) => {
+        // السحب: نُبلّغ بنتيجة تحصيل رسوم الخدمة أيضًا
+        if (res && res.feeCharged === true) Alert.alert(okTitle, S.fee_ok);
+        else if (res && res.feeCharged === false) Alert.alert(okTitle, `${S.fee_fail}${res.feeError ? '\n' + res.feeError : ''}`);
+        else Alert.alert(okTitle);
         setTimeout(() => { loadPositions(); }, 2500);
       })
       .catch(e => Alert.alert(S.fail, errText(S, e)))
