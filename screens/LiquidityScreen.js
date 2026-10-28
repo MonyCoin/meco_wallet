@@ -207,6 +207,15 @@ export default function LiquidityScreen() {
     return () => { mounted.current = false; };
   }, [load]);
 
+  // إن كان للحساب النشط مركز: افتح مجمعه تلقائيًا (مرة واحدة، ولا نغيّر اختيار المستخدم اليدوي)
+  useEffect(() => {
+    if (!Array.isArray(positions) || positions.length === 0) return;
+    const live = positions.filter(x => x.hasLiquidity);
+    const list = live.length ? live : positions;
+    const best = list.reduce((a, b) => ((b.mecoAmount || 0) > (a.mecoAmount || 0) ? b : a), list[0]);
+    setTab(prev => prev || best.poolId);
+  }, [positions]);
+
   const openUrl = (url, name) => navigation.navigate('DappBrowser', { url, name });
 
   const runAction = (key, fn, okTitle) => {
