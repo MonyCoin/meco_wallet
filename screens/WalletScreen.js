@@ -17,6 +17,8 @@ import { getSolBalance, getTokenAccounts, getAccountsOverview, clearBalanceCache
 import { CORE_TOKENS, getJupiterMarketData, getCustomTokens } from '../services/jupiterMarketService';
 import { listPositions } from '../services/liquidityActions';
 import * as LocalAuthentication from 'expo-local-authentication';
+import { copySensitive } from '../services/secureClipboard';
+import { protectScreen, unprotectScreen } from '../services/screenGuard';
 import { getUnreadCount } from '../services/notificationsService';
 
 const { width, height } = Dimensions.get('window');
@@ -411,13 +413,15 @@ export default function WalletScreen() {
     try {
       const privateKey = await useAppStore.getState().getPrivateKeyForAccount(account.index);
       if (!privateKey) { Alert.alert(t('error'), t('private_key_not_found')); return; }
+      protectScreen('key');
       Alert.alert(
         t('key_warning_title'),
         t('key_warning_message', { key: privateKey }),
         [
-          { text: t('cancel'), style: 'cancel' },
-          { text: t('copy_key'), onPress: () => { Clipboard.setStringAsync(privateKey); Alert.alert(t('success'), t('copied')); } },
-        ]
+          { text: t('cancel'), style: 'cancel', onPress: () => unprotectScreen('key') },
+          { text: t('copy_key'), onPress: () => { unprotectScreen('key'); copySensitive(privateKey); Alert.alert(t('success'), t('copied')); } },
+        ],
+        { cancelable: true, onDismiss: () => unprotectScreen('key') }
       );
     } catch (_) { Alert.alert(t('error'), t('unexpected_error')); }
   };

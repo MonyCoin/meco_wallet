@@ -82,12 +82,6 @@ function getKeypairFromPrivateKey(privateKey) {
   return web3.Keypair.fromSecretKey(secretKey);
 }
 
-async function getKeypair() {
-  const key = await SecureStore.getItemAsync('wallet_private_key');
-  if (!key) throw new Error('المفتاح الخاص غير موجود');
-  return getKeypairFromPrivateKey(key);
-}
-
 async function getConnection() {
   try {
     return await heliusService.getConnection();
@@ -268,7 +262,9 @@ export async function executeSwap(
   // ── إعداد أولي ────────────────────────────────────────────────────────────
   let keypair, userPubKey, connection;
   try {
-    keypair    = privateKey ? getKeypairFromPrivateKey(privateKey) : await getKeypair();
+    // أمان: لا نقرأ مفتاحًا قديمًا احتياطيًا؛ يجب تمرير مفتاح الحساب النشط صراحة
+    if (!privateKey) throw new Error('المفتاح الخاص غير موجود');
+    keypair    = getKeypairFromPrivateKey(privateKey);
     userPubKey = publicKey  ? new web3.PublicKey(publicKey) : keypair.publicKey;
     connection = await getConnection();
   } catch (err) {

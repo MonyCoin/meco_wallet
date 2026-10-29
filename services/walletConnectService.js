@@ -6,6 +6,7 @@ import * as SecureStore from 'expo-secure-store';
 import { Alert } from 'react-native';
 import i18n from '../i18n';
 import { useAppStore } from '../store';
+import { requireAuth } from './appLock';
 import * as web3 from '@solana/web3.js';
 import { getAssociatedTokenAddress, AccountLayout, getMint } from '@solana/spl-token';
 import bs58 from 'bs58';
@@ -383,6 +384,12 @@ export async function rejectSession(proposal) {
 async function handleRequestApproval(event) {
   const { topic, params, id } = event;
   const { request }           = params;
+
+  // تأكيد الهوية قبل التوقيع؛ الفشل أو الإلغاء يُعامل كرفض للطلب
+  if (!(await requireAuth())) {
+    await handleRequestRejection(topic, id);
+    return;
+  }
 
   try {
     const keypair    = await getWalletKeypair();

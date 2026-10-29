@@ -20,6 +20,7 @@ import * as web3 from '@solana/web3.js';
 import bs58 from 'bs58';
 import * as splToken from '@solana/spl-token';
 import * as Clipboard from 'expo-clipboard';
+import { requireAuth } from '../services/appLock';
 import { CORE_TOKENS, getSolPriceUsd } from '../services/jupiterMarketService';
 import { addNotification, NOTIF_TYPES } from '../services/notificationsService';
 
@@ -297,6 +298,7 @@ export default function SendScreen() {
         {
           text: t('confirm'),
           onPress: async () => {
+            if (!(await requireAuth())) return;
             setState(prev => ({ ...prev, loading: true }));
             try {
               await executeTransaction(amountNum, recipient, currentToken);

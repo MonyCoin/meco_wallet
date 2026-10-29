@@ -5,8 +5,8 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import * as SecureStore from 'expo-secure-store';
-import * as LocalAuthentication from 'expo-local-authentication';
-import { ActivityIndicator, View, I18nManager } from 'react-native';
+import { authenticateDevice as authDevice, isLockSuspended } from './services/appLock';
+import { ActivityIndicator, View, I18nManager, AppState, Text, TouchableOpacity } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppStore } from './store';
 import { useTranslation } from 'react-i18next';
@@ -152,26 +152,38 @@ export default function AppContainer() {
     return () => sub.remove();
   }, []);
 
-  const authenticateDevice = async () => {
+  const authenticateDevice = () => authDevice(useAppStore.getState().language);
+
+  // ── قفل التطبيق عند كل عودة إليه (برمز الهاتف) ──
+  const [locked, setLocked] = useState(false);
+  const lockedRef = useRef(false);
+  const authBusy  = useRef(false);
+
+  const unlockApp = async () => {
+    if (authBusy.current) return;
+    authBusy.current = true;
     try {
-      const hasHW  = await LocalAuthentication.hasHardwareAsync();
-      const hasBio = await LocalAuthentication.isEnrolledAsync();
-      if (!hasHW || !hasBio) return true;
-
-      const lang = useAppStore.getState().language;
-      const prompt = lang === 'ar' ? 'تأكيد الهوية للدخول' : 'Confirm your identity to continue';
-      const cancel = lang === 'ar' ? 'إلغاء' : 'Cancel';
-
-      const result = await LocalAuthentication.authenticateAsync({
-        promptMessage:         prompt,
-        cancelLabel:           cancel,
-        disableDeviceFallback: true,
-      });
-      return result.success;
-    } catch (_) {
-      return true;
+      const ok = await authenticateDevice();
+      if (ok) { lockedRef.current = false; setLocked(false); }
+    } finally {
+      authBusy.current = false;
     }
   };
+
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (st) => {
+      if (authBusy.current) return;   // نافذة المصادقة نفسها قد تغيّر حالة التطبيق
+      if (st === 'background') {
+        if (useAppStore.getState().walletPublicKey && !isLockSuspended()) {
+          lockedRef.current = true;
+          setLocked(true);
+        }
+      } else if (st === 'active' && lockedRef.current) {
+        unlockApp();
+      }
+    });
+    return () => sub.remove();
+  }, []);
 
   useEffect(() => {
     const init = async () => {
@@ -293,6 +305,22 @@ export default function AppContainer() {
         </Stack.Navigator>
         <WalletConnectSignModal />
       </NavigationContainer>
+      {locked && (
+        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999, elevation: 9999,
+                       backgroundColor: SPLASH_BG, alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+          <Ionicons name="lock-closed" size={44} color={primaryColor} />
+          <Text style={{ color: '#EEEEFF', fontSize: 18, fontWeight: '700', marginTop: 16 }}>
+            {language === 'ar' ? 'التطبيق مقفل' : 'App locked'}
+          </Text>
+          <Text style={{ color: '#7E7EAA', fontSize: 13, marginTop: 6, textAlign: 'center' }}>
+            {language === 'ar' ? 'أدخل رمز الهاتف للمتابعة' : 'Enter your phone passcode to continue'}
+          </Text>
+          <TouchableOpacity onPress={unlockApp} activeOpacity={0.85}
+            style={{ backgroundColor: primaryColor, borderRadius: 24, paddingVertical: 12, paddingHorizontal: 36, marginTop: 24 }}>
+            <Text style={{ color: '#fff', fontSize: 14, fontWeight: '700' }}>{language === 'ar' ? 'فتح' : 'Unlock'}</Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </SafeAreaProvider>
   );
 }

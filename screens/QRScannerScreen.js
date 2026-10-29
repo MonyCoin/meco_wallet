@@ -7,6 +7,7 @@ import {
 import * as ExpoCamera from 'expo-camera';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
+import { suspendAppLock } from '../services/appLock';
 import { useTranslation } from 'react-i18next';
 import { useNavigation, useRoute } from '@react-navigation/native';   // ✅ useRoute
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -43,6 +44,7 @@ export default function QRScannerScreen() {
 
   useEffect(() => {
     if (permission && !permission.granted) {
+      suspendAppLock();
       requestPermission();
     }
   }, [permission]);
@@ -142,6 +144,7 @@ export default function QRScannerScreen() {
 
   const pickImage = async () => {
     try {
+      suspendAppLock();
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
         Alert.alert(t('error', 'خطأ'), t('qr_scanner.no_permission', 'لا يوجد إذن للوصول إلى الصور'));
@@ -188,7 +191,7 @@ export default function QRScannerScreen() {
       <View style={[styles.container, { backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center', padding: 20 }]}>
         <Ionicons name="camera-off" size={54} color={colors.textSecondary} />
         <Text style={[styles.text, { color: colors.text, marginTop: 16, fontWeight: '700' }]}>{t('qr_scanner.no_permission', 'لا يوجد إذن للكاميرا')}</Text>
-        <TouchableOpacity style={[styles.button, { backgroundColor: primaryColor, marginTop: 20 }]} onPress={requestPermission}>
+        <TouchableOpacity style={[styles.button, { backgroundColor: primaryColor, marginTop: 20 }]} onPress={() => { suspendAppLock(); requestPermission(); }}>
           <Text style={styles.buttonText}>{t('qr_scanner.grant', 'منح الإذن')}</Text>
         </TouchableOpacity>
       </View>

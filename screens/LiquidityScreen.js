@@ -9,6 +9,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppStore } from '../store';
+import { requireAuth } from '../services/appLock';
 import { getAllPoolStats, orcaPoolUrl, explorerPoolUrl } from '../services/liquidityService';
 import {
   listPositions, withdrawPosition, collectPositionFees, SERVICE_FEE_SOL, FEE_COLLECTOR_ADDRESS,
@@ -222,7 +223,8 @@ export default function LiquidityScreen() {
 
   const openUrl = (url, name) => navigation.navigate('DappBrowser', { url, name });
 
-  const runAction = (key, fn, okTitle) => {
+  const runAction = async (key, fn, okTitle) => {
+    if (!(await requireAuth())) return;   // تأكيد الهوية قبل أي عملية مالية
     setBusyKey(key);
     fn()
       .then((res) => {

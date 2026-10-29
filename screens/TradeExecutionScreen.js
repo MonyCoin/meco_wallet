@@ -11,6 +11,7 @@ import { useAppStore } from '../store';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { executeMarketSwap } from '../services/tradingService';
+import { requireAuth } from '../services/appLock';
 import { getSolBalance, getTokenBalance } from '../services/heliusService';
 import { CORE_TOKENS, getJupiterMarketData } from '../services/jupiterMarketService';
 import { addNotification, NOTIF_TYPES } from '../services/notificationsService';
@@ -225,6 +226,7 @@ export default function TradeExecutionScreen() {
       {
         text: t('confirm'),
         onPress: async () => {
+          if (!(await requireAuth())) return;
           try {
             setExecuting(true);
 

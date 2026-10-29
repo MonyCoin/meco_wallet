@@ -5,6 +5,8 @@ import {
 } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import * as Clipboard from 'expo-clipboard';
+import { copySensitive } from '../services/secureClipboard';
+import { protectScreen, unprotectScreen } from '../services/screenGuard';
 import { Keypair } from '@solana/web3.js';
 import * as bip39 from '@scure/bip39';
 import { wordlist } from '@scure/bip39/wordlists/english';
@@ -32,6 +34,11 @@ export default function CreateWalletScreen() {
   };
 
   useEffect(() => {
+    protectScreen('create');
+    return () => { unprotectScreen('create'); };
+  }, []);
+
+  useEffect(() => {
     generateWallet();
   }, []);
 
@@ -50,7 +57,7 @@ export default function CreateWalletScreen() {
   };
 
   const copyMnemonic = async () => {
-    await Clipboard.setStringAsync(mnemonic);
+    await copySensitive(mnemonic);
     Alert.alert(t('copied'), t('recovery_phrase_copied'));
   };
 

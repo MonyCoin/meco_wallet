@@ -11,6 +11,7 @@ import { useAppStore } from '../store';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Clipboard from 'expo-clipboard';
+import { requireAuth } from '../services/appLock';
 import * as SwapAPI from '../services/swapService';
 import NetInfo from '@react-native-community/netinfo';
 import { CORE_TOKENS, getSolPriceUsd } from '../services/jupiterMarketService';
@@ -230,6 +231,7 @@ export default function SwapScreen() {
         {
           text: t('confirm'),
           onPress: async () => {
+            if (!(await requireAuth())) return;
             setLoading(true);
             setErrorMsg('');
             setErrorType(ERROR_TYPE.NONE);

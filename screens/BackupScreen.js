@@ -9,6 +9,8 @@ import {
   SafeAreaView 
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
+import { copySensitive } from '../services/secureClipboard';
+import { protectScreen, unprotectScreen } from '../services/screenGuard';
 import * as LocalAuthentication from 'expo-local-authentication';
 import * as SecureStore from 'expo-secure-store';
 import { useTranslation } from 'react-i18next';
@@ -32,6 +34,11 @@ export default function BackupScreen() {
     warningBg: 'rgba(245,158,11,0.12)',
     warningText: '#FFB74D',
   };
+
+  useEffect(() => {
+    protectScreen('backup');
+    return () => { unprotectScreen('backup'); };
+  }, []);
 
   useEffect(() => {
     loadMnemonic();
@@ -62,7 +69,7 @@ export default function BackupScreen() {
   };
 
   const handleCopy = async () => {
-    await Clipboard.setStringAsync(mnemonic);
+    await copySensitive(mnemonic);
     Alert.alert(t('copied'), t('recovery_phrase_copied'));
   };
 

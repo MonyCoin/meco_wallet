@@ -10,6 +10,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as LocalAuthentication from 'expo-local-authentication';
+import { copySensitive } from '../services/secureClipboard';
+import { protectScreen, unprotectScreen } from '../services/screenGuard';
 import * as Linking from 'expo-linking';
 import { Ionicons, MaterialIcons, Feather } from '@expo/vector-icons';
 import * as SecureStore from 'expo-secure-store';
@@ -52,6 +54,11 @@ export default function SettingsScreen() {
   const [colorModal,    setColorModal]    = useState(false);
   const [safetyModal,   setSafetyModal]   = useState(false);
   const [recoveryPhrase,setRecoveryPhrase]= useState('');
+  useEffect(() => {
+    if (!safetyModal) return undefined;
+    protectScreen('phrase');
+    return () => { unprotectScreen('phrase'); };
+  }, [safetyModal]);
   const [checkingUpdate,setCheckingUpdate]= useState(false);
   const [clearingCache, setClearingCache] = useState(false);
   const [fadeAnim]  = useState(new Animated.Value(0));
@@ -389,7 +396,7 @@ export default function SettingsScreen() {
             </View>
             <TouchableOpacity
               style={[styles.copyBtn, { backgroundColor:C.card, borderColor:C.border }]}
-              onPress={() => { Clipboard.setStringAsync(recoveryPhrase); Alert.alert(t('success'), t('phrase_copied')); }}
+              onPress={() => { copySensitive(recoveryPhrase); Alert.alert(t('success'), t('phrase_copied')); }}
             >
               <Ionicons name="copy-outline" size={18} color={primaryColor} />
               <Text style={[styles.copyBtnTxt, { color:C.text }]}>{t('copy')}</Text>

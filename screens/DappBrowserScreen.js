@@ -229,14 +229,17 @@ export default function DappBrowserScreen() {
               bounces={false}
               allowsInlineMediaPlayback={true}
               allowsFullscreenVideo={true}
-              mixedContentMode="compatibility"
+              mixedContentMode="never"
               thirdPartyCookiesEnabled={true}
               sharedCookiesEnabled={true}
               startInLoadingState={true}
               // ✅ دعم dApps التي تفتح نوافذ منبثقة (مثل Raydium Connect Wallet)
               // بدل إنشاء WebView جديد، تُحمَّل النافذة في نفس الصفحة الحالية
               setSupportMultipleWindows={false}
-              onShouldStartLoadWithRequest={() => true}
+              // أمان: نمرّر كل الروابط إلى المعالج أدناه ثم نسمح بـ http/https فقط،
+              // فلا تُفتح تطبيقات أو ملفات خارجية (intent:, file:, market: ...) من صفحة ويب
+              originWhitelist={['*']}
+              onShouldStartLoadWithRequest={(req) => /^(https?:\/\/|about:blank)/i.test(String(req && req.url))}
               renderLoading={() => (
                 <View style={S.webLoader}>
                   <ActivityIndicator size="large" color={C.accent} />
