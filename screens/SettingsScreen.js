@@ -11,6 +11,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { copySensitive } from '../services/secureClipboard';
+import { requireAuth, getLockSettings, loadLockSettings, saveLockSettings, LOCK_TIMEOUTS } from '../services/appLock';
 import { protectScreen, unprotectScreen } from '../services/screenGuard';
 import * as Linking from 'expo-linking';
 import { Ionicons, MaterialIcons, Feather } from '@expo/vector-icons';
@@ -52,6 +53,24 @@ export default function SettingsScreen() {
   };
 
   const [colorModal,    setColorModal]    = useState(false);
+  const [lockModal,     setLockModal]     = useState(false);
+  const [lockSet,       setLockSet]       = useState(getLockSettings());
+  useEffect(() => { loadLockSettings().then(setLockSet).catch(() => {}); }, []);
+  const isAr = language === 'ar';
+  const timeoutLabel = (ms) => {
+    const o = LOCK_TIMEOUTS.find(x => x.ms === ms) || LOCK_TIMEOUTS[0];
+    return isAr ? o.ar : o.en;
+  };
+  // تقليل الحماية (إيقاف القفل أو إطالة المدة) يتطلب تأكيد الهوية أولًا
+  const toggleLock = async () => {
+    if (lockSet.enabled && !(await requireAuth())) return;
+    setLockSet(await saveLockSettings({ enabled: !lockSet.enabled }));
+  };
+  const pickTimeout = async (ms) => {
+    if (ms === lockSet.timeoutMs) return;
+    if (ms > lockSet.timeoutMs && !(await requireAuth())) return;
+    setLockSet(await saveLockSettings({ timeoutMs: ms }));
+  };
   const [safetyModal,   setSafetyModal]   = useState(false);
   const [recoveryPhrase,setRecoveryPhrase]= useState('');
   useEffect(() => {
@@ -252,8 +271,9 @@ export default function SettingsScreen() {
             />
             <SettingItem
               icon={<MaterialIcons name="fingerprint" size={20} color={primaryColor} />}
-              title={t('biometric_authentication')} subtitle={t('use_fingerprint_or_face_id')}
-              onPress={handleBiometrics} rightComponent={<Chevron />}
+              title={t('biometric_authentication')}
+              subtitle={lockSet.enabled ? `${isAr ? 'مفعّل' : 'On'} · ${timeoutLabel(lockSet.timeoutMs)}` : (isAr ? 'متوقف' : 'Off')}
+              onPress={() => setLockModal(true)} rightComponent={<Chevron />}
             />
           </View>
         </View>
@@ -352,6 +372,56 @@ export default function SettingsScreen() {
         </View>
 
       </Animated.View>
+
+      {/* قفل التطبيق */}
+      <Modal visible={lockModal} transparent animationType="fade" onRequestClose={() => setLockModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalBox, { backgroundColor:C.card, borderColor: C.border, borderWidth: 1 }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color:C.text }]}>{isAr ? 'قفل التطبيق' : 'App lock'}</Text>
+              <TouchableOpacity onPress={() => setLockModal(false)} style={[styles.backBtn, { backgroundColor: C.background, borderColor: C.border, borderWidth: 1, width: 36, height: 36 }]}>
+                <Ionicons name="close" size={18} color={C.text} />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={{ color:C.textSecondary, fontSize:13, lineHeight:20, marginBottom:14 }}>
+              {lockSet.enabled
+                ? (isAr ? 'القفل مفعّل: يُطلب رمز الهاتف عند العودة للتطبيق بعد المدة المختارة.' : 'Lock is on: your phone passcode is required when you return after the chosen time.')
+                : (isAr ? 'القفل متوقف: يُفتح التطبيق دون مصادقة.' : 'Lock is off: the app opens without authentication.')}
+            </Text>
+
+            <TouchableOpacity
+              onPress={toggleLock}
+              activeOpacity={0.85}
+              style={{ backgroundColor: lockSet.enabled ? C.danger : primaryColor, borderRadius:14, paddingVertical:13, alignItems:'center', marginBottom:18 }}
+            >
+              <Text style={{ color:'#FFF', fontSize:15, fontWeight:'700' }}>
+                {lockSet.enabled ? (isAr ? 'إيقاف القفل' : 'Turn off lock') : (isAr ? 'تشغيل القفل' : 'Turn on lock')}
+              </Text>
+            </TouchableOpacity>
+
+            <Text style={{ color:C.text, fontSize:14, fontWeight:'700', marginBottom:8 }}>
+              {isAr ? 'مدة القفل' : 'Lock after'}
+            </Text>
+            <View style={{ opacity: lockSet.enabled ? 1 : 0.4 }} pointerEvents={lockSet.enabled ? 'auto' : 'none'}>
+              {LOCK_TIMEOUTS.map(o => {
+                const sel = lockSet.timeoutMs === o.ms;
+                return (
+                  <TouchableOpacity key={o.ms} onPress={() => pickTimeout(o.ms)} activeOpacity={0.8}
+                    style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingVertical:12, paddingHorizontal:12, borderRadius:12, marginBottom:6, backgroundColor: sel ? primaryColor + '22' : C.card2 }}>
+                    <Text style={{ color: sel ? primaryColor : C.text, fontSize:14, fontWeight: sel ? '700' : '500' }}>{isAr ? o.ar : o.en}</Text>
+                    {sel && <Ionicons name="checkmark-circle" size={20} color={primaryColor} />}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            <Text style={{ color:C.textSecondary, fontSize:12, lineHeight:18, marginTop:10 }}>
+              {isAr ? 'تأكيد الهوية قبل المعاملات المالية (إرسال، تبديل، سحب) مفعّل دائمًا.' : 'Identity confirmation before financial transactions (send, swap, withdraw) is always on.'}
+            </Text>
+          </View>
+        </View>
+      </Modal>
 
       {/* منتقي الألوان */}
       <Modal visible={colorModal} transparent animationType="fade">

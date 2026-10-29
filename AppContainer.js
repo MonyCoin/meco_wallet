@@ -5,7 +5,7 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import * as SecureStore from 'expo-secure-store';
-import { authenticateDevice as authDevice, isLockSuspended } from './services/appLock';
+import { authenticateDevice as authDevice, isLockSuspended, loadLockSettings, getLockSettings } from './services/appLock';
 import { ActivityIndicator, View, I18nManager, AppState, Text, TouchableOpacity } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppStore } from './store';
@@ -152,12 +152,14 @@ export default function AppContainer() {
     return () => sub.remove();
   }, []);
 
-  const authenticateDevice = () => authDevice(useAppStore.getState().language);
+  // إن أوقف المستخدم القفل من الإعدادات فلا مصادقة عند الفتح
+  const authenticateDevice = () => (getLockSettings().enabled ? authDevice(useAppStore.getState().language) : Promise.resolve(true));
 
   // ── قفل التطبيق عند كل عودة إليه (برمز الهاتف) ──
   const [locked, setLocked] = useState(false);
   const lockedRef = useRef(false);
   const authBusy  = useRef(false);
+  const bgAtRef   = useRef(0);
 
   const unlockApp = async () => {
     if (authBusy.current) return;
@@ -173,13 +175,24 @@ export default function AppContainer() {
   useEffect(() => {
     const sub = AppState.addEventListener('change', (st) => {
       if (authBusy.current) return;   // نافذة المصادقة نفسها قد تغيّر حالة التطبيق
+      const { enabled, timeoutMs } = getLockSettings();
       if (st === 'background') {
-        if (useAppStore.getState().walletPublicKey && !isLockSuspended()) {
-          lockedRef.current = true;
-          setLocked(true);
+        if (enabled && useAppStore.getState().walletPublicKey && !isLockSuspended()) {
+          bgAtRef.current = Date.now();
+          if (timeoutMs === 0) {          // فورًا: نغطي الشاشة حال الخروج
+            lockedRef.current = true;
+            setLocked(true);
+          }
         }
-      } else if (st === 'active' && lockedRef.current) {
-        unlockApp();
+      } else if (st === 'active') {
+        if (lockedRef.current) {
+          unlockApp();
+        } else if (enabled && timeoutMs > 0 && bgAtRef.current && Date.now() - bgAtRef.current >= timeoutMs) {
+          lockedRef.current = true;     // غاب أطول من المدة المختارة
+          setLocked(true);
+          unlockApp();
+        }
+        bgAtRef.current = 0;
       }
     });
     return () => sub.remove();
@@ -188,6 +201,7 @@ export default function AppContainer() {
   useEffect(() => {
     const init = async () => {
       try {
+        await loadLockSettings();
         await useAppStore.getState().loadLanguage();
         const savedLanguage = useAppStore.getState().language;
         if (savedLanguage) {
