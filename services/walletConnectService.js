@@ -1,6 +1,6 @@
 // services/walletConnectService.js
 import { Core } from '@walletconnect/core';
-import { Web3Wallet } from '@walletconnect/web3wallet';
+import { WalletKit } from '@reown/walletkit';
 import { buildApprovedNamespaces, getSdkError } from '@walletconnect/utils';
 import * as SecureStore from 'expo-secure-store';
 import { Alert } from 'react-native';
@@ -282,7 +282,7 @@ export async function initWalletConnect() {
         universal: 'https://monycoin.github.io/meco_wallet-app/',
       },
     };
-    web3wallet = await Web3Wallet.init({ core, metadata });
+    web3wallet = await WalletKit.init({ core, metadata });
     setupEventListeners();
     return web3wallet;
   } catch (error) {
