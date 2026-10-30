@@ -211,7 +211,10 @@ export default function AppContainer() {
         const success = await useAppStore.getState().loadActiveAccount();
         if (success) {
           const ok = await authenticateDevice();
-          setInitialRoute(ok ? 'BottomTabs' : 'Home');
+          // المحفظة موجودة: فشل/إلغاء المصادقة لا يعني «لا توجد محفظة».
+          // نبقى على الشاشة الرئيسية مغطاة بشاشة القفل، وزر «فتح» يعيد المحاولة.
+          if (!ok) { lockedRef.current = true; setLocked(true); }
+          setInitialRoute('BottomTabs');
           return;
         }
         const initialized = await SecureStore.getItemAsync('wallet_initialized');
@@ -219,7 +222,8 @@ export default function AppContainer() {
           const ok = await useAppStore.getState().loadWallet();
           if (ok) {
             const authOk = await authenticateDevice();
-            setInitialRoute(authOk ? 'BottomTabs' : 'Home');
+            if (!authOk) { lockedRef.current = true; setLocked(true); }
+            setInitialRoute('BottomTabs');
             return;
           }
         }
