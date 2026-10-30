@@ -221,7 +221,7 @@ export default function LiquidityScreen() {
     setTab(prev => prev || best.poolId);
   }, [positions]);
 
-  const openUrl = (url, name) => navigation.navigate('DappBrowser', { url, name });
+  const openUrl = (url, name) => navigation.navigate('BottomTabs', { screen: 'AppPortal', params: { openUrl: { url, name, ts: Date.now() } } });
 
   const runAction = async (key, fn, okTitle) => {
     if (!(await requireAuth())) return;   // تأكيد الهوية قبل أي عملية مالية

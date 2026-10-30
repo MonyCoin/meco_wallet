@@ -2,25 +2,25 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ActivityIndicator,
-  Modal, TextInput, Keyboard, TouchableWithoutFeedback, Platform, FlatList, KeyboardAvoidingView
+  Modal, TextInput, Keyboard, TouchableWithoutFeedback, Platform, FlatList, KeyboardAvoidingView, BackHandler
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useNavigation, useIsFocused } from '@react-navigation/native';
 import { useAppStore } from '../store';
 import { useTranslation } from 'react-i18next';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { pairWalletConnect } from '../services/walletConnectService';
 
 const BOOKMARKS_KEY = '@meco_bookmarks';
 const HISTORY_KEY   = '@meco_browsing_history';
 const HISTORY_MAX   = 50;
 
-export default function DappBrowserScreen() {
+// المتصفح المدمج: يُعرض داخل شاشة استكشف (شريط التطبيق السفلي يبقى ظاهرًا)
+// request = { id, url, name } لكل طلب فتح رابط، onClose يُستدعى عند إغلاق المتصفح
+export default function DappBrowserScreen({ request, onClose }) {
   const { t }        = useTranslation();
   const navigation   = useNavigation();
-  const route        = useRoute();
   const primaryColor = useAppStore(s => s.primaryColor || '#6C63FF');
   const insets       = useSafeAreaInsets();
 
@@ -38,7 +38,6 @@ export default function DappBrowserScreen() {
     inputBg:  '#171730',
   };
 
-  const { url: initialUrl, name: initialName } = route.params || {};
 
   const [tabs,             setTabs]            = useState([]);
   const [activeTabId,      setActiveTabId]     = useState(null);
@@ -52,31 +51,15 @@ export default function DappBrowserScreen() {
   const webviewRefs = useRef({});
   const historyDebounceRef = useRef({});
 
-  // 1. فتح التبويب الأول عند تشغيل المتصفح برابط خارجي
+  // 1. كل طلب فتح رابط يُضاف كتبويب جديد (الأول عند التشغيل)
   useEffect(() => {
-    if (initialUrl) {
-      const id = Date.now().toString();
-      setTabs([{ id, url: initialUrl, title: initialName || t('loading_page'), canGoBack: false, canGoForward: false }]);
-      setActiveTabId(id);
-      setInputUrl(initialUrl);
-    }
-  }, [initialUrl, initialName]);
-
-  // 2. الاستماع لكود الـ QR بعد العودة من كاميرا الكود أو اختيار لقطة شاشة
-  useEffect(() => {
-    const scanned = route.params?.scannedAddress;
-    if (scanned?.startsWith('wc:')) {
-      navigation.setParams({ scannedAddress: undefined });
-
-      pairWalletConnect(scanned)
-        .then(() => {
-          console.log('✅ WalletConnect paired inside browser successfully!');
-        })
-        .catch(err => {
-          console.warn('❌ Pairing failed inside browser:', err.message);
-        });
-    }
-  }, [route.params?.scannedAddress]);
+    if (!request || !request.url) return;
+    const id = Date.now().toString() + Math.random().toString(36).slice(2, 6);
+    setTabs(prev => [...prev, { id, url: request.url, title: request.name || t('loading_page'), canGoBack: false, canGoForward: false }]);
+    setActiveTabId(id);
+    setInputUrl(request.url);
+    setTabsOvVisible(false);
+  }, [request?.id]);
 
   const openNewTab = useCallback(url => {
     const id = Date.now().toString();
@@ -96,12 +79,12 @@ export default function DappBrowserScreen() {
         } else {
           setActiveTabId(null);
           setInputUrl('');
-          navigation.goBack();
+          if (onClose) setTimeout(onClose, 0);
         }
       }
       return next;
     });
-  }, [activeTabId, navigation]);
+  }, [activeTabId, onClose]);
 
   const switchTab = id => {
     const tab = tabs.find(t => t.id === id);
@@ -160,19 +143,25 @@ export default function DappBrowserScreen() {
   };
 
   const activeTab = tabs.find(t => t.id === activeTabId);
+  const isFocused = useIsFocused();
 
+  // زر الرجوع في أندرويد: يرجع داخل الصفحة أولًا ثم يغلق المتصفح (فقط عندما يكون تبويب استكشف ظاهرًا)
   useEffect(() => {
-    if (activeTab) {
-      navigation.setOptions({ title: activeTab.title });
-    }
-  }, [activeTab?.title]);
+    if (!isFocused) return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (activeTab?.canGoBack) webviewRefs.current[activeTabId]?.goBack();
+      else if (onClose) onClose();
+      return true;
+    });
+    return () => sub.remove();
+  }, [isFocused, activeTab?.canGoBack, activeTabId, onClose]);
 
   return (
-    <View style={[S.root, { backgroundColor: C.bg, paddingBottom: insets.bottom }]}>
+    <View style={[S.root, { backgroundColor: C.bg, paddingTop: insets.top + 6 }]}>
 
       {/* ── شريط تحكم متصفح Web3 العلوي ── */}
       <View style={S.addrRow}>
-        <TouchableOpacity style={[S.homeBtn, { backgroundColor: C.surface }]} onPress={() => navigation.goBack()}>
+        <TouchableOpacity style={[S.homeBtn, { backgroundColor: C.surface }]} onPress={() => { if (onClose) onClose(); }}>
           <Ionicons name="close-outline" size={22} color={C.text} />
         </TouchableOpacity>
 
@@ -202,7 +191,7 @@ export default function DappBrowserScreen() {
 
         <TouchableOpacity
           style={[S.qrBtn, { backgroundColor: C.accent + '24' }]}
-          onPress={() => navigation.navigate('QRScanner', { returnTo: 'DappBrowser' })}
+          onPress={() => navigation.navigate('QRScanner', { returnTo: 'AppPortal' })}
         >
           <Ionicons name="qr-code-outline" size={19} color={C.accent} />
         </TouchableOpacity>

@@ -37,7 +37,6 @@ import QRScannerScreen          from './screens/QRScannerScreen';
 import SwapScreen               from './screens/SwapScreen';
 import LiquidityScreen          from './screens/LiquidityScreen';
 import PortfolioScreen          from './screens/PortfolioScreen';
-import DappBrowserScreen        from './screens/DappBrowserScreen';
 import NotificationsScreen      from './screens/NotificationsScreen';
 import PriceAlertsScreen        from './screens/PriceAlertsScreen';
 import AddressBookScreen        from './screens/AddressBookScreen';
@@ -300,22 +299,6 @@ export default function AppContainer() {
           <Stack.Screen name="QuickTrade"         component={QuickTradeScreen}         options={{ headerShown:false }} />
           <Stack.Screen name="TradeExecution"     component={TradeExecutionScreen}     options={{ headerShown:false }} />
           <Stack.Screen name="ActivityHistory"    component={ActivityHistoryScreen}    options={{ headerShown:false }} />
-
-          <Stack.Screen
-            name="DappBrowser"
-            component={DappBrowserScreen}
-            options={{
-              title: 'Web3 Browser',
-              headerShown: true,
-              headerBackTitle: t('back') || 'رجوع',
-              headerStyle: {
-                backgroundColor: isDark ? '#1A1A2E' : '#FFFFFF',
-                elevation: 0,
-                shadowOpacity: 0,
-              },
-              headerTintColor: isDark ? '#FFFFFF' : '#000000',
-            }}
-          />
         </Stack.Navigator>
         <WalletConnectSignModal />
       </NavigationContainer>

@@ -11,6 +11,7 @@ import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import DappBrowserScreen from './DappBrowserScreen';
 import { initWalletConnect, pairWalletConnect } from '../services/walletConnectService';
 
 const { width } = Dimensions.get('window');
@@ -97,6 +98,7 @@ export default function AppPortalScreen() {
   const [bmLoading,   setBmLoading]   = useState(true);
   const [addVisible,  setAddVisible]  = useState(false);
   const [newBm,       setNewBm]       = useState({ name:'', url:'' });
+  const [browserReq,  setBrowserReq]  = useState(null);
   const [history,     setHistory]     = useState([]);
   const [historyOpen, setHistoryOpen] = useState(false);
   const fadeAnim  = useRef(new Animated.Value(0)).current;
@@ -168,8 +170,17 @@ export default function AppPortalScreen() {
 
   const openUrl = useCallback((url, name) => {
     setHistoryOpen(false);
-    navigation.navigate('DappBrowser', { url, name });
-  }, [navigation]);
+    setBrowserReq({ id: Date.now() + Math.random(), url, name });
+  }, []);
+
+  // فتح رابط من شاشة أخرى (مثل السيولة) داخل المتصفح المدمج
+  useEffect(() => {
+    const req = route.params?.openUrl;
+    if (req?.url) {
+      navigation.setParams({ openUrl: undefined });
+      openUrl(req.url, req.name);
+    }
+  }, [route.params?.openUrl]);
 
   const handleSearch = () => {
     const q = search.trim();
@@ -217,6 +228,10 @@ export default function AppPortalScreen() {
     { icon:'add-circle-outline', label: t('add_bookmark', 'إضافة مفضلة'),   action: () => { setNewBm({ name:'', url:'' }); setAddVisible(true); } },
     { icon:'qr-code-outline',  label: t('portal_menu_scan', 'مسح QR للاتصال'), action: () => navigation.navigate('QRScanner', { returnTo:'AppPortal' }) },
   ];
+
+  if (browserReq) {
+    return <DappBrowserScreen request={browserReq} onClose={() => setBrowserReq(null)} />;
+  }
 
   return (
     <View style={[S.root, { backgroundColor:C.bg, paddingTop:padTop }]}>
