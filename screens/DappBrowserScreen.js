@@ -168,7 +168,7 @@ export default function DappBrowserScreen() {
   }, [activeTab?.title]);
 
   return (
-    <View style={[S.root, { backgroundColor: C.bg }]}>
+    <View style={[S.root, { backgroundColor: C.bg, paddingBottom: insets.bottom }]}>
 
       {/* ── شريط تحكم متصفح Web3 العلوي ── */}
       <View style={S.addrRow}>
