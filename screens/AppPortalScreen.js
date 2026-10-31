@@ -5,7 +5,7 @@ import {
   Dimensions, Image, Platform, ActivityIndicator,
   Modal, TextInput, Keyboard, TouchableWithoutFeedback, Animated,
 } from 'react-native';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useNavigation, useRoute, StackActions } from '@react-navigation/native';
 import { useAppStore } from '../store';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
@@ -99,6 +99,7 @@ export default function AppPortalScreen() {
   const [addVisible,  setAddVisible]  = useState(false);
   const [newBm,       setNewBm]       = useState({ name:'', url:'' });
   const [browserReq,  setBrowserReq]  = useState(null);
+  const [browserFrom, setBrowserFrom] = useState(null);
   const [history,     setHistory]     = useState([]);
   const [historyOpen, setHistoryOpen] = useState(false);
   const fadeAnim  = useRef(new Animated.Value(0)).current;
@@ -179,8 +180,19 @@ export default function AppPortalScreen() {
     if (req?.url) {
       navigation.setParams({ openUrl: undefined });
       openUrl(req.url, req.name);
+      setBrowserFrom(req.from || null);
     }
   }, [route.params?.openUrl]);
+
+  // إغلاق المتصفح: إن فُتح من شاشة أخرى (السيولة) نعود إليها، وإلا نعود لواجهة الاستكشاف
+  const closeBrowser = useCallback(() => {
+    setBrowserReq(null);
+    if (browserFrom) {
+      const target = browserFrom;
+      setBrowserFrom(null);
+      try { navigation.dispatch(StackActions.popTo(target)); } catch (_) { try { navigation.getParent()?.goBack(); } catch (_e) {} }
+    }
+  }, [browserFrom, navigation]);
 
   const handleSearch = () => {
     const q = search.trim();
@@ -230,7 +242,7 @@ export default function AppPortalScreen() {
   ];
 
   if (browserReq) {
-    return <DappBrowserScreen request={browserReq} onClose={() => setBrowserReq(null)} />;
+    return <DappBrowserScreen request={browserReq} onClose={closeBrowser} />;
   }
 
   return (
