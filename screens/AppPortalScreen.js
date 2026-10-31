@@ -23,14 +23,14 @@ const BANNER_H      = 124;
 
 const DAPPS = [
   { id:'jupiter',  name:'Jupiter',  icon:'https://assets.coingecko.com/coins/images/34188/large/jup.png',  url:'https://jup.ag',  category:'trading', badge:'DEX',  featured:true },
-  { id:'marinade', name:'Marinade', icon:'https://assets.coingecko.com/coins/images/18612/large/mnde.png', url:'https://marinade.finance/app/staking', category:'staking', badge:'8.5% APY' },
-  { id:'jito',     name:'Jito',     icon:'https://assets.coingecko.com/coins/images/33228/large/jto.png',  url:'https://jito.network/staking',         category:'staking', badge:'9.2% APY' },
+  { id:'marinade', name:'Marinade', icon:'https://assets.coingecko.com/coins/images/18612/large/mnde.png', url:'https://app.marinade.finance/earn/liquid/', category:'staking', badge:'Staking' },
+  { id:'jito',     name:'Jito',     icon:'https://assets.coingecko.com/coins/images/33228/large/jto.png',  url:'https://jito.network/staking',         category:'staking', badge:'Staking' },
   { id:'orca',     name:'Orca',     icon:'https://assets.coingecko.com/coins/images/17547/large/Orca_Logo.png', url:'https://www.orca.so/pools',       category:'pools',   badge:'Pools' },
-  { id:'raydium', name:'Raydium', icon:'https://assets.coingecko.com/coins/images/13928/large/PSigc4ie_400x400.jpg', url:'https://raydium.io/liquidity-pools/', category:'pools', badge:'15.5% APY' },
-  { id:'meteora',  name:'Meteora',  icon:'https://assets.coingecko.com/coins/images/69110/standard/meteora.png', url:'https://app.meteora.ag',               category:'defi',    badge:'20% APY' },
-  { id:'kamino',   name:'Kamino',   icon:'https://assets.coingecko.com/coins/images/35801/standard/Kamino_200x200.png', url:'https://app.kamino.finance/lend',      category:'defi',    badge:'8% APY' },
+  { id:'raydium', name:'Raydium', icon:'https://assets.coingecko.com/coins/images/13928/large/PSigc4ie_400x400.jpg', url:'https://raydium.io/liquidity-pools/', category:'pools', badge:'Pools' },
+  { id:'meteora',  name:'Meteora',  icon:'https://assets.coingecko.com/coins/images/69110/standard/meteora.png', url:'https://app.meteora.ag',               category:'defi',    badge:'DeFi' },
+  { id:'kamino',   name:'Kamino',   icon:'https://assets.coingecko.com/coins/images/35801/standard/Kamino_200x200.png', url:'https://app.kamino.finance/lend',      category:'defi',    badge:'Lending' },
   { id:'drift',    name:'Drift',    icon:'https://assets.coingecko.com/coins/images/37509/standard/DRIFT.png', url:'https://app.drift.trade',              category:'trading', badge:'Perps' },
-  { id:'solend',   name:'Solend',   icon:'https://assets.coingecko.com/coins/images/19573/standard/logo.webp', url:'https://solend.fi/dashboard',          category:'defi',    badge:'5% APY' },
+  { id:'solend',   name:'Solend',   icon:'https://assets.coingecko.com/coins/images/19573/standard/logo.webp', url:'https://solend.fi/dashboard',          category:'defi',    badge:'Lending' },
 ];
 
 // تبويبات قسم "اكتشف"
@@ -190,6 +190,8 @@ export default function AppPortalScreen() {
     if (browserFrom) {
       const target = browserFrom;
       setBrowserFrom(null);
+      // الرجوع إلى تبويب (المحفظة) أو إلى شاشة في الـ Stack (السيولة)
+      if (target === 'Wallet') { try { navigation.navigate('Wallet'); } catch (_) {} return; }
       try { navigation.dispatch(StackActions.popTo(target)); } catch (_) { try { navigation.getParent()?.goBack(); } catch (_e) {} }
     }
   }, [browserFrom, navigation]);

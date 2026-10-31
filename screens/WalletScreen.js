@@ -429,6 +429,26 @@ export default function WalletScreen() {
   const activeAccount = accounts[activeAccountIndex];
   const activeEmoji   = activeAccount ? accountEmojis[activeAccount.publicKey] : null;
 
+
+  // فتح Marinade داخل المتصفح المدمج (تبويب استكشف) مع تنبيه لمرة واحدة بأنها خدمة خارجية
+  const MARINADE_URL = 'https://app.marinade.finance/earn/liquid/';
+  const openMarinade = async () => {
+    const go = () => navigation.navigate('AppPortal', { openUrl: { url: MARINADE_URL, name: 'Marinade', from: 'Wallet', ts: Date.now() } });
+    let seen = false;
+    try { seen = (await AsyncStorage.getItem('@meco_staking_notice')) === '1'; } catch (_) {}
+    if (seen) { go(); return; }
+    Alert.alert(
+      isAr ? 'خدمة خارجية' : 'External service',
+      isAr
+        ? 'التخزين تقدمه Marinade وهي ليست من MECO. العوائد غير مضمونة والمخاطر على المستخدم. اربط محفظتك عبر WalletConnect من داخل الصفحة.'
+        : 'Staking is provided by Marinade, not by MECO. Returns are not guaranteed and risks are yours. Connect your wallet via WalletConnect inside the page.',
+      [
+        { text: isAr ? 'إلغاء' : 'Cancel', style: 'cancel' },
+        { text: isAr ? 'متابعة' : 'Continue', onPress: async () => { try { await AsyncStorage.setItem('@meco_staking_notice', '1'); } catch (_) {} go(); } },
+      ]
+    );
+  };
+
   const handleOpenNotifications = () => {
     navigation.navigate('Notifications');
   };
@@ -903,6 +923,32 @@ export default function WalletScreen() {
                 <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
               </TouchableOpacity>
             )}
+          </View>
+
+          <View style={styles.stakingSection}>
+            <View style={styles.assetsHeader}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                {isAr ? 'التخزين' : 'Staking'}
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={[styles.stakingEmptyCard, { backgroundColor: colors.card }]}
+              onPress={openMarinade}
+              activeOpacity={0.85}
+            >
+              <View style={[styles.stakingEmptyIcon, { backgroundColor: primaryColor + '15' }]}>
+                <Ionicons name="layers-outline" size={22} color={primaryColor} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.stakingEmptyTitle, { color: colors.text }]}>
+                  {isAr ? 'تخزين SOL مع Marinade' : 'Stake SOL with Marinade'}
+                </Text>
+                <Text style={[styles.stakingEmptySub, { color: colors.textSecondary }]}>
+                  {isAr ? 'تخزين سائل — خدمة خارجية' : 'Liquid staking — external service'}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
+            </TouchableOpacity>
           </View>
 
           <View style={styles.activitySection}>
