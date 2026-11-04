@@ -311,14 +311,14 @@ export default function AppContainer() {
                        backgroundColor: SPLASH_BG, alignItems: 'center', justifyContent: 'center', padding: 24 }}>
           <Ionicons name="lock-closed" size={44} color={primaryColor} />
           <Text style={{ color: '#EEEEFF', fontSize: 18, fontWeight: '700', marginTop: 16 }}>
-            {language === 'ar' ? 'التطبيق مقفل' : 'App locked'}
+            {t('lock.locked', { lng: language === 'ar' ? 'ar' : 'en' })}
           </Text>
           <Text style={{ color: '#7E7EAA', fontSize: 13, marginTop: 6, textAlign: 'center' }}>
-            {language === 'ar' ? 'أدخل رمز الهاتف للمتابعة' : 'Enter your phone passcode to continue'}
+            {t('lock.prompt', { lng: language === 'ar' ? 'ar' : 'en' })}
           </Text>
           <TouchableOpacity onPress={unlockApp} activeOpacity={0.85}
             style={{ backgroundColor: primaryColor, borderRadius: 24, paddingVertical: 12, paddingHorizontal: 36, marginTop: 24 }}>
-            <Text style={{ color: '#fff', fontSize: 14, fontWeight: '700' }}>{language === 'ar' ? 'فتح' : 'Unlock'}</Text>
+            <Text style={{ color: '#fff', fontSize: 14, fontWeight: '700' }}>{t('lock.unlock', { lng: language === 'ar' ? 'ar' : 'en' })}</Text>
           </TouchableOpacity>
         </View>
       )}

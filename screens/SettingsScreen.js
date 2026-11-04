@@ -56,10 +56,9 @@ export default function SettingsScreen() {
   const [lockModal,     setLockModal]     = useState(false);
   const [lockSet,       setLockSet]       = useState(getLockSettings());
   useEffect(() => { loadLockSettings().then(setLockSet).catch(() => {}); }, []);
-  const isAr = language === 'ar';
   const timeoutLabel = (ms) => {
     const o = LOCK_TIMEOUTS.find(x => x.ms === ms) || LOCK_TIMEOUTS[0];
-    return isAr ? o.ar : o.en;
+    return t(o.key);
   };
   // تقليل الحماية (إيقاف القفل أو إطالة المدة) يتطلب تأكيد الهوية أولًا
   const toggleLock = async () => {
@@ -272,7 +271,7 @@ export default function SettingsScreen() {
             <SettingItem
               icon={<MaterialIcons name="fingerprint" size={20} color={primaryColor} />}
               title={t('biometric_authentication')}
-              subtitle={lockSet.enabled ? `${isAr ? 'مفعّل' : 'On'} · ${timeoutLabel(lockSet.timeoutMs)}` : (isAr ? 'متوقف' : 'Off')}
+              subtitle={lockSet.enabled ? `${t('lock.on')} · ${timeoutLabel(lockSet.timeoutMs)}` : t('lock.off')}
               onPress={() => setLockModal(true)} rightComponent={<Chevron />}
             />
           </View>
@@ -378,7 +377,7 @@ export default function SettingsScreen() {
         <View style={styles.modalOverlay}>
           <View style={[styles.modalBox, { backgroundColor:C.card, borderColor: C.border, borderWidth: 1 }]}>
             <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color:C.text }]}>{isAr ? 'قفل التطبيق' : 'App lock'}</Text>
+              <Text style={[styles.modalTitle, { color:C.text }]}>{t('lock.title')}</Text>
               <TouchableOpacity onPress={() => setLockModal(false)} style={[styles.backBtn, { backgroundColor: C.background, borderColor: C.border, borderWidth: 1, width: 36, height: 36 }]}>
                 <Ionicons name="close" size={18} color={C.text} />
               </TouchableOpacity>
@@ -386,8 +385,8 @@ export default function SettingsScreen() {
 
             <Text style={{ color:C.textSecondary, fontSize:13, lineHeight:20, marginBottom:14 }}>
               {lockSet.enabled
-                ? (isAr ? 'القفل مفعّل: يُطلب رمز الهاتف عند العودة للتطبيق بعد المدة المختارة.' : 'Lock is on: your phone passcode is required when you return after the chosen time.')
-                : (isAr ? 'القفل متوقف: يُفتح التطبيق دون مصادقة.' : 'Lock is off: the app opens without authentication.')}
+                ? t('lock.desc_on')
+                : t('lock.desc_off')}
             </Text>
 
             <TouchableOpacity
@@ -396,12 +395,12 @@ export default function SettingsScreen() {
               style={{ backgroundColor: lockSet.enabled ? C.danger : primaryColor, borderRadius:14, paddingVertical:13, alignItems:'center', marginBottom:18 }}
             >
               <Text style={{ color:'#FFF', fontSize:15, fontWeight:'700' }}>
-                {lockSet.enabled ? (isAr ? 'إيقاف القفل' : 'Turn off lock') : (isAr ? 'تشغيل القفل' : 'Turn on lock')}
+                {lockSet.enabled ? t('lock.turn_off') : t('lock.turn_on')}
               </Text>
             </TouchableOpacity>
 
             <Text style={{ color:C.text, fontSize:14, fontWeight:'700', marginBottom:8 }}>
-              {isAr ? 'مدة القفل' : 'Lock after'}
+              {t('lock.after')}
             </Text>
             <View style={{ opacity: lockSet.enabled ? 1 : 0.4 }} pointerEvents={lockSet.enabled ? 'auto' : 'none'}>
               {LOCK_TIMEOUTS.map(o => {
@@ -409,7 +408,7 @@ export default function SettingsScreen() {
                 return (
                   <TouchableOpacity key={o.ms} onPress={() => pickTimeout(o.ms)} activeOpacity={0.8}
                     style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingVertical:12, paddingHorizontal:12, borderRadius:12, marginBottom:6, backgroundColor: sel ? primaryColor + '22' : C.card2 }}>
-                    <Text style={{ color: sel ? primaryColor : C.text, fontSize:14, fontWeight: sel ? '700' : '500' }}>{isAr ? o.ar : o.en}</Text>
+                    <Text style={{ color: sel ? primaryColor : C.text, fontSize:14, fontWeight: sel ? '700' : '500' }}>{t(o.key)}</Text>
                     {sel && <Ionicons name="checkmark-circle" size={20} color={primaryColor} />}
                   </TouchableOpacity>
                 );
@@ -417,7 +416,7 @@ export default function SettingsScreen() {
             </View>
 
             <Text style={{ color:C.textSecondary, fontSize:12, lineHeight:18, marginTop:10 }}>
-              {isAr ? 'تأكيد الهوية قبل المعاملات المالية (إرسال، تبديل، سحب) مفعّل دائمًا.' : 'Identity confirmation before financial transactions (send, swap, withdraw) is always on.'}
+              {t('lock.tx_note')}
             </Text>
           </View>
         </View>

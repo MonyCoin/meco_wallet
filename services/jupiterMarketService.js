@@ -89,6 +89,16 @@ export async function getSolPriceUsd() {
   }
 }
 
+// ─── سعر رمز واحد بالدولار (يُستدعى عند الحاجة فقط، مثل mSOL) ─────────────────
+export async function getMintPriceUsd(mint) {
+  try {
+    const map = await fetchJupiterPrices([mint]);
+    return map.get(String(mint).toLowerCase())?.price || 0;
+  } catch (_) {
+    return 0;
+  }
+}
+
 // ─── الدالة الرئيسية ──────────────────────────────────────────────────────────
 export async function getJupiterMarketData() {
   try {

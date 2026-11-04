@@ -14,7 +14,7 @@ import { GestureHandlerRootView, Swipeable } from 'react-native-gesture-handler'
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getSolBalance, getTokenAccounts, getAccountsOverview, clearBalanceCache } from '../services/heliusService';
-import { CORE_TOKENS, getJupiterMarketData, getCustomTokens } from '../services/jupiterMarketService';
+import { CORE_TOKENS, getJupiterMarketData, getCustomTokens, getMintPriceUsd } from '../services/jupiterMarketService';
 import { listPositions } from '../services/liquidityActions';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { copySensitive } from '../services/secureClipboard';
@@ -57,6 +57,8 @@ const fmtTradePrice = (p) => {
   return `$${p.toFixed(8).replace(/\.?0+$/,'')}`;
 };
 
+const MSOL_MINT = 'mSoLzYCxHdYgdzU16g5QSh3i5K3z3KZK7ytfqcJm7So'; // mSOL (Marinade) — 9 decimals
+
 export default function WalletScreen() {
   const navigation   = useNavigation();
   const { t, i18n }  = useTranslation();
@@ -88,6 +90,7 @@ export default function WalletScreen() {
   const [walletAddress,         setWalletAddress]         = useState('');
   const [totalBalanceUSD,       setTotalBalanceUSD]       = useState(0);
   const [assets,                setAssets]                = useState([]);
+  const [msol,                  setMsol]                  = useState({ amount: 0, usd: 0 });
   const [tradableTokens,        setTradableTokens]        = useState([]);
   const [liqSummary,            setLiqSummary]            = useState(null);   // null | { count, meco, fees }
   const liqOwner = useAppStore(state => state.accounts?.[state.activeAccountIndex]?.publicKey || null);
@@ -227,6 +230,17 @@ export default function WalletScreen() {
           };
         });
       setTradableTokens(tradableList);
+
+      // رصيد mSOL (إثبات التخزين مع Marinade) — عنوان العقد من وثائق Marinade الرسمية
+      const msolData = tokenAccounts.find(tk => tk.mint === MSOL_MINT);
+      const msolAmount = msolData?.amount || 0;
+      setMsol({ amount: msolAmount, usd: 0 });
+      // السعر يُطلب فقط إن كان لدى المستخدم mSOL (لا طلبات إضافية لغيره)
+      if (msolAmount > 0) {
+        getMintPriceUsd(MSOL_MINT)
+          .then(p => { if (p > 0) setMsol({ amount: msolAmount, usd: msolAmount * p }); })
+          .catch(() => {});
+      }
 
       let calculatedTotalUSD = 0;
 
@@ -438,13 +452,11 @@ export default function WalletScreen() {
     try { seen = (await AsyncStorage.getItem('@meco_staking_notice')) === '1'; } catch (_) {}
     if (seen) { go(); return; }
     Alert.alert(
-      isAr ? 'خدمة خارجية' : 'External service',
-      isAr
-        ? 'التخزين تقدمه Marinade وهي ليست من MECO. العوائد غير مضمونة والمخاطر على المستخدم. اربط محفظتك عبر WalletConnect من داخل الصفحة.'
-        : 'Staking is provided by Marinade, not by MECO. Returns are not guaranteed and risks are yours. Connect your wallet via WalletConnect inside the page.',
+      t('staking_card.notice_title'),
+      t('staking_card.notice_body'),
       [
-        { text: isAr ? 'إلغاء' : 'Cancel', style: 'cancel' },
-        { text: isAr ? 'متابعة' : 'Continue', onPress: async () => { try { await AsyncStorage.setItem('@meco_staking_notice', '1'); } catch (_) {} go(); } },
+        { text: t('cancel'), style: 'cancel' },
+        { text: t('staking_card.go'), onPress: async () => { try { await AsyncStorage.setItem('@meco_staking_notice', '1'); } catch (_) {} go(); } },
       ]
     );
   };
@@ -798,7 +810,7 @@ export default function WalletScreen() {
               { icon:'arrow-up',        screen:'Send',    label:t('send')              },
               { icon:'arrow-down',      screen:'Receive', label:t('receive')           },
               { icon:'swap-horizontal', screen:'Swap',    label:t('swap_title')        },
-              { icon:'water-outline',     screen:'Liquidity', label:isAr ? 'السيولة' : 'Liquidity' },
+              { icon:'water-outline',     screen:'Liquidity', label:t('liquidity.title') },
             ].map(btn => (
               <TouchableOpacity key={btn.screen} style={styles.actionBtn} onPress={() => navigation.navigate(btn.screen)}>
                 <View style={[styles.actionCircle, { backgroundColor: colors.card }]}>
@@ -858,7 +870,7 @@ export default function WalletScreen() {
           <View style={styles.stakingSection}>
             <View style={styles.assetsHeader}>
               <Text style={[styles.sectionTitle, { color: colors.text }]}>
-                {isAr ? 'ملخص السيولة' : 'Liquidity summary'}
+                {t('wallet_home.liq_summary')}
               </Text>
             </View>
 
@@ -867,7 +879,7 @@ export default function WalletScreen() {
                 <View style={styles.stakingRow}>
                   <View style={styles.stakingCol}>
                     <Text style={[styles.stakingLabel, { color: colors.textSecondary }]}>
-                      {isAr ? 'مركزك' : 'Your position'}
+                      {t('wallet_home.liq_position')}
                     </Text>
                     {liqSummary.assets.map(a => (
                       <View key={a.sym} style={styles.liqLine}>
@@ -881,7 +893,7 @@ export default function WalletScreen() {
                   <View style={[styles.stakingDivider, { backgroundColor: colors.border }]} />
                   <View style={styles.stakingCol}>
                     <Text style={[styles.stakingLabel, { color: colors.textSecondary }]}>
-                      {isAr ? 'الرسوم المتراكمة' : 'Accrued fees'}
+                      {t('wallet_home.liq_fees')}
                     </Text>
                     {liqSummary.assets.map(a => (
                       <View key={a.sym} style={styles.liqLine}>
@@ -899,7 +911,7 @@ export default function WalletScreen() {
                 >
                   <Ionicons name="water-outline" size={16} color="#FFF" />
                   <Text style={styles.stakingBtnTxt}>
-                    {isAr ? 'عرض التفاصيل' : 'View details'}
+                    {t('wallet_home.liq_details')}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -914,10 +926,10 @@ export default function WalletScreen() {
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.stakingEmptyTitle, { color: colors.text }]}>
-                    {isAr ? 'ابدأ بفتح مركزك' : 'Open your first position'}
+                    {t('wallet_home.liq_empty_title')}
                   </Text>
                   <Text style={[styles.stakingEmptySub, { color: colors.textSecondary }]}>
-                    {isAr ? 'أودع MECO في مجمع Orca واكسب رسوم التداول' : 'Deposit MECO into an Orca pool and earn trading fees'}
+                    {t('wallet_home.liq_empty_sub')}
                   </Text>
                 </View>
                 <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
@@ -928,9 +940,36 @@ export default function WalletScreen() {
           <View style={styles.stakingSection}>
             <View style={styles.assetsHeader}>
               <Text style={[styles.sectionTitle, { color: colors.text }]}>
-                {isAr ? 'التخزين' : 'Staking'}
+                {t('staking_card.section')}
               </Text>
             </View>
+            {msol.amount > 0.000001 && (
+              <TouchableOpacity
+                style={[styles.stakingCard, { backgroundColor: colors.card, marginBottom: 10 }]}
+                onPress={openMarinade}
+                activeOpacity={0.85}
+              >
+                <View style={styles.stakingRow}>
+                  <View style={styles.stakingCol}>
+                    <Text style={[styles.stakingLabel, { color: colors.textSecondary }]}>
+                      {t('staking_card.your_stake')}
+                    </Text>
+                    <Text style={[styles.stakingEmptyTitle, { color: colors.text }]}>
+                      {msol.amount.toLocaleString('en-US', { maximumFractionDigits: 4 })} mSOL
+                    </Text>
+                    {msol.usd > 0 && (
+                      <Text style={[styles.stakingEmptySub, { color: colors.textSecondary }]}>
+                        ≈ ${msol.usd.toLocaleString('en-US', { maximumFractionDigits: 2 })}
+                      </Text>
+                    )}
+                  </View>
+                  <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
+                </View>
+                <Text style={[styles.stakingEmptySub, { color: colors.textSecondary, marginTop: 8 }]}>
+                  {t('staking_card.manage')}
+                </Text>
+              </TouchableOpacity>
+            )}
             <TouchableOpacity
               style={[styles.stakingEmptyCard, { backgroundColor: colors.card }]}
               onPress={openMarinade}
@@ -941,10 +980,10 @@ export default function WalletScreen() {
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.stakingEmptyTitle, { color: colors.text }]}>
-                  {isAr ? 'تخزين SOL مع Marinade' : 'Stake SOL with Marinade'}
+                  {t('staking_card.cta_title')}
                 </Text>
                 <Text style={[styles.stakingEmptySub, { color: colors.textSecondary }]}>
-                  {isAr ? 'تخزين سائل — خدمة خارجية' : 'Liquid staking — external service'}
+                  {t('staking_card.cta_sub')}
                 </Text>
               </View>
               <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />

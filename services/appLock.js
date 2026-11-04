@@ -3,6 +3,7 @@
 import * as LocalAuthentication from 'expo-local-authentication';
 import { useAppStore } from '../store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import i18n from '../i18n';
 
 let suspendedUntil = 0;
 
@@ -23,12 +24,12 @@ export async function authenticateDevice(lang) {
   try {
     const level = await LocalAuthentication.getEnrolledLevelAsync();
     if (level === LocalAuthentication.SecurityLevel.NONE) return true;
-    const ar = lang === 'ar';
+    const lng = lang === 'ar' ? 'ar' : 'en';
     const result = await LocalAuthentication.authenticateAsync({
-      promptMessage: ar ? 'أدخل رمز الهاتف للمتابعة' : 'Enter your phone passcode to continue',
-      cancelLabel: ar ? 'إلغاء' : 'Cancel',
+      promptMessage: i18n.t('lock.prompt', { lng }),
+      cancelLabel: i18n.t('cancel', { lng }),
       disableDeviceFallback: false,
-      fallbackLabel: ar ? 'استخدم رمز الهاتف' : 'Use phone passcode',
+      fallbackLabel: i18n.t('lock.use_passcode', { lng }),
     });
     return !!result.success;
   } catch (_) {
@@ -52,12 +53,12 @@ const K_ENABLED = 'app_lock_enabled';
 const K_TIMEOUT = 'app_lock_timeout_ms';
 
 export const LOCK_TIMEOUTS = [
-  { ms: 0,        ar: 'فورًا',      en: 'Immediately' },
-  { ms: 30000,    ar: '30 ثانية',   en: '30 seconds' },
-  { ms: 60000,    ar: 'دقيقة',      en: '1 minute' },
-  { ms: 300000,   ar: '5 دقائق',    en: '5 minutes' },
-  { ms: 900000,   ar: '15 دقيقة',   en: '15 minutes' },
-  { ms: 1800000,  ar: '30 دقيقة',   en: '30 minutes' },
+  { ms: 0,        key: 'lock.timeout_0' },
+  { ms: 30000,    key: 'lock.timeout_30000' },
+  { ms: 60000,    key: 'lock.timeout_60000' },
+  { ms: 300000,   key: 'lock.timeout_300000' },
+  { ms: 900000,   key: 'lock.timeout_900000' },
+  { ms: 1800000,  key: 'lock.timeout_1800000' },
 ];
 
 // الافتراضي: مفعّل + فورًا (نفس السلوك السابق)

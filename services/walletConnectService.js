@@ -241,9 +241,7 @@ function sessionMatchesActive(session, activePubkey) {
 }
 
 function mismatchMessage() {
-  return isArabicUi()
-    ? 'هذه الجلسة مرتبطة بحساب آخر غير الحساب النشط حالياً. بدّل إلى الحساب المرتبط بها أو أعد الاتصال بالموقع.'
-    : 'This session belongs to a different account than the active one. Switch to the linked account or reconnect to the site.';
+  return i18n.t('wc.session_mismatch', { lng: isArabicUi() ? 'ar' : 'en' });
 }
 
 async function rejectMismatch(topic, id) {
@@ -460,7 +458,7 @@ async function handleRequestApproval(event) {
       if (conf?.value?.err) {
         // المعاملة أُدرجت لكنها فشلت على السلسلة: لا نبلغ الموقع بنجاح كاذب
         throw new Error(
-          (isArabicUi() ? 'فشلت المعاملة على الشبكة' : 'Transaction failed on-chain') +
+          i18n.t('wc.tx_failed_onchain', { lng: isArabicUi() ? 'ar' : 'en' }) +
           ` (${JSON.stringify(conf.value.err)})`
         );
       }
