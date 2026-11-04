@@ -294,7 +294,6 @@ export default function AppContainer() {
           <Stack.Screen name="QRScanner"          component={QRScannerScreen}          options={{ headerShown:false }} />
           <Stack.Screen name="TokenDetails"       component={TokenDetailsScreen}       options={{ title: t('token_details'), headerBackTitle: t('back') }} />
           <Stack.Screen name="AssetDetails"       component={AssetDetailsScreen}       options={{ headerShown: false }} />
-          <Stack.Screen name="AppPortal"          component={AppPortalScreen}          options={{ title: t('explore')||'استكشف' }} />
           <Stack.Screen name="Settings"           component={SettingsScreen}           options={{ headerShown:false }} />
           <Stack.Screen name="Portfolio"          component={PortfolioScreen}          options={{ headerShown:false }} />
           <Stack.Screen name="Notifications"      component={NotificationsScreen}      options={{ headerShown:false }} />

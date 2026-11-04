@@ -88,7 +88,9 @@ export default function QRScannerScreen() {
             text: t('qr_scanner.use_address', 'استخدام العنوان'),
             onPress: () => {
               // ✅ العودة للشاشة الأصلية بضغطة واحدة فقط
-              navigation.popTo(returnTo, { scannedAddress: data });
+              // استكشف تبويب داخل BottomTabs (لا مسار مستقل) وتتعامل فقط مع روابط wc:، فنكتفي بالرجوع
+              if (returnTo === 'AppPortal') navigation.goBack();
+              else navigation.popTo(returnTo, { scannedAddress: data });
             },
           },
         ]

@@ -13,7 +13,9 @@ import bs58 from 'bs58';
 import { Buffer } from 'buffer';
 import { default as heliusService } from './heliusService';
 
-const PROJECT_ID = '21dc279d9fb09e92a14421d4a189efec';
+// معرّف مشروع WalletConnect/Reown: علني بطبيعته. يُقرأ من EXPO_PUBLIC_WC_PROJECT_ID إن وُجد، وإلا القيمة الحالية.
+// (يجب كتابة process.env.EXPO_PUBLIC_* بهذه الصيغة المباشرة ليُدمج عند البناء)
+const PROJECT_ID = process.env.EXPO_PUBLIC_WC_PROJECT_ID || '21dc279d9fb09e92a14421d4a189efec';
 const WHIRLPOOL_PROGRAM_ID = 'whirLbMiicVdio4qvUfM5KAg6Ct8VwpYzGff3uctyCc';
 export let web3wallet;
 
