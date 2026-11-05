@@ -3,6 +3,11 @@
 // يستعمله من يحتاج المطابقة على نوع الخطأ دون الاعتماد على لغة النص.
 import i18n from '../i18n';
 
+// نص مترجم فقط (لأخطاء تُرجَع ككائن {success:false, error} لا كاستثناء)
+export function svcText(key, params) {
+  return i18n.t('svc_errors.' + key, params);
+}
+
 export function svcError(key, params) {
   const e = new Error(i18n.t('svc_errors.' + key, params));
   e.code = 'SVC_' + key;

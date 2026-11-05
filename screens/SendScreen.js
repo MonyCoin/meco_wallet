@@ -48,6 +48,20 @@ function getKeypairFromStore(storePrivateKey) {
   }
 }
 
+// رسالة مفهومة للمستخدم: أخطاء الخدمات المترجمة (SVC_*) تُعرض كما هي، ورسائل الشبكة الخام تُحوَّل لنص مترجم
+function friendlySendError(error, t) {
+  const raw = String((error && error.message) || error || '');
+  if (error && typeof error.code === 'string' && error.code.startsWith('SVC_')) return raw;
+  if (/Attempt to debit an account but found no record of a prior credit|insufficient lamports|insufficient funds/i.test(raw)) {
+    return t('sendScreen.alerts.sender_needs_sol');
+  }
+  if (/blockhash|block height exceeded|expired/i.test(raw)) return t('sendScreen.alerts.tx_expired');
+  if (/Network request failed|fetch failed|timeout|timed out/i.test(raw)) return t('sendScreen.alerts.network_failed');
+  if (/User rejected|cancel/i.test(raw)) return t('sendScreen.alerts.cancelled');
+  // أي رسالة خام أخرى: نص عام + أول جزء من الرسالة للتشخيص
+  return raw ? `${t('sendScreen.alerts.sendFailed')}\n${raw.slice(0, 120)}` : t('sendScreen.alerts.sendFailed');
+}
+
 export default function SendScreen() {
   const { t }        = useTranslation();
   const route        = useRoute();
@@ -303,7 +317,7 @@ export default function SendScreen() {
             try {
               await executeTransaction(amountNum, recipient, currentToken);
             } catch (error) {
-              if (!error.handled) Alert.alert(t('error'), error.message || t('sendScreen.alerts.sendFailed'));
+              if (!error.handled) Alert.alert(t('error'), friendlySendError(error, t));
             } finally {
               if (isMounted.current) setState(prev => ({ ...prev, loading: false }));
             }
@@ -392,6 +406,16 @@ export default function SendScreen() {
     Alert.alert(
       t('sendScreen.alerts.cannot_send_title'),
       t('sendScreen.alerts.recipient_needs_sol')
+    );
+    error.handled = true;
+    return;
+  }
+
+  // 1-ب) محفظة المرسِل نفسها جديدة وليس فيها SOL (لا رصيد لدفع الرسوم)
+  if (/Attempt to debit an account but found no record of a prior credit|insufficient lamports/i.test(errorString)) {
+    Alert.alert(
+      t('sendScreen.alerts.cannot_send_title'),
+      t('sendScreen.alerts.sender_needs_sol')
     );
     error.handled = true;
     return;

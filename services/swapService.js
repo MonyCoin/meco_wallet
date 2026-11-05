@@ -5,7 +5,7 @@ import { Buffer } from 'buffer';
 
 import { getSolBalance, getTokenBalance } from './heliusService';
 import { default as heliusService } from './heliusService';
-import { svcError } from './svcError';
+import { svcError, svcText } from './svcError';
 
 // ─── TOKEN_MINTS ──────────────────────────────────────────────────────────────
 export const TOKEN_MINTS = {
@@ -257,7 +257,7 @@ export async function executeSwap(
   console.log(`🚀 [Swap] بدء: ${amount} ${inputSymbol} → ${outputSymbol}`);
 
   if (!TOKEN_MINTS[inputSymbol] || !TOKEN_MINTS[outputSymbol]) {
-    return { success: false, error: 'عملة غير مدعومة في التبادل' };
+    return { success: false, error: svcText('unsupported_token') };
   }
 
   // ── إعداد أولي ────────────────────────────────────────────────────────────
@@ -269,17 +269,17 @@ export async function executeSwap(
     userPubKey = publicKey  ? new web3.PublicKey(publicKey) : keypair.publicKey;
     connection = await getConnection();
   } catch (err) {
-    return { success: false, error: `خطأ في التهيئة: ${err.message}` };
+    return { success: false, error: svcText('init_failed', { msg: err.message }) };
   }
 
   // ── التحقق من الرصيد ──────────────────────────────────────────────────────
   try {
     const balanceCheck = await checkBalance(inputSymbol, amount, userPubKey.toString());
     if (!balanceCheck.hasBalance) {
-      return { success: false, error: `رصيد ${inputSymbol} غير كافٍ أو لا تملك رسوم الشبكة.` };
+      return { success: false, error: svcText('insufficient_input', { symbol: inputSymbol }) };
     }
   } catch (err) {
-    return { success: false, error: `فشل التحقق من الرصيد: ${err.message}` };
+    return { success: false, error: svcText('balance_check_failed', { msg: err.message }) };
   }
 
   // ── حلقة Retry — الرسوم لا تتكرر لأن المعاملة ذرية ─────────────────────
@@ -328,7 +328,7 @@ export async function executeSwap(
     }
   }
 
-  return { success: false, error: lastError?.message || 'فشلت جميع محاولات التبادل' };
+  return { success: false, error: lastError?.message || svcText('all_attempts_failed') };
 }
 
 // ─── checkBalance ─────────────────────────────────────────────────────────────

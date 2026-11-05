@@ -563,6 +563,10 @@ const resources = {
           recipient_needs_sol: "المستلم محفظة جديدة وتحتاج إلى رصيد بسيط من SOL لتفعيل الحساب. اطلب منه تحويل كمية صغيرة من SOL أولاً ثم أعد المحاولة.",
           send_failed_title: "فشلت العملية",
           simulation_failed: "تعذّر تنفيذ العملية. تأكد من رصيد SOL في محفظتك ثم حاول مرة أخرى.",
+          sender_needs_sol: "محفظتك جديدة وليس فيها رصيد SOL لتغطية رسوم الشبكة. أودِع كمية صغيرة من SOL في محفظتك ثم أعد المحاولة.",
+          tx_expired: "انتهت صلاحية المعاملة قبل تأكيدها. لم يُنفَّذ شيء، حاول مرة أخرى.",
+          network_failed: "تعذّر الاتصال بالشبكة. تحقق من الإنترنت ثم حاول مرة أخرى.",
+          cancelled: "أُلغيت العملية.",
         },
         balance: {
           available: "الرصيد المتاح",
@@ -617,6 +621,10 @@ const resources = {
         no_token_data: "لم يتم العثور على بيانات لهذا الرمز",
         no_active_wallet: "محفظة غير نشطة",
         unsupported_method: "طريقة غير مدعومة: {{method}}",
+        init_failed: "خطأ في التهيئة: {{msg}}",
+        insufficient_input: "رصيد {{symbol}} غير كافٍ أو لا تملك رسوم الشبكة.",
+        balance_check_failed: "فشل التحقق من الرصيد: {{msg}}",
+        all_attempts_failed: "فشلت جميع محاولات التبادل",
       },
       trade_execution: {
         amount_in_quote: "المبلغ (عملة التسعير)",
@@ -1238,6 +1246,10 @@ const resources = {
           recipient_needs_sol: "The recipient is a new wallet and needs a small SOL balance to activate their account. Ask them to receive a small amount of SOL first, then try again.",
           send_failed_title: "Transaction Failed",
           simulation_failed: "Could not process the transaction. Please check your SOL balance and try again.",
+          sender_needs_sol: "Your wallet is new and has no SOL to cover network fees. Deposit a small amount of SOL into your wallet, then try again.",
+          tx_expired: "The transaction expired before it was confirmed. Nothing was executed, please try again.",
+          network_failed: "Could not reach the network. Check your internet connection and try again.",
+          cancelled: "Operation cancelled.",
         },
         balance: {
           available: "Available Balance",
@@ -1292,6 +1304,10 @@ const resources = {
         no_token_data: "No data found for this token",
         no_active_wallet: "No active wallet",
         unsupported_method: "Unsupported method: {{method}}",
+        init_failed: "Initialization error: {{msg}}",
+        insufficient_input: "Your {{symbol}} balance is insufficient, or you do not have enough for network fees.",
+        balance_check_failed: "Balance check failed: {{msg}}",
+        all_attempts_failed: "All swap attempts failed",
       },
       trade_execution: {
         amount_in_quote: "Amount (Quote Currency)",
