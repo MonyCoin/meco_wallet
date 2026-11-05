@@ -395,27 +395,29 @@ export default function SendScreen() {
   const isSimulationFailed =
     errorString.includes('Simulation failed') ||
     errorString.includes('Transaction simulation failed');
-  const isCustomProgram1 =
-    errorString.includes('custom program error: 0x1') ||
-    errorString.includes('custom program error 1');
+  // خطأ البرنامج رقم 1 بالضبط = رصيد غير كافٍ عند المرسِل (ليس المستلم). والتعبير يمنع مطابقة 0x10 و0x11...
+  const isCustomProgram1 = /custom program error:?\s*(0x1|1)(?![0-9a-fA-Fx])/.test(errorString);
   const isRentError =
     errorString.includes('insufficient funds for rent');
 
-  // 1) المستلم جديد ولا يملك SOL كافٍ لتفعيل الحساب
-  if (isRentError || (isSimulationFailed && isCustomProgram1)) {
+  // 1) محفظة المرسِل لا تملك رصيدًا كافيًا لرسوم الإرسال
+  if (
+    (isSimulationFailed && isCustomProgram1) ||
+    /Attempt to debit an account but found no record of a prior credit|insufficient lamports/i.test(errorString)
+  ) {
     Alert.alert(
       t('sendScreen.alerts.cannot_send_title'),
-      t('sendScreen.alerts.recipient_needs_sol')
+      t('sendScreen.alerts.sender_needs_sol')
     );
     error.handled = true;
     return;
   }
 
-  // 1-ب) محفظة المرسِل نفسها جديدة وليس فيها SOL (لا رصيد لدفع الرسوم)
-  if (/Attempt to debit an account but found no record of a prior credit|insufficient lamports/i.test(errorString)) {
+  // 1-ب) رصيد الحساب سيقل عن الحد الأدنى لتفعيله: المستلم جديد ويحتاج رصيدًا بسيطًا من SOL (النص المحفوظ كما هو)
+  if (isRentError) {
     Alert.alert(
       t('sendScreen.alerts.cannot_send_title'),
-      t('sendScreen.alerts.sender_needs_sol')
+      t('sendScreen.alerts.recipient_needs_sol')
     );
     error.handled = true;
     return;
