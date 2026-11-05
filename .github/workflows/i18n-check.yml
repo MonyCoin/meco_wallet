@@ -1,0 +1,33 @@
+name: i18n Check
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'i18n.js'
+      - 'screens/**'
+      - 'components/**'
+      - 'services/**'
+      - 'AppContainer.js'
+      - 'App.js'
+      - 'store.js'
+      - 'scripts/check-i18n.js'
+      - '.github/workflows/i18n-check.yml'
+  pull_request:
+
+jobs:
+  i18n:
+    name: Verify translations
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Run i18n check
+        run: node scripts/check-i18n.js
