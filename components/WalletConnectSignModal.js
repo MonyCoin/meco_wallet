@@ -40,7 +40,8 @@ const OPERATION_LABEL_KEYS = {
   swap:             'walletConnect.op_swap',
 };
 
-export default function WalletConnectSignModal() {
+// locked: عندما يكون التطبيق مقفلًا نُخفي النافذة (الطلب يبقى محفوظًا ويظهر بعد فتح القفل)
+export default function WalletConnectSignModal({ locked = false }) {
   const { t }        = useTranslation();
   const primaryColor = useAppStore(s => s.primaryColor || '#6C63FF');
 
@@ -115,7 +116,7 @@ export default function WalletConnectSignModal() {
     closeModal();
   };
 
-  if (!visible || !request) return null;
+  if (!visible || !request || locked) return null;
 
   const operation  = request.operation;
   const opStyle    = operation?.type && OPERATION_STYLES[operation.type];

@@ -4,6 +4,7 @@ import * as SecureStore from 'expo-secure-store';
 import bs58 from 'bs58';
 import { Buffer } from 'buffer';
 import { default as heliusService } from './heliusService';
+import { svcError } from './svcError';
 
 const FEE_COLLECTOR_ADDRESS = 'BkaJsFAJKPQZgreBFLrY2pPUi44fTJzXhmeBc8LeuF5W';
 const SERVICE_FEE_SOL       = 0.0005;
@@ -30,7 +31,7 @@ const fetchWT = async (url, options = {}, ms = 20000) => {
     return res;
   } catch (err) {
     clearTimeout(timer);
-    if (err.name === 'AbortError') throw new Error('انتهت مهلة الاتصال بالخادم');
+    if (err.name === 'AbortError') throw svcError('timeout');
     throw err;
   }
 };
@@ -38,7 +39,7 @@ const fetchWT = async (url, options = {}, ms = 20000) => {
 async function getKeypair(activeIndex) {
   let pk = await SecureStore.getItemAsync(`wallet_private_key_${activeIndex}`);
   if (!pk && activeIndex === 0) pk = await SecureStore.getItemAsync('wallet_private_key');
-  if (!pk) throw new Error('المفتاح الخاص غير موجود');
+  if (!pk) throw svcError('no_key');
   const secretKey = pk.startsWith('[') ? new Uint8Array(JSON.parse(pk)) : bs58.decode(pk);
   return web3.Keypair.fromSecretKey(secretKey);
 }
@@ -110,11 +111,11 @@ async function buildSwapTx(quote, walletPublicKey) {
         lastError = new Error(raw); continue;
       }
       const data = await res.json();
-      if (!data.swapTransaction) { lastError = new Error('بيانات المعاملة غير مكتملة'); continue; }
+      if (!data.swapTransaction) { lastError = svcError('tx_incomplete'); continue; }
       return data.swapTransaction;
     } catch (err) { lastError = err; }
   }
-  throw lastError || new Error('فشل بناء المعاملة');
+  throw lastError || svcError('build_failed');
 }
 
 // ─── تنفيذ المعاملة — الرسوم atomic ─────────────────────────────────────────
@@ -163,7 +164,7 @@ async function executeVersionedTx(swapTxBase64, keypair, connection, walletPubli
       const conf = await connection.confirmTransaction(
         { signature: sig, ...blockhashData }, 'confirmed'
       );
-      if (conf.value?.err) throw new Error('رفضت الشبكة المعاملة');
+      if (conf.value?.err) throw svcError('tx_rejected');
       break;
     } catch (err) {
       if (i < 2) {

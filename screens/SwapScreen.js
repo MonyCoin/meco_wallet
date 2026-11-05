@@ -172,7 +172,7 @@ export default function SwapScreen() {
       if (msg.includes('Network') || msg.includes('Timeout') || msg.includes('fetch')) {
         setErrorMsg(t('network_error'));
         setErrorType(ERROR_TYPE.NETWORK);
-      } else if (msg.includes('مسار') || msg.includes('Route') || msg.includes('route')) {
+      } else if (msg.includes('مسار') || msg.includes('Route') || msg.includes('route') || err.code === 'SVC_no_route') {
         setErrorMsg(t('swap_no_route'));
         setErrorType(ERROR_TYPE.ROUTE);
       } else {

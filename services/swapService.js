@@ -5,6 +5,7 @@ import { Buffer } from 'buffer';
 
 import { getSolBalance, getTokenBalance } from './heliusService';
 import { default as heliusService } from './heliusService';
+import { svcError } from './svcError';
 
 // ─── TOKEN_MINTS ──────────────────────────────────────────────────────────────
 export const TOKEN_MINTS = {
@@ -68,14 +69,14 @@ const fetchWithTimeout = async (url, options = {}, timeoutMs = 30000) => {
     return res;
   } catch (err) {
     clearTimeout(timeoutId);
-    if (err.name === 'AbortError') throw new Error('انتهت مهلة الاتصال بالخادم');
-    if (err.message.includes('Network request failed')) throw new Error('تعذر الاتصال بالخادم (Network Error)');
+    if (err.name === 'AbortError') throw svcError('timeout');
+    if (err.message.includes('Network request failed')) throw svcError('connect_failed');
     throw err;
   }
 };
 
 function getKeypairFromPrivateKey(privateKey) {
-  if (!privateKey) throw new Error('المفتاح الخاص غير موجود');
+  if (!privateKey) throw svcError('no_key');
   const secretKey = privateKey.startsWith('[')
     ? new Uint8Array(JSON.parse(privateKey))
     : bs58.decode(privateKey);
@@ -108,7 +109,7 @@ async function checkSignatureConfirmed(connection, signature) {
 
 // ─── getSwapQuote ─────────────────────────────────────────────────────────────
 export async function getSwapQuote(inputMint, outputMint, amount, slippageBps = 100) {
-  if (!inputMint || !outputMint) throw new Error('عملة غير مدعومة في التبادل');
+  if (!inputMint || !outputMint) throw svcError('unsupported_token');
 
   const isMeco      = inputMint === TOKEN_MINTS.MECO || outputMint === TOKEN_MINTS.MECO;
   const extraParams = isMeco ? '&onlyDirectRoutes=false' : '';
@@ -119,12 +120,12 @@ export async function getSwapQuote(inputMint, outputMint, amount, slippageBps = 
     const res = await fetchWithTimeout(url, { method: 'GET', headers: API_HEADERS }, 15000);
     if (!res.ok) throw new Error(await res.text());
     const quote = await res.json();
-    if (!quote?.routePlan) throw new Error('لا يوجد مسار للتبادل (السيولة قد تكون ضعيفة)');
+    if (!quote?.routePlan) throw svcError('no_route');
     console.log('✅ [Quote] نجح');
     return quote;
   } catch (err) {
     console.warn('❌ [Quote] فشل:', err.message);
-    throw new Error(`تعذر الحصول على سعر التبادل. ${err.message || ''}`);
+    throw svcError('quote_failed', { msg: err.message || '' });
   }
 }
 
@@ -147,12 +148,12 @@ export async function buildSwapTransaction(quote, userPublicKey) {
 
     if (!res.ok) throw new Error(await res.text());
     const data = await res.json();
-    if (!data.swapTransaction) throw new Error('بيانات المعاملة غير مكتملة');
+    if (!data.swapTransaction) throw svcError('tx_incomplete');
     console.log('✅ [Build] نجح');
     return data;
   } catch (err) {
     console.warn('❌ [Build] فشل:', err.message);
-    throw new Error(`فشل بناء المعاملة: ${err.message || ''}`);
+    throw svcError('build_failed_detail', { msg: err.message || '' });
   }
 }
 
@@ -221,7 +222,7 @@ async function executeSwapTransaction(quote, userPubKey, keypair, connection) {
       }, 'confirmed');
 
       if (!confirmation.value.err) break;
-      throw new Error('رفضت الشبكة المعاملة');
+      throw svcError('tx_rejected');
     } catch (confirmErr) {
       if (confirmAttempt < 2) {
         currentBlockhash = await connection.getLatestBlockhash('confirmed');
@@ -242,7 +243,7 @@ async function executeSwapTransaction(quote, userPubKey, keypair, connection) {
     }
   }
 
-  if (confirmation?.value?.err) throw new Error('رفضت الشبكة المعاملة');
+  if (confirmation?.value?.err) throw svcError('tx_rejected');
 
   return { swapSignature };
 }
@@ -263,7 +264,7 @@ export async function executeSwap(
   let keypair, userPubKey, connection;
   try {
     // أمان: لا نقرأ مفتاحًا قديمًا احتياطيًا؛ يجب تمرير مفتاح الحساب النشط صراحة
-    if (!privateKey) throw new Error('المفتاح الخاص غير موجود');
+    if (!privateKey) throw svcError('no_key');
     keypair    = getKeypairFromPrivateKey(privateKey);
     userPubKey = publicKey  ? new web3.PublicKey(publicKey) : keypair.publicKey;
     connection = await getConnection();
@@ -366,7 +367,7 @@ export async function checkBalance(tokenSymbol, amount, publicKey) {
 // ─── getSwapRate ──────────────────────────────────────────────────────────────
 export async function getSwapRate(inputSymbol, outputSymbol, amount) {
   if (!TOKEN_MINTS[inputSymbol] || !TOKEN_MINTS[outputSymbol]) {
-    throw new Error('عملة غير مدعومة في التبادل');
+    throw svcError('unsupported_token');
   }
 
   try {

@@ -3,6 +3,7 @@ import * as SecureStore from 'expo-secure-store';
 import * as web3 from '@solana/web3.js';
 import * as splToken from '@solana/spl-token';
 import * as backup from './alchemyService';
+import { svcError } from './svcError';
 
 const MECO_MINT_ADDRESS = 'A5Ln25cfww33kfUSzBb89bMha7j1PnFQTy7H3FsQHN7W';
 // ✅ المفتاح يُقرأ من متغير البيئة (يُحقن وقت البناء/التحديث) ولا يُكتب في الكود
@@ -135,7 +136,7 @@ class RPCManager {
         console.warn(`❌ Failed ${url}:`, error.message);
       }
     }
-    throw new Error('جميع اتصالات RPC فشلت');
+    throw svcError('rpc_failed');
   }
 
   async execute(method, ...args) {

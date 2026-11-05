@@ -12,6 +12,7 @@ import { getAssociatedTokenAddress, AccountLayout, getMint } from '@solana/spl-t
 import bs58 from 'bs58';
 import { Buffer } from 'buffer';
 import { default as heliusService } from './heliusService';
+import { svcError } from './svcError';
 
 // معرّف مشروع WalletConnect/Reown: علني بطبيعته. يُقرأ من EXPO_PUBLIC_WC_PROJECT_ID إن وُجد، وإلا القيمة الحالية.
 // (يجب كتابة process.env.EXPO_PUBLIC_* بهذه الصيغة المباشرة ليُدمج عند البناء)
@@ -261,7 +262,7 @@ async function getWalletKeypair() {
   if (!privateKeyStr && activeIndex === 0) {
     privateKeyStr = await SecureStore.getItemAsync('wallet_private_key');
   }
-  if (!privateKeyStr) throw new Error('المفتاح الخاص غير موجود');
+  if (!privateKeyStr) throw svcError('no_key');
   const secretKey = privateKeyStr.startsWith('[')
     ? new Uint8Array(JSON.parse(privateKeyStr))
     : bs58.decode(privateKeyStr);
@@ -351,7 +352,7 @@ function setupEventListeners() {
 export async function approveSession(proposal) {
   try {
     const pubKey = useAppStore.getState().walletPublicKey;
-    if (!pubKey) throw new Error('محفظة غير نشطة');
+    if (!pubKey) throw svcError('no_active_wallet');
     const namespaces = buildApprovedNamespaces({
       proposal: proposal.params,
       supportedNamespaces: {
@@ -468,7 +469,7 @@ async function handleRequestApproval(event) {
     }
 
     else {
-      throw new Error(`طريقة غير مدعومة: ${request.method}`);
+      throw svcError('unsupported_method', { method: request.method });
     }
 
     await web3wallet.respondSessionRequest({

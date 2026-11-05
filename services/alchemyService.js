@@ -5,6 +5,7 @@
 import * as SecureStore from 'expo-secure-store';
 import * as web3 from '@solana/web3.js';
 import * as splToken from '@solana/spl-token';
+import { svcError } from './svcError';
 
 const MECO_MINT_ADDRESS = 'A5Ln25cfww33kfUSzBb89bMha7j1PnFQTy7H3FsQHN7W';
 // ✅ المفتاح يُقرأ من متغير البيئة (يُحقن وقت البناء/التحديث) ولا يُكتب في الكود
@@ -123,9 +124,9 @@ async function pollSignatureStatus(connection, signature, lastValidBlockHeight, 
   } catch (_) {}
 
   if (expired) {
-    throw new Error('لم تُنفذ المعاملة (انتهت صلاحيتها ولم تصل للشبكة). لم يُخصم شيء ويمكنك المحاولة مجددًا.');
+    throw svcError('tx_expired');
   }
-  throw new Error(`المعاملة قيد التأكيد ولم يصل تأكيدها بعد. لا تُعد المحاولة قبل التحقق من محفظتك أو من Solscan.\nالتوقيع: ${signature}`);
+  throw svcError('tx_pending', { signature });
 }
 
 function usePollingConfirmation(connection) {
@@ -194,7 +195,7 @@ class RPCManager {
         console.warn(`❌ Failed ${url}:`, error.message);
       }
     }
-    throw new Error('جميع اتصالات RPC فشلت');
+    throw svcError('rpc_failed');
   }
 
   async execute(method, ...args) {

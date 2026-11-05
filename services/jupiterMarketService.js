@@ -1,5 +1,6 @@
 // services/jupiterMarketService.js
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { svcError } from './svcError';
 
 export const CORE_TOKENS = [
   { id:'solana',                   symbol:'SOL',    name:'Solana',              decimals:9, swapAvailable:true,  image:'https://assets.coingecko.com/coins/images/4128/large/solana.png',         mint:'So11111111111111111111111111111111111111112' },
@@ -195,7 +196,7 @@ export async function getCustomTokens() {
 export async function saveCustomToken(token) {
   const existing = await getCustomTokens();
   if (existing.find(t => t.mint.toLowerCase() === token.mint.toLowerCase()))
-    throw new Error('هذا الرمز مضاف بالفعل');
+    throw svcError('token_added');
   const updated = [...existing, token];
   await AsyncStorage.setItem(CUSTOM_TOKENS_KEY, JSON.stringify(updated));
   return updated;
@@ -209,15 +210,15 @@ export async function deleteCustomToken(mintAddress) {
 }
 
 export async function fetchCustomTokenByMint(mintAddress) {
-  if (!mintAddress || mintAddress.trim().length < 32) throw new Error('عنوان العقد غير صالح');
+  if (!mintAddress || mintAddress.trim().length < 32) throw svcError('invalid_contract');
   const mint = mintAddress.trim();
   if (CORE_TOKENS.find(t => t.mint.toLowerCase() === mint.toLowerCase()))
-    throw new Error('هذا الرمز موجود بالفعل في القائمة');
+    throw svcError('token_in_list');
 
   const res = await fetchWithTimeout(`https://api.dexscreener.com/latest/dex/tokens/${mint}`, 10000);
-  if (!res.ok) throw new Error('فشل الاتصال بالخادم');
+  if (!res.ok) throw svcError('server_failed');
   const data = await res.json();
-  if (!data?.pairs?.length) throw new Error('لم يتم العثور على بيانات لهذا الرمز');
+  if (!data?.pairs?.length) throw svcError('no_token_data');
 
   const pair = data.pairs.reduce((b, p) =>
     (p.liquidity?.usd||0) > (b.liquidity?.usd||0) ? p : b, data.pairs[0]);
