@@ -593,7 +593,7 @@ const resources = {
       staking_card: {
         section: "التخزين",
         your_stake: "تخزينك مع Marinade",
-        manage: "للإدارة أو السحب افتح Marinade",
+        manage: "لإضافة تخزين أو الإدارة أو السحب افتح Marinade",
         cta_title: "تخزين SOL مع Marinade",
         cta_sub: "تخزين سائل — خدمة خارجية",
         notice_title: "خدمة خارجية",
@@ -1276,7 +1276,7 @@ const resources = {
       staking_card: {
         section: "Staking",
         your_stake: "Your Marinade stake",
-        manage: "Open Marinade to manage or unstake",
+        manage: "Open Marinade to add, manage or unstake",
         cta_title: "Stake SOL with Marinade",
         cta_sub: "Liquid staking — external service",
         notice_title: "External service",

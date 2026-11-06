@@ -943,9 +943,9 @@ export default function WalletScreen() {
                 {t('staking_card.section')}
               </Text>
             </View>
-            {msol.amount > 0.000001 && (
+            {msol.amount > 0.000001 ? (
               <TouchableOpacity
-                style={[styles.stakingCard, { backgroundColor: colors.card, marginBottom: 10 }]}
+                style={[styles.stakingCard, { backgroundColor: colors.card }]}
                 onPress={openMarinade}
                 activeOpacity={0.85}
               >
@@ -969,7 +969,7 @@ export default function WalletScreen() {
                   {t('staking_card.manage')}
                 </Text>
               </TouchableOpacity>
-            )}
+            ) : (
             <TouchableOpacity
               style={[styles.stakingEmptyCard, { backgroundColor: colors.card }]}
               onPress={openMarinade}
@@ -988,6 +988,7 @@ export default function WalletScreen() {
               </View>
               <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
             </TouchableOpacity>
+            )}
           </View>
 
           <View style={styles.activitySection}>
