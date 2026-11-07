@@ -441,7 +441,7 @@ export default function AddressBookScreen() {
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             style={S.modalOverlay}
           >
-            <View style={[S.modalSheet, { backgroundColor: C.card }]}>
+            <View style={[S.modalSheet, { backgroundColor: C.card, paddingBottom: Math.max(insets.bottom, 12) + 12 }]}>
               <View style={[S.handle, { backgroundColor: C.border }]} />
 
               <View style={S.modalHeader}>

@@ -376,7 +376,7 @@ export default function PriceAlertsScreen() {
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             style={S.modalOverlay}
           >
-            <View style={[S.modalSheet, { backgroundColor: C.card }]}>
+            <View style={[S.modalSheet, { backgroundColor: C.card, paddingBottom: Math.max(insets.bottom, 12) + 12 }]}>
               <View style={[S.handle, { backgroundColor: C.border }]} />
 
               <View style={S.modalHeader}>
@@ -514,7 +514,7 @@ export default function PriceAlertsScreen() {
       {/* ═══ Modal: اختيار العملة ═══ */}
       <Modal visible={tokenModal} transparent animationType="slide" onRequestClose={() => setTokenModal(false)}>
         <View style={S.modalOverlay}>
-          <View style={[S.tokenSheet, { backgroundColor: C.card }]}>
+          <View style={[S.tokenSheet, { backgroundColor: C.card, paddingBottom: Math.max(insets.bottom, 12) + 12 }]}>
             <View style={[S.handle, { backgroundColor: C.border }]} />
             <View style={S.modalHeader}>
               <Text style={[S.modalTitle, { color: C.text }]}>

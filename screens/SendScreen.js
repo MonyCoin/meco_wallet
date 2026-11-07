@@ -719,7 +719,7 @@ export default function SendScreen() {
         onRequestClose={() => setState(prev => ({ ...prev, modalVisible: false }))}
       >
         <View style={styles.modalOverlay}>
-          <View style={[styles.tokenSheet, { backgroundColor: colors.card }]}>
+          <View style={[styles.tokenSheet, { backgroundColor: colors.card, paddingBottom: Math.max(insets.bottom, 12) + 12 }]}>
             <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
 
             <View style={styles.modalHeader}>
@@ -758,7 +758,7 @@ export default function SendScreen() {
       {/* ═══ Modal: حفظ/تعديل العنوان ═══ */}
       <Modal visible={saveAddressModalVisible} transparent animationType="slide" onRequestClose={() => setSaveAddressModalVisible(false)}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalOverlay}>
-          <View style={[styles.saveSheet, { backgroundColor: colors.card }]}>
+          <View style={[styles.saveSheet, { backgroundColor: colors.card, paddingBottom: Math.max(insets.bottom, 12) + 12 }]}>
             <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
 
             <View style={styles.modalHeader}>
