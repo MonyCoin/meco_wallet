@@ -2,7 +2,6 @@
 import { CORE_TOKENS } from './jupiterMarketService';
 
 const COINGECKO_API   = 'https://api.coingecko.com/api/v3';
-const DEXSCREENER_API = 'https://api.dexscreener.com/latest/dex/tokens';
 const CACHE_DURATION  = 60000;
 const FETCH_TIMEOUT   = 8000;
 
@@ -15,7 +14,8 @@ const COINGECKO_IDS = {
   BOME:'book-of-meme', POPCAT:'popcat', MEW:'cat-in-a-dogs-world',
 };
 
-const NO_CHART = new Set(['USDT','USDC']);
+// العملات المستقرة: مخطط حقيقي من CoinGecko فقط — لا بيانات مولَّدة عند الفشل
+const STABLE   = new Set(['USDT','USDC']);
 const CACHE    = {};
 
 const fetchWT = (url, ms = FETCH_TIMEOUT) => {
@@ -25,56 +25,107 @@ const fetchWT = (url, ms = FETCH_TIMEOUT) => {
     .finally(() => clearTimeout(timer));
 };
 
-// ─── DexScreener OHLC — لكل عملة بدون CoinGecko ID (MECO والرموز المخصصة) ───
-async function buildOHLCFromDexScreener(symbol, mint, days) {
-  const key = `dex_${symbol}_${days}`;
+// ─── شموع حقيقية من GeckoTerminal — لكل عملة بدون CoinGecko ID (MECO والرموز المخصصة) ───
+// لا نُولّد أي بيانات: إن تعذّر الجلب يُعاد مخطط فارغ.
+const GECKO_API = 'https://api.geckoterminal.com/api/v2/networks/solana';
+const POOL_CACHE = {};
+const POOL_TTL   = 6 * 3600 * 1000;
+
+// أكبر مجمّع سيولة للرمز (ونحدد هل الرمز هو base أم quote فيه)
+async function getTopPool(mint) {
+  const c = POOL_CACHE[mint];
+  if (c && Date.now() - c.ts < POOL_TTL) return c;
+  const res = await fetchWT(`${GECKO_API}/tokens/${mint}/pools?page=1`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const json  = await res.json();
+  const pools = Array.isArray(json?.data) ? json.data : [];
+  if (!pools.length) throw new Error('No pools');
+  const liq  = (p) => parseFloat(p?.attributes?.reserve_in_usd || 0);
+  const best = pools.reduce((b, p) => (liq(p) > liq(b) ? p : b), pools[0]);
+  const pool = best?.attributes?.address;
+  if (!pool) throw new Error('No pool address');
+  const quoteId = String(best?.relationships?.quote_token?.data?.id || '').toLowerCase();
+  const side    = quoteId.endsWith(String(mint).toLowerCase()) ? 'quote' : 'base';
+  const entry   = { pool, side, ts: Date.now() };
+  POOL_CACHE[mint] = entry;
+  return entry;
+}
+
+// خطة الجلب لكل إطار زمني (عدد الشموع النهائي ≤ 60 ليناسب الشاشتين)
+function ohlcvPlan(days) {
+  if (days <= 1)  return { unit:'hour', agg:1,  limit:24,  merge:1 };
+  if (days <= 7)  return { unit:'hour', agg:4,  limit:42,  merge:1 };
+  if (days <= 30) return { unit:'hour', agg:12, limit:60,  merge:1 };
+  if (days <= 90) return { unit:'day',  agg:1,  limit:90,  merge:2 };
+  return { unit:'day', agg:1, limit:Math.min(days, 365), merge:Math.ceil(Math.min(days, 365) / 52) };
+}
+
+function mergeCandles(rows, n) {
+  if (n <= 1) return rows;
+  const out = [];
+  for (let i = 0; i < rows.length; i += n) {
+    const g = rows.slice(i, i + n);
+    out.push({
+      timestamp: g[0].timestamp,
+      open:      g[0].open,
+      high:      Math.max(...g.map(x => x.high)),
+      low:       Math.min(...g.map(x => x.low)),
+      close:     g[g.length - 1].close,
+      volume:    g.reduce((a, x) => a + (x.volume || 0), 0),
+    });
+  }
+  return out;
+}
+
+async function buildOHLCFromGeckoTerminal(symbol, mint, days) {
+  const key = `gt_${symbol}_${mint}_${days}`;
   const now = Date.now();
   if (CACHE[key] && now - CACHE[key].ts < CACHE_DURATION) return CACHE[key].data;
 
   try {
-    const res  = await fetchWT(`${DEXSCREENER_API}/${mint}`);
+    const { pool, side } = await getTopPool(mint);
+    const plan = ohlcvPlan(days);
+    let url = `${GECKO_API}/pools/${pool}/ohlcv/${plan.unit}?aggregate=${plan.agg}&limit=${plan.limit}&currency=usd`;
+    if (side === 'quote') url += '&token=quote';
+    const res = await fetchWT(url);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const json = await res.json();
-    if (!json?.pairs?.length) throw new Error('No pairs');
+    const list = json?.data?.attributes?.ohlcv_list;
+    if (!Array.isArray(list) || !list.length) throw new Error('No candles');
 
-    const pair         = json.pairs.reduce((b, p) => (p.liquidity?.usd||0)>(b.liquidity?.usd||0)?p:b, json.pairs[0]);
-    const currentPrice = parseFloat(pair.priceUsd || 0);
-    const change24h    = parseFloat(pair.priceChange?.h24 || 0);
-    const volume24h    = parseFloat(pair.volume?.h24 || 0);
-    const openPrice    = change24h !== -100 ? currentPrice / (1 + change24h/100) : currentPrice;
-    const high         = currentPrice * (1 + Math.abs(change24h)/100);
-    const low          = currentPrice * (1 - Math.abs(change24h)/100);
+    const raw = list
+      .map(r => ({ timestamp:Number(r[0]) * 1000, open:+r[1], high:+r[2], low:+r[3], close:+r[4], volume:+r[5] || 0 }))
+      .filter(r => [r.open, r.high, r.low, r.close].every(Number.isFinite) && r.close > 0)
+      .sort((a, b) => a.timestamp - b.timestamp);
+    if (!raw.length) throw new Error('No valid candles');
 
-    const pts    = days <= 1 ? 24 : days * 4;
-    const msPerP = (days * 86400000) / pts;
-    const data   = [];
-    for (let i = 0; i < pts; i++) {
-      const t     = now - (pts - i) * msPerP;
-      const prog  = i / pts;
-      const base  = openPrice + (currentPrice - openPrice) * prog;
-      const noise = base * 0.005 * Math.sin(i * 2.5);
-      const close = base + noise;
-      const open  = i === 0 ? openPrice : data[i-1].close;
-      data.push({ timestamp:t, open, high:Math.max(open,close)*1.003, low:Math.min(open,close)*0.997, close });
-    }
+    const volume24h = raw.filter(r => r.timestamp >= now - 86400000).reduce((a, r) => a + r.volume, 0);
+    const data      = mergeCandles(raw, plan.merge);
+    const first     = data[0].open;
+    const last      = data[data.length - 1].close;
+    const chg       = first > 0 ? ((last - first) / first) * 100 : 0;
 
     const result = {
-      symbol, days, data,
-      stats:{ currentPrice, openPrice, high, low, volume24h, periodChange:change24h, periodChangeFormatted:fmtChg(change24h) },
+      symbol, days,
+      data: data.map(({ timestamp, open, high, low, close }) => ({ timestamp, open, high, low, close })),
+      volumeData: data.map(d => ({ timestamp:d.timestamp, volume:d.volume || 0 })),
+      stats:{
+        currentPrice:last, openPrice:first,
+        high:Math.max(...data.map(d => d.high)), low:Math.min(...data.map(d => d.low)),
+        volume24h, periodChange:chg, periodChangeFormatted:fmtChg(chg),
+      },
       sparklineData: sparkline(data), timestamp:now, isFallback:false,
     };
     CACHE[key] = { data:result, ts:now };
     return result;
   } catch (e) {
-    console.warn(`[Chart] DexScreener failed for ${symbol}:`, e.message);
+    console.warn(`[Chart] GeckoTerminal failed for ${symbol}:`, e.message);
     return empty(symbol, days);
   }
 }
 
 // ─── getOHLCData — موحد لكل العملات ──────────────────────────────────────────
 export async function getOHLCData(symbol, days = 7, mintOverride = null, coinIdOverride = null) {
-  if (NO_CHART.has(symbol)) return empty(symbol, days);
-
   // العملات الخارجية (BTC/ETH/...) بتبعت coingeckoId جاهز من الشاشة، فبنفضّله
   // على الخريطة المحلية اللي مقتصرة على عملات سولانا فقط
   const coinId = coinIdOverride || COINGECKO_IDS[symbol];
@@ -84,7 +135,7 @@ export async function getOHLCData(symbol, days = 7, mintOverride = null, coinIdO
     const token = CORE_TOKENS.find(t => t.symbol === symbol);
     const mint  = mintOverride || token?.mint;
     if (!mint) return empty(symbol, days);
-    return buildOHLCFromDexScreener(symbol, mint, days);
+    return buildOHLCFromGeckoTerminal(symbol, mint, days);
   }
 
   const key = `cg_${symbol}_${days}`;
@@ -115,16 +166,17 @@ export async function getOHLCData(symbol, days = 7, mintOverride = null, coinIdO
     return result;
   } catch (e) {
     console.warn(`[Chart] CoinGecko failed for ${symbol}, fallback DexScreener:`, e.message);
+    if (STABLE.has(symbol)) return empty(symbol, days);
     const token = CORE_TOKENS.find(t => t.symbol === symbol);
     const mint  = mintOverride || token?.mint;
-    if (mint) return buildOHLCFromDexScreener(symbol, mint, days);
+    if (mint) return buildOHLCFromGeckoTerminal(symbol, mint, days);
     return empty(symbol, days);
   }
 }
 
 export async function getVolumeData(symbol, days = 7, coinIdOverride = null) {
   const coinId = coinIdOverride || COINGECKO_IDS[symbol];
-  if (NO_CHART.has(symbol) || !coinId) return [];
+  if (!coinId) return [];
   const key = `vol_${symbol}_${days}`;
   const now = Date.now();
   if (CACHE[key] && now - CACHE[key].ts < CACHE_DURATION) return CACHE[key].data;
@@ -144,7 +196,7 @@ export async function getFullChartData(symbol, days = 7, mintOverride = null, co
     getOHLCData(symbol, days, mintOverride, coinIdOverride),
     getVolumeData(symbol, days, coinIdOverride),
   ]);
-  return { ...ohlc, volumeData: vol };
+  return { ...ohlc, volumeData: ohlc.volumeData?.length ? ohlc.volumeData : vol };
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

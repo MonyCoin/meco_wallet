@@ -60,10 +60,11 @@ chart.subscribeCrosshairMove(p=>{
   document.getElementById('tt_c').textContent='C: '+d.close.toFixed(6);
   document.getElementById('tt').style.display='block';
 });
-window.setChartData=function(cd,vd,dec){
+const stableProv=function(orig){var r=orig();if(r&&r.priceRange){var mn=r.priceRange.minValue,mx=r.priceRange.maxValue,mid=(mn+mx)/2,half=Math.max((mx-mn)/2,0.003);r.priceRange={minValue:mid-half,maxValue:mid+half};}return r;};
+window.setChartData=function(cd,vd,dec,stable){
   if(!cd||!cd.length)return;
   candles.setData(cd);if(vd&&vd.length)vol.setData(vd);
-  candles.applyOptions({priceFormat:{type:'price',precision:dec||6,minMove:Math.pow(10,-(dec||6))}});
+  candles.applyOptions({priceFormat:{type:'price',precision:dec||6,minMove:Math.pow(10,-(dec||6))},autoscaleInfoProvider:stable?stableProv:function(o){return o();}});
   chart.timeScale().fitContent();
 };
 window.addEventListener('resize',()=>chart.resize(window.innerWidth,window.innerHeight));
@@ -159,7 +160,8 @@ export default function QuickTradeScreen() {
       if (!result?.data?.length) { setChartLoading(false); return; }
 
       const price    = result.stats?.currentPrice || 0;
-      const decimals = price > 1 ? 2 : price > 0.01 ? 4 : price > 0.0001 ? 6 : 8;
+      const isStable = token.symbol === 'USDT' || token.symbol === 'USDC';
+      const decimals = isStable ? 4 : price > 1 ? 2 : price > 0.01 ? 4 : price > 0.0001 ? 6 : 8;
 
       setPriceStats(prev => ({
         ...prev,
@@ -182,7 +184,7 @@ export default function QuickTradeScreen() {
         color: '#3B82F620',
       })).sort((a, b) => a.time - b.time) || [];
 
-      const js = `window.setChartData(${JSON.stringify(candleData)},${JSON.stringify(volData)},${decimals});true;`;
+      const js = `window.setChartData(${JSON.stringify(candleData)},${JSON.stringify(volData)},${decimals},${isStable});true;`;
       if (chartReady.current) webviewRef.current?.injectJavaScript(js);
       else pendingData.current = js;
     } catch (_) {}

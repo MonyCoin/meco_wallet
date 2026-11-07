@@ -7,10 +7,10 @@ export const CORE_TOKENS = [
   { id:'MonyCoin',                 symbol:'MECO',   name:'MonyCoin',            decimals:9, swapAvailable:true,  image:'https://raw.githubusercontent.com/MonyCoin/meco-token/refs/heads/main/meco.logo.png', mint:'A5Ln25cfww33kfUSzBb89bMha7j1PnFQTy7H3FsQHN7W' },
   { id:'tether',                   symbol:'USDT',   name:'Tether',              decimals:6, swapAvailable:true,  image:'https://assets.coingecko.com/coins/images/325/large/Tether.png',          mint:'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB' },
   { id:'usd-coin',                 symbol:'USDC',   name:'USD Coin',            decimals:6, swapAvailable:true,  image:'https://assets.coingecko.com/coins/images/6319/large/usdc.png',           mint:'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v' },
-  { id:'jupiter-exchange-solana',  symbol:'JUP',    name:'Jupiter',             decimals:6, swapAvailable:true,  image:'https://assets.coingecko.com/coins/images/34188/large/jup.png',           mint:'JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbJedZ89LxcQ' },
+  { id:'jupiter-exchange-solana',  symbol:'JUP',    name:'Jupiter',             decimals:6, swapAvailable:true,  image:'https://assets.coingecko.com/coins/images/34188/large/jup.png',           mint:'JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN' },
   { id:'raydium',                  symbol:'RAY',    name:'Raydium',             decimals:6, swapAvailable:true,  image:'https://assets.coingecko.com/coins/images/13928/large/PSigc4ie_400x400.jpg', mint:'4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R' },
   { id:'orca',                     symbol:'ORCA',   name:'Orca',                decimals:6, swapAvailable:true,  image:'https://assets.coingecko.com/coins/images/17547/large/Orca_Logo.png',     mint:'orcaEKTdK7LKz57vaAYr9QeNsVEPfiu6QeMU1kektZE'  },
-  { id:'pyth-network',             symbol:'PYTH',   name:'Pyth Network',        decimals:6, swapAvailable:true,  image:'https://assets.coingecko.com/coins/images/31924/large/pyth.png',          mint:'HZ1JovNiVvGrGNiiYvEozEVgZ58xaU3T7ef8R2mMWBwp'  },
+  { id:'pyth-network',             symbol:'PYTH',   name:'Pyth Network',        decimals:6, swapAvailable:true,  image:'https://assets.coingecko.com/coins/images/31924/large/pyth.png',          mint:'HZ1JovNiVvGrGNiiYvEozEVgZ58xaU3RKwX8eACQBCt3'  },
   { id:'helium',                   symbol:'HNT',    name:'Helium',              decimals:8, swapAvailable:true,  image:'https://assets.coingecko.com/coins/images/4284/large/Helium_HNT.png',     mint:'hntyVP6YFm1Hg25TN9WGLqM12b8TQmcknKrdu1oxWux'  },
   { id:'bonk',                     symbol:'BONK',   name:'Bonk',                decimals:5, swapAvailable:true,  image:'https://assets.coingecko.com/coins/images/28600/large/bonk.jpg',          mint:'DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263'  },
   { id:'dogwifcoin',               symbol:'WIF',    name:'dogwifhat',           decimals:6, swapAvailable:true,  image:'https://assets.coingecko.com/coins/images/33566/large/dogwifhat.jpg',     mint:'EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm' },
@@ -32,29 +32,35 @@ const fetchWithTimeout = (url, ms = FETCH_TIMEOUT) => {
 };
 
 // ─── DexScreener ──────────────────────────────────────────────────────────────
+// DexScreener يقطع الاستجابة عند ~30 زوجًا للطلب الواحد، فنسأل عن الرموز على دفعات صغيرة
+const DEX_BATCH = 3;
 const fetchDexScreener = async (mints) => {
   const result = new Map();
   if (!mints?.length) return result;
-  try {
-    const url  = `https://api.dexscreener.com/latest/dex/tokens/${mints.join(',')}`;
-    const res  = await fetchWithTimeout(url);
-    if (!res.ok) return result;
-    const data = await res.json();
-    if (!data?.pairs) return result;
-    for (const pair of data.pairs) {
-      const ml = pair.baseToken?.address?.toLowerCase();
-      if (!ml) continue;
-      const ex = result.get(ml);
-      if (!ex || (pair.liquidity?.usd||0) > (ex._liq||0)) {
-        result.set(ml, {
-          price:     parseFloat(pair.priceUsd        || 0),
-          change24h: parseFloat(pair.priceChange?.h24 || 0),
-          imageUrl:  pair.info?.imageUrl || null,
-          _liq:      pair.liquidity?.usd || 0,
-        });
+  const chunks = [];
+  for (let i = 0; i < mints.length; i += DEX_BATCH) chunks.push(mints.slice(i, i + DEX_BATCH));
+  await Promise.all(chunks.map(async (chunk) => {
+    try {
+      const url  = `https://api.dexscreener.com/latest/dex/tokens/${chunk.join(',')}`;
+      const res  = await fetchWithTimeout(url);
+      if (!res.ok) return;
+      const data = await res.json();
+      if (!data?.pairs) return;
+      for (const pair of data.pairs) {
+        const ml = pair.baseToken?.address?.toLowerCase();
+        if (!ml) continue;
+        const ex = result.get(ml);
+        if (!ex || (pair.liquidity?.usd||0) > (ex._liq||0)) {
+          result.set(ml, {
+            price:     parseFloat(pair.priceUsd        || 0),
+            change24h: parseFloat(pair.priceChange?.h24 || 0),
+            imageUrl:  pair.info?.imageUrl || null,
+            _liq:      pair.liquidity?.usd || 0,
+          });
+        }
       }
-    }
-  } catch (_) {}
+    } catch (_) {}
+  }));
   return result;
 };
 
