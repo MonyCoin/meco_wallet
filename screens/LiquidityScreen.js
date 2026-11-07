@@ -16,8 +16,8 @@ import {
 } from '../services/liquidityActions';
 
 const C = {
-  bg: '#07070F', card: '#111122', card2: '#171730',
-  text: '#EEEEFF', muted: '#7E7EAA', success: '#10B981', warn: '#F59E0B', error: '#EF4444',
+  bg: '#000000', card: '#141414', card2: '#1E1E1E',
+  text: '#F2F2F2', muted: '#8A8A8E', success: '#10B981', warn: '#F59E0B', error: '#EF4444',
 };
 
 // النصوص في i18n.js تحت المجموعة liquidity (العربية/الإنجليزية)؛ الإنجليزية احتياطًا لأي مفتاح ناقص

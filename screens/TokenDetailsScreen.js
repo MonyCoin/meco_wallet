@@ -71,13 +71,13 @@ export default function TokenDetailsScreen() {
 
   // التطبيق يعمل بالنمط الغامق فقط
   const C = {
-    bg:      '#07070F',
-    card:    '#111122',
-    card2:   '#171730',
-    text:    '#EEEEFF',
-    muted:   '#7E7EAA',
-    dim:     '#505070',
-    border:  '#1E1E38',
+    bg:      '#000000',
+    card:    '#141414',
+    card2:   '#1E1E1E',
+    text:    '#F2F2F2',
+    muted:   '#8A8A8E',
+    dim:     '#5A5A5E',
+    border:  '#262626',
     success: '#10B981', error: '#EF4444',
     primary: primaryColor,
   };
@@ -574,7 +574,7 @@ const S = StyleSheet.create({
   gridLabel:  { fontSize:11, marginBottom:4 },
   gridValue:  { fontSize:14, fontWeight:'700' },
   athRow:     { flexDirection:'row', alignItems:'center', marginTop:8 },
-  athItem:    { flex:1, alignItems:'center', gap:2, backgroundColor:'#111122', borderRadius:16, paddingVertical:12, marginHorizontal:4 },
+  athItem:    { flex:1, alignItems:'center', gap:2, backgroundColor:'#141414', borderRadius:16, paddingVertical:12, marginHorizontal:4 },
   athLabel:   { fontSize:11, fontWeight:'600' },
   athVal:     { fontSize:14, fontWeight:'700' },
   athChg:     { fontSize:11, fontWeight:'600' },

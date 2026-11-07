@@ -103,12 +103,12 @@ const getPairNames = (symbol, lang) => {
 const ForexTicker = ({ data, isDark }) => {
   const { i18n } = useTranslation();
   const C = {
-    text: isDark?'#EEEEFF':'#1C1C24',
-    muted: isDark?'#7E7EAA':'#8A8A9E',
+    text: isDark?'#F2F2F2':'#1C1C24',
+    muted: isDark?'#8A8A8E':'#8A8A9E',
     success:'#10B981', error:'#EF4444',
-    card:   isDark?'#111122':'#FFFFFF',
-    border: isDark?'#1E1E38':'#E8E8F2',
-    flagBg: isDark?'#1E1E38':'#EEF0F6',
+    card:   isDark?'#141414':'#FFFFFF',
+    border: isDark?'#262626':'#E8E8F2',
+    flagBg: isDark?'#262626':'#EEF0F6',
   };
 
   const scrollX = useRef(new Animated.Value(0)).current;
@@ -296,8 +296,8 @@ const MarketHeroBanner = React.memo(({ token, primaryColor, onPress, onTrade }) 
       <Svg width={HERO_W} height={HERO_H} style={StyleSheet.absoluteFill}>
         <Defs>
           <LinearGradient id="heroBg" x1="0" y1="0" x2="1" y2="1">
-            <Stop offset="0" stopColor="#15152E" />
-            <Stop offset="1" stopColor="#0A0A16" />
+            <Stop offset="0" stopColor="#1C1C1C" />
+            <Stop offset="1" stopColor="#0A0A0A" />
           </LinearGradient>
           <LinearGradient id="heroArea" x1="0" y1="0" x2="0" y2="1">
             <Stop offset="0" stopColor={accent} stopOpacity="0.28" />
@@ -388,11 +388,11 @@ const MarketHeroBanner = React.memo(({ token, primaryColor, onPress, onTrade }) 
 const MarketOverviewCard = React.memo(({ data, isDark, primaryColor }) => {
   const { t } = useTranslation();
   const C = {
-    text: isDark?'#EEEEFF':'#1C1C24',
-    muted: isDark?'#7E7EAA':'#8A8A9E',
+    text: isDark?'#F2F2F2':'#1C1C24',
+    muted: isDark?'#8A8A8E':'#8A8A9E',
     success:'#10B981', error:'#EF4444',
-    border: isDark?'#1E1E38':'#E8E8F2',
-    card: isDark?'#111122':'#FFFFFF',
+    border: isDark?'#262626':'#E8E8F2',
+    card: isDark?'#141414':'#FFFFFF',
   };
   const up = (data?.marketCapChange24h || 0) >= 0;
   return (
@@ -445,11 +445,11 @@ const TokenIconImg = ({ uri, size, symbol, bg, color }) => {
 
 const TokenListItem = React.memo(({ token, onPress, onLongPress, isDark, primaryColor }) => {
   const C = {
-    text: isDark?'#EEEEFF':'#1C1C24',
-    muted: isDark?'#7E7EAA':'#8A8A9E',
+    text: isDark?'#F2F2F2':'#1C1C24',
+    muted: isDark?'#8A8A8E':'#8A8A9E',
     success:'#10B981', error:'#EF4444',
-    border: isDark?'#1E1E38':'#E8E8F2',
-    iconBg: isDark?'#171730':'#ECECF4',
+    border: isDark?'#262626':'#E8E8F2',
+    iconBg: isDark?'#1E1E1E':'#ECECF4',
   };
   const up = (token.price_change_percentage_24h || 0) >= 0;
   return (
@@ -490,9 +490,9 @@ const TokenListItem = React.memo(({ token, onPress, onLongPress, isDark, primary
 
 const GlobalMarketCard = ({ item, isDark, onPress }) => {
   const C = {
-    card: isDark?'#111122':'#FFFFFF',
-    text: isDark?'#EEEEFF':'#1C1C24',
-    border: isDark?'#1E1E38':'#E8E8F2',
+    card: isDark?'#141414':'#FFFFFF',
+    text: isDark?'#F2F2F2':'#1C1C24',
+    border: isDark?'#262626':'#E8E8F2',
     success:'#10B981', error:'#EF4444',
   };
   const price  = item.current_price || 0;
@@ -542,8 +542,8 @@ const GlobalMarketCard = ({ item, isDark, onPress }) => {
 
 const HorizontalMarketSection = ({ titleKey, descKey, data, isDark, primaryColor, onPressItem, t }) => {
   const C = {
-    text: isDark?'#EEEEFF':'#1C1C24',
-    muted: isDark?'#7E7EAA':'#8A8A9E',
+    text: isDark?'#F2F2F2':'#1C1C24',
+    muted: isDark?'#8A8A8E':'#8A8A9E',
   };
   if (!data || data.length === 0) return null;
   return (
@@ -581,11 +581,11 @@ export default function MarketScreen() {
   const insets       = useSafeAreaInsets();
 
   const C = {
-    bg:     isDark?'#07070F':'#F4F5F9',
-    card:   isDark?'#111122':'#FFFFFF',
-    text:   isDark?'#EEEEFF':'#1C1C24',
-    muted:  isDark?'#7E7EAA':'#8A8A9E',
-    border: isDark?'#1E1E38':'#E8E8F2',
+    bg:     isDark?'#000000':'#F4F5F9',
+    card:   isDark?'#141414':'#FFFFFF',
+    text:   isDark?'#F2F2F2':'#1C1C24',
+    muted:  isDark?'#8A8A8E':'#8A8A9E',
+    border: isDark?'#262626':'#E8E8F2',
     success:'#10B981', error:'#EF4444',
   };
 

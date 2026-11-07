@@ -28,21 +28,21 @@ const buildChartHtml = (isDark, accent) => `
 <!DOCTYPE html><html><head>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
-<style>*{margin:0;padding:0;box-sizing:border-box}html,body{width:100%;height:100%;overflow:hidden;background:${isDark?'#111122':'#FFFFFF'}}#chart{width:100%;height:100vh}
-#tt{position:absolute;top:12px;left:12px;z-index:100;background:${isDark?'rgba(17,17,34,.94)':'rgba(255,255,255,.94)'};border:1px solid ${isDark?'#1E1E38':'#E8E8F2'};border-radius:10px;padding:8px 12px;font-size:12px;color:${isDark?'#EEEEFF':'#0D0D1A'};display:none;font-family:-apple-system,sans-serif}
-#tt span{display:block;margin:1px 0}.l{color:${isDark?'#7E7EAA':'#8A8A9E'};font-size:11px}.v{font-weight:700;font-size:13px}.u{color:#10B981}.d{color:#EF4444}</style>
+<style>*{margin:0;padding:0;box-sizing:border-box}html,body{width:100%;height:100%;overflow:hidden;background:${isDark?'#141414':'#FFFFFF'}}#chart{width:100%;height:100vh}
+#tt{position:absolute;top:12px;left:12px;z-index:100;background:${isDark?'rgba(20,20,20,.94)':'rgba(255,255,255,.94)'};border:1px solid ${isDark?'#262626':'#E8E8F2'};border-radius:10px;padding:8px 12px;font-size:12px;color:${isDark?'#F2F2F2':'#0D0D1A'};display:none;font-family:-apple-system,sans-serif}
+#tt span{display:block;margin:1px 0}.l{color:${isDark?'#8A8A8E':'#8A8A9E'};font-size:11px}.v{font-weight:700;font-size:13px}.u{color:#10B981}.d{color:#EF4444}</style>
 </head><body><div id="chart"></div>
 <div id="tt"><span class="l" id="tt_t"></span><span class="v" id="tt_o"></span><span class="v u" id="tt_h"></span><span class="v d" id="tt_l"></span><span class="v" id="tt_c"></span></div>
 <script>
 const chart=LightweightCharts.createChart(document.getElementById('chart'),{
   width:window.innerWidth,height:window.innerHeight,
-  layout:{background:{type:'solid',color:'${isDark?'#111122':'#FFFFFF'}'},textColor:'${isDark?'#7E7EAA':'#8A8A9E'}',fontSize:11},
-  grid:{vertLines:{color:'${isDark?'#1E1E38':'#F4F5F9'}'},horzLines:{color:'${isDark?'#1E1E38':'#F4F5F9'}'}},
+  layout:{background:{type:'solid',color:'${isDark?'#141414':'#FFFFFF'}'},textColor:'${isDark?'#8A8A8E':'#8A8A9E'}',fontSize:11},
+  grid:{vertLines:{color:'${isDark?'#262626':'#F4F5F9'}'},horzLines:{color:'${isDark?'#262626':'#F4F5F9'}'}},
   crosshair:{mode:LightweightCharts.CrosshairMode.Normal,
     vertLine:{color:'${accent}80',width:1,style:0,labelBackgroundColor:'${accent}'},
     horzLine:{color:'${accent}80',width:1,style:0,labelBackgroundColor:'${accent}'}},
-  rightPriceScale:{borderColor:'${isDark?'#1E1E38':'#F4F5F9'}'},
-  timeScale:{borderColor:'${isDark?'#1E1E38':'#F4F5F9'}',timeVisible:true,secondsVisible:false},
+  rightPriceScale:{borderColor:'${isDark?'#262626':'#F4F5F9'}'},
+  timeScale:{borderColor:'${isDark?'#262626':'#F4F5F9'}',timeVisible:true,secondsVisible:false},
   handleScroll:{mouseWheel:true,pressedMouseMove:true,horzTouchDrag:true},
   handleScale:{axisPressedMouseMove:true,mouseWheel:true,pinch:true},
 });
@@ -112,12 +112,12 @@ export default function QuickTradeScreen() {
   const insets       = useSafeAreaInsets();
 
   const C = {
-    bg:      isDark ? '#07070F' : '#F4F5F9',
-    card:    isDark ? '#111122' : '#FFFFFF',
-    card2:   isDark ? '#171730' : '#ECECF4',
-    text:    isDark ? '#EEEEFF' : '#1C1C24',
-    muted:   isDark ? '#7E7EAA' : '#8A8A9E',
-    border:  isDark ? '#1E1E38' : '#E8E8F2',
+    bg:      isDark ? '#000000' : '#F4F5F9',
+    card:    isDark ? '#141414' : '#FFFFFF',
+    card2:   isDark ? '#1E1E1E' : '#ECECF4',
+    text:    isDark ? '#F2F2F2' : '#1C1C24',
+    muted:   isDark ? '#8A8A8E' : '#8A8A9E',
+    border:  isDark ? '#262626' : '#E8E8F2',
     success: '#10B981', error: '#EF4444', warning: '#F59E0B',
   };
 

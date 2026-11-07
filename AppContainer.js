@@ -78,9 +78,9 @@ function BottomTabs() {
           return <Ionicons name={iconName} size={22} color={color} />;
         },
         tabBarStyle: {
-          backgroundColor: isDark ? '#111122' : '#FFFFFF',
+          backgroundColor: isDark ? '#141414' : '#FFFFFF',
           borderTopWidth: 1,
-          borderTopColor: isDark ? '#1E1E38' : '#E8E8F2',
+          borderTopColor: isDark ? '#262626' : '#E8E8F2',
           elevation: 0,
           shadowOpacity: 0,
           height: 60 + bottomSpace,
@@ -111,7 +111,7 @@ export default function AppContainer() {
   const { t } = useTranslation();
 
   const isDark = theme === 'dark';
-  const stackBgColor = isDark ? '#07070F' : '#F4F5F9';
+  const stackBgColor = isDark ? '#000000' : '#F4F5F9';
 
   useEffect(() => {
     const loadSettings = async () => {
@@ -309,10 +309,10 @@ export default function AppContainer() {
         <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999, elevation: 9999,
                        backgroundColor: SPLASH_BG, alignItems: 'center', justifyContent: 'center', padding: 24 }}>
           <Ionicons name="lock-closed" size={44} color={primaryColor} />
-          <Text style={{ color: '#EEEEFF', fontSize: 18, fontWeight: '700', marginTop: 16 }}>
+          <Text style={{ color: '#F2F2F2', fontSize: 18, fontWeight: '700', marginTop: 16 }}>
             {t('lock.locked', { lng: language === 'ar' ? 'ar' : 'en' })}
           </Text>
-          <Text style={{ color: '#7E7EAA', fontSize: 13, marginTop: 6, textAlign: 'center' }}>
+          <Text style={{ color: '#8A8A8E', fontSize: 13, marginTop: 6, textAlign: 'center' }}>
             {t('lock.prompt', { lng: language === 'ar' ? 'ar' : 'en' })}
           </Text>
           <TouchableOpacity onPress={unlockApp} activeOpacity={0.85}

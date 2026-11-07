@@ -78,14 +78,14 @@ export default function AppPortalScreen() {
   const insets       = useSafeAreaInsets();
 
   const C = {
-    bg:      '#07070F',
-    card:    '#111122',
-    card2:   '#171730',
-    text:    '#EEEEFF',
-    muted:   '#7E7EAA',
-    border:  '#1E1E38',
+    bg:      '#000000',
+    card:    '#141414',
+    card2:   '#1E1E1E',
+    text:    '#F2F2F2',
+    muted:   '#8A8A8E',
+    border:  '#262626',
     accent:  primaryColor,
-    inputBg: '#13132A',
+    inputBg: '#1E1E1E',
     danger:  '#EF4444',
   };
 

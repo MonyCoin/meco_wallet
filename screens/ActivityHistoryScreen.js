@@ -23,11 +23,11 @@ export default function ActivityHistoryScreen() {
   const insets          = useSafeAreaInsets();
 
   const colors = {
-    background:    isDark ? '#07070F' : '#F4F5F9',
-    card:          isDark ? '#111122' : '#FFFFFF',
-    text:          isDark ? '#EEEEFF' : '#1C1C24',
-    textSecondary: isDark ? '#7E7EAA' : '#8A8A9E',
-    border:        isDark ? '#1E1E38' : '#E8E8F2',
+    background:    isDark ? '#000000' : '#F4F5F9',
+    card:          isDark ? '#141414' : '#FFFFFF',
+    text:          isDark ? '#F2F2F2' : '#1C1C24',
+    textSecondary: isDark ? '#8A8A8E' : '#8A8A9E',
+    border:        isDark ? '#262626' : '#E8E8F2',
     success:       '#10B981',
     error:         '#EF4444',
   };

@@ -30,11 +30,11 @@ export default function NotificationsScreen() {
   const [notifications, setNotifications] = useState([]);
 
   const C = {
-    bg:       isDark ? '#07070F' : '#F4F5F9',
-    card:     isDark ? '#111122' : '#FFFFFF',
-    text:     isDark ? '#EEEEFF' : '#1C1C24',
-    muted:    isDark ? '#7E7EAA' : '#8A8A9E',
-    border:   isDark ? '#1E1E38' : '#E8E8F2',
+    bg:       isDark ? '#000000' : '#F4F5F9',
+    card:     isDark ? '#141414' : '#FFFFFF',
+    text:     isDark ? '#F2F2F2' : '#1C1C24',
+    muted:    isDark ? '#8A8A8E' : '#8A8A9E',
+    border:   isDark ? '#262626' : '#E8E8F2',
     unreadBg: isDark ? 'rgba(231,76,60,0.06)' : 'rgba(231,76,60,0.04)',
   };
 

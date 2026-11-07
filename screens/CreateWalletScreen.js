@@ -24,11 +24,11 @@ export default function CreateWalletScreen() {
   const primaryColor = useAppStore(state => state.primaryColor || '#6C63FF');
 
   const colors = {
-    background:    '#07070F',
-    text:          '#EEEEFF',
-    textSecondary: '#7E7EAA',
-    card:          '#111122',
-    border:        '#1E1E38',
+    background:    '#000000',
+    text:          '#F2F2F2',
+    textSecondary: '#8A8A8E',
+    card:          '#141414',
+    border:        '#262626',
     warningBg:     'rgba(239,68,68,0.12)',
     warningText:   '#FF9999',
   };

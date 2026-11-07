@@ -77,11 +77,11 @@ export default function WalletScreen() {
   const walletPublicKey    = useAppStore(state => state.walletPublicKey);
 
   const colors = {
-    background:    isDark ? '#07070F' : '#F4F5F9',
-    card:          isDark ? '#111122' : '#FFFFFF',
-    text:          isDark ? '#EEEEFF' : '#1C1C24',
-    textSecondary: isDark ? '#7E7EAA' : '#8A8A9E',
-    border:        isDark ? '#1E1E38' : '#E8E8F2',
+    background:    isDark ? '#000000' : '#F4F5F9',
+    card:          isDark ? '#141414' : '#FFFFFF',
+    text:          isDark ? '#F2F2F2' : '#1C1C24',
+    textSecondary: isDark ? '#8A8A8E' : '#8A8A9E',
+    border:        isDark ? '#262626' : '#E8E8F2',
     success:       '#10B981',
     error:         '#EF4444',
   };
@@ -515,7 +515,7 @@ export default function WalletScreen() {
         >
           <View style={[styles.assetItem, { backgroundColor: colors.background }]}>
             <View style={styles.assetLeft}>
-              <View style={[styles.assetIconContainer, { backgroundColor: isDark ? '#171730' : '#ECECF4' }]}>
+              <View style={[styles.assetIconContainer, { backgroundColor: isDark ? '#1E1E1E' : '#ECECF4' }]}>
                 <Image source={{ uri: item.image }} style={styles.assetIcon} />
                 {item.symbol === 'SOL' && (
                   <View style={[styles.badgeDot, { backgroundColor: '#14F195', borderColor: colors.background }]} />

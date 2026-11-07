@@ -40,13 +40,13 @@ export default function SettingsScreen() {
   // ✅ الوضع الغامق إلزامي — لا يوجد تبديل للنمط
   const isDark = true;
   const C = {
-    background:    '#07070F',
-    card:          '#111122',
-    card2:         '#171730',
-    text:          '#EEEEFF',
-    textSecondary: '#7E7EAA',
-    border:        '#1E1E38',
-    border2:       '#2D2D4F',
+    background:    '#000000',
+    card:          '#141414',
+    card2:         '#1E1E1E',
+    text:          '#F2F2F2',
+    textSecondary: '#8A8A8E',
+    border:        '#262626',
+    border2:       '#2E2E2E',
     danger:        '#EF4444',
     success:       '#10B981',
     warning:       '#F59E0B',

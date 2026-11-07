@@ -36,11 +36,11 @@ export default function ReceiveScreen() {
   
   // Theme colors
   const colors = {
-    background: '#07070F',
-    card: '#111122',
-    text: '#EEEEFF',
-    textSecondary: '#7E7EAA',
-    border: '#1E1E38',
+    background: '#000000',
+    card: '#141414',
+    text: '#F2F2F2',
+    textSecondary: '#8A8A8E',
+    border: '#262626',
     success: '#10B981',
     warning: '#F59E0B',
   };

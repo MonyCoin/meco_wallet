@@ -26,16 +26,16 @@ export default function DappBrowserScreen({ request, onClose }) {
 
   // التطبيق يعمل بالنمط الغامق فقط
   const C = {
-    bg:       '#07070F',
-    surface:  '#111122',
-    surface2: '#111122',
-    text:     '#EEEEFF',
-    muted:    '#7E7EAA',
-    border:   '#1E1E38',
-    border2:  '#2A2A44',
+    bg:       '#000000',
+    surface:  '#141414',
+    surface2: '#141414',
+    text:     '#F2F2F2',
+    muted:    '#8A8A8E',
+    border:   '#262626',
+    border2:  '#2E2E2E',
     accent:   primaryColor,
     warning:  '#F59E0B',
-    inputBg:  '#171730',
+    inputBg:  '#1E1E1E',
   };
 
 

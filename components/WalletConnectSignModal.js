@@ -52,12 +52,12 @@ export default function WalletConnectSignModal({ locked = false }) {
 
   // التطبيق يعمل بالنمط الغامق فقط (نمط مسطح بلا حدود)
   const C = {
-    bg:        '#111122',
+    bg:        '#141414',
     overlay:   'rgba(0,0,0,0.65)',
-    card:      '#171730',
-    cardAlt:   '#1C1C3A',
-    text:      '#EEEEFF',
-    secondary: '#7E7EAA',
+    card:      '#1E1E1E',
+    cardAlt:   '#262626',
+    text:      '#F2F2F2',
+    secondary: '#8A8A8E',
     border:    'transparent',
     success:   '#10B981',
     error:     '#EF4444',
@@ -163,7 +163,7 @@ export default function WalletConnectSignModal({ locked = false }) {
       <View style={[S.overlay, { backgroundColor: C.overlay }]}>
         <Animated.View style={[S.sheet, { backgroundColor: C.bg, transform: [{ translateY: slideAnim }] }]}>
 
-          <View style={[S.handle, { backgroundColor: '#2A2A4A' }]} />
+          <View style={[S.handle, { backgroundColor: '#3A3A3A' }]} />
 
           {/* ── بطاقة dApp ── */}
           <View style={[S.appRow, { backgroundColor: C.card, borderColor: C.border }]}>

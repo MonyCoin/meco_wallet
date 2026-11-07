@@ -52,12 +52,12 @@ export default function TradeExecutionScreen() {
   const walletPublicKey    = useAppStore(s => s.walletPublicKey);
 
   const C = {
-    bg:      isDark ? '#07070F' : '#F4F5F9',
-    card:    isDark ? '#111122' : '#FFFFFF',
-    card2:   isDark ? '#171730' : '#ECECF4',
-    text:    isDark ? '#EEEEFF' : '#1C1C24',
-    muted:   isDark ? '#7E7EAA' : '#8A8A9E',
-    border:  isDark ? '#1E1E38' : '#E8E8F2',
+    bg:      isDark ? '#000000' : '#F4F5F9',
+    card:    isDark ? '#141414' : '#FFFFFF',
+    card2:   isDark ? '#1E1E1E' : '#ECECF4',
+    text:    isDark ? '#F2F2F2' : '#1C1C24',
+    muted:   isDark ? '#8A8A8E' : '#8A8A9E',
+    border:  isDark ? '#262626' : '#E8E8F2',
     success: '#10B981', error: '#EF4444', warning: '#F59E0B',
   };
 

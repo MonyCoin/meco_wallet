@@ -71,12 +71,12 @@ export default function SwapScreen() {
   const [solPriceUsd,      setSolPriceUsd]      = useState(0);
 
   const colors = {
-    background:    isDark ? '#07070F' : '#F4F5F9',
-    card:          isDark ? '#111122' : '#FFFFFF',
-    card2:         isDark ? '#171730' : '#ECECF4',
-    text:          isDark ? '#EEEEFF' : '#1C1C24',
-    textSecondary: isDark ? '#7E7EAA' : '#8A8A9E',
-    border:        isDark ? '#1E1E38' : '#E8E8F2',
+    background:    isDark ? '#000000' : '#F4F5F9',
+    card:          isDark ? '#141414' : '#FFFFFF',
+    card2:         isDark ? '#1E1E1E' : '#ECECF4',
+    text:          isDark ? '#F2F2F2' : '#1C1C24',
+    textSecondary: isDark ? '#8A8A8E' : '#8A8A9E',
+    border:        isDark ? '#262626' : '#E8E8F2',
     success:       '#10B981',
     error:         '#EF4444',
     warning:       '#F59E0B',
@@ -372,7 +372,7 @@ export default function SwapScreen() {
                 style={styles.tokenItem}
                 onPress={() => { onSelect(item); onClose(); }}
               >
-                <View style={[styles.tokenIconWrapper, { backgroundColor: isDark ? '#171730' : '#ECECF4' }]}>
+                <View style={[styles.tokenIconWrapper, { backgroundColor: isDark ? '#1E1E1E' : '#ECECF4' }]}>
                   <Image source={{ uri: item.image }} style={styles.tokenIcon} />
                 </View>
                 <View style={styles.tokenInfo}>

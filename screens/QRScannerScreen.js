@@ -35,11 +35,11 @@ export default function QRScannerScreen() {
   const [processingImage, setProcessingImage] = useState(false);
 
   const colors = {
-    background: isDark ? '#07070F' : '#F4F5F9',
-    text: isDark ? '#EEEEFF' : '#1C1C24',
-    textSecondary: isDark ? '#7E7EAA' : '#8A8A9E',
-    card: isDark ? '#111122' : '#FFFFFF',
-    border: isDark ? '#1E1E38' : '#E8E8F2',
+    background: isDark ? '#000000' : '#F4F5F9',
+    text: isDark ? '#F2F2F2' : '#1C1C24',
+    textSecondary: isDark ? '#8A8A8E' : '#8A8A9E',
+    card: isDark ? '#141414' : '#FFFFFF',
+    border: isDark ? '#262626' : '#E8E8F2',
   };
 
   useEffect(() => {
