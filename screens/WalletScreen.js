@@ -20,6 +20,7 @@ import * as LocalAuthentication from 'expo-local-authentication';
 import { copySensitive } from '../services/secureClipboard';
 import { protectScreen, unprotectScreen } from '../services/screenGuard';
 import { getUnreadCount } from '../services/notificationsService';
+import { WCEvents, getConnectedSites, disconnectSite, disconnectAllSites } from '../services/walletConnectService';
 
 const { width, height } = Dimensions.get('window');
 
@@ -106,6 +107,26 @@ export default function WalletScreen() {
   const [loadingAccountBalances,setLoadingAccountBalances]= useState(false);
   const [copyFeedback,          setCopyFeedback]          = useState(false);
   const [menuVisible,           setMenuVisible]           = useState(false);
+  const [sitesVisible,          setSitesVisible]          = useState(false);
+  const [sites,                 setSites]                 = useState([]);
+  const refreshSites = () => { try { setSites(getConnectedSites()); } catch (_) { setSites([]); } };
+  useEffect(() => {
+    refreshSites();
+    WCEvents.on('sessions_changed', refreshSites);
+    return () => WCEvents.off('sessions_changed');
+  }, []);
+  const confirmDisconnect = (site) => {
+    Alert.alert(t('wc.sites_disconnect'), t('wc.sites_confirm_one', { name: site.name }), [
+      { text: t('cancel'), style: 'cancel' },
+      { text: t('wc.sites_disconnect'), style: 'destructive', onPress: () => disconnectSite(site.topic) },
+    ]);
+  };
+  const confirmDisconnectAll = () => {
+    Alert.alert(t('wc.sites_disconnect_all'), t('wc.sites_confirm_all'), [
+      { text: t('cancel'), style: 'cancel' },
+      { text: t('wc.sites_disconnect_all'), style: 'destructive', onPress: () => disconnectAllSites() },
+    ]);
+  };
   const [emojiPickerVisible,    setEmojiPickerVisible]    = useState(false);
   const [accountEmojis,         setAccountEmojis]         = useState({});
   const [unreadCount,           setUnreadCount]           = useState(0);
@@ -1049,6 +1070,17 @@ export default function WalletScreen() {
 
               <TouchableOpacity
                 style={[styles.menuItem, { borderBottomColor: colors.border }]}
+                onPress={() => { setMenuVisible(false); refreshSites(); setTimeout(() => setSitesVisible(true), 200); }}
+              >
+                <View style={[styles.menuItemIcon, { backgroundColor: 'rgba(59,130,246,0.15)' }]}>
+                  <Ionicons name="link-outline" size={18} color="#3B82F6" />
+                </View>
+                <Text style={[styles.menuItemText, { color: colors.text }]}>{t('wc.sites_title')}</Text>
+                <Ionicons name="chevron-forward" size={14} color={colors.textSecondary} />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.menuItem, { borderBottomColor: colors.border }]}
                 onPress={() => {
                   setMenuVisible(false);
                   setEditingAccountIndex(activeAccountIndex);
@@ -1087,6 +1119,51 @@ export default function WalletScreen() {
 
             </View>
           </TouchableOpacity>
+        </Modal>
+
+        <Modal visible={sitesVisible} transparent animationType="fade" onRequestClose={() => setSitesVisible(false)}>
+          <View style={{ flex:1, backgroundColor:'rgba(0,0,0,0.6)', justifyContent:'center', padding:20 }}>
+            <View style={{ backgroundColor: colors.card, borderColor: colors.border, borderWidth:1, borderRadius:20, padding:18 }}>
+              <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:12 }}>
+                <Text style={{ color: colors.text, fontSize:17, fontWeight:'800' }}>{t('wc.sites_title')}</Text>
+                <TouchableOpacity onPress={() => setSitesVisible(false)} style={{ padding:6 }}>
+                  <Ionicons name="close" size={20} color={colors.text} />
+                </TouchableOpacity>
+              </View>
+
+              <Text style={{ color: colors.textSecondary, fontSize:13, lineHeight:20, marginBottom:14 }}>
+                {sites.length ? t('wc.sites_desc') : t('wc.sites_empty')}
+              </Text>
+
+              <ScrollView style={{ maxHeight: 340 }}>
+                {sites.map(site => (
+                  <View key={site.topic} style={{ backgroundColor:'#1E1E1E', borderRadius:12, padding:12, marginBottom:8, flexDirection:'row', alignItems:'center', gap:10 }}>
+                    {site.icon
+                      ? <Image source={{ uri: site.icon }} style={{ width:36, height:36, borderRadius:18, backgroundColor: colors.background }} />
+                      : <View style={{ width:36, height:36, borderRadius:18, backgroundColor: colors.background, alignItems:'center', justifyContent:'center' }}>
+                          <Ionicons name="globe-outline" size={18} color={colors.textSecondary} />
+                        </View>}
+                    <View style={{ flex:1 }}>
+                      <Text style={{ color: colors.text, fontSize:14, fontWeight:'700' }} numberOfLines={1}>{site.name}</Text>
+                      {!!site.host && <Text style={{ color: colors.textSecondary, fontSize:12 }} numberOfLines={1}>{site.host}</Text>}
+                      {!!site.account && <Text style={{ color: colors.textSecondary, fontSize:11, marginTop:2 }}>{t('wc.sites_account')}: {site.account.slice(0,4)}...{site.account.slice(-4)}</Text>}
+                    </View>
+                    <TouchableOpacity onPress={() => confirmDisconnect(site)} activeOpacity={0.8}
+                      style={{ paddingVertical:8, paddingHorizontal:10, borderRadius:10, backgroundColor:'rgba(239,68,68,0.15)' }}>
+                      <Text style={{ color: colors.error, fontSize:12, fontWeight:'700' }}>{t('wc.sites_disconnect')}</Text>
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </ScrollView>
+
+              {sites.length > 1 && (
+                <TouchableOpacity onPress={confirmDisconnectAll} activeOpacity={0.85}
+                  style={{ backgroundColor: colors.error, borderRadius:14, paddingVertical:13, alignItems:'center', marginTop:8 }}>
+                  <Text style={{ color:'#FFF', fontSize:15, fontWeight:'700' }}>{t('wc.sites_disconnect_all')}</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
         </Modal>
 
         <Modal visible={emojiPickerVisible} transparent animationType="slide" onRequestClose={() => setEmojiPickerVisible(false)}>

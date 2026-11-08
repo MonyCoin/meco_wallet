@@ -2,7 +2,7 @@
 const test   = require('node:test');
 const assert = require('node:assert/strict');
 const {
-  toBaseUnits, friendlySendError, sessionMatchesActive, readVerify, extractWcUri,
+  toBaseUnits, friendlySendError, sessionMatchesActive, readVerify, extractWcUri, buildSiteList,
 } = require('../services/pureHelpers');
 
 test('toBaseUnits: مبالغ معروفة كانت تفقد وحدة بسبب الفاصلة العائمة', () => {
@@ -99,4 +99,31 @@ test('friendlySendError: أخطاء الخدمات المترجمة تُعرض �
   assert.equal(friendlySendError(new Error('weird failure'), t), 'sendScreen.alerts.sendFailed\nweird failure');
   assert.equal(friendlySendError(null, t), 'sendScreen.alerts.sendFailed');
   assert.equal(friendlySendError(new Error('x'.repeat(300)), t).length, 'sendScreen.alerts.sendFailed\n'.length + 120);
+});
+
+test('buildSiteList: يبني القائمة ويرتبها ويستخرج النطاق والحساب', () => {
+  const sessions = {
+    t2: { peer: { metadata: { name: 'Raydium', url: 'https://raydium.io/swap?x=1', icons: ['https://raydium.io/i.png'] } },
+          namespaces: { solana: { accounts: ['solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:AAA'] } } },
+    t1: { peer: { metadata: { name: 'Orca', url: 'https://www.orca.so' } },
+          namespaces: { solana: { accounts: ['solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:BBB'] } } },
+  };
+  const list = buildSiteList(sessions);
+  assert.equal(list.length, 2);
+  assert.deepEqual(list.map((x) => x.name), ['Orca', 'Raydium']);
+  assert.equal(list[0].host, 'www.orca.so');
+  assert.equal(list[0].icon, null);
+  assert.equal(list[0].account, 'BBB');
+  assert.equal(list[1].host, 'raydium.io');
+  assert.equal(list[1].topic, 't2');
+  assert.equal(list[1].icon, 'https://raydium.io/i.png');
+});
+
+test('buildSiteList: جلسات ناقصة أو فارغة لا تسبب خطأ', () => {
+  assert.deepEqual(buildSiteList(null), []);
+  assert.deepEqual(buildSiteList({}), []);
+  const l = buildSiteList({ x: {} });
+  assert.equal(l.length, 1);
+  assert.equal(l[0].name, 'dApp');
+  assert.equal(l[0].account, '');
 });

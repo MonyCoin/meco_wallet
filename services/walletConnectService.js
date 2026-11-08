@@ -13,7 +13,7 @@ import bs58 from 'bs58';
 import { Buffer } from 'buffer';
 import { default as heliusService } from './heliusService';
 import { svcError } from './svcError';
-import { sessionMatchesActive, readVerify } from './pureHelpers';
+import { sessionMatchesActive, readVerify, buildSiteList } from './pureHelpers';
 
 // معرّف مشروع WalletConnect/Reown: علني بطبيعته. يُقرأ من EXPO_PUBLIC_WC_PROJECT_ID إن وُجد، وإلا القيمة الحالية.
 // (يجب كتابة process.env.EXPO_PUBLIC_* بهذه الصيغة المباشرة ليُدمج عند البناء)
@@ -273,6 +273,9 @@ export async function initWalletConnect() {
 }
 
 function setupEventListeners() {
+  // انتهاء/قطع الجلسة من الموقع نفسه: نُعلم الواجهة لتحدّث قائمة المواقع المتصلة
+  web3wallet.on('session_delete', () => { WCEvents.emit('sessions_changed'); });
+
   if (!web3wallet) return;
 
   web3wallet.on('session_proposal', async (proposal) => {
@@ -371,6 +374,7 @@ export async function approveSession(proposal) {
       },
     });
     await web3wallet.approveSession({ id: proposal.id, namespaces });
+    WCEvents.emit('sessions_changed');
     Alert.alert(
       i18n.t('walletConnect.connection_success'),
       i18n.t('walletConnect.connection_success_message')
@@ -380,6 +384,29 @@ export async function approveSession(proposal) {
     Alert.alert(i18n.t('error'), i18n.t('walletConnect.connection_failed'));
     await rejectSession(proposal);
   }
+}
+
+// المواقع المتصلة حالياً (للعرض في الإعدادات)
+export function getConnectedSites() {
+  try { return buildSiteList(web3wallet?.getActiveSessions?.() || {}); }
+  catch (_) { return []; }
+}
+
+// قطع موقع واحد (الجلسة تُغلق عند الطرفين)
+export async function disconnectSite(topic) {
+  try { await web3wallet.disconnectSession({ topic, reason: getSdkError('USER_DISCONNECTED') }); }
+  catch (e) { console.log('⚠️ disconnectSite:', e?.message); }
+  WCEvents.emit('sessions_changed');
+}
+
+// قطع كل المواقع
+export async function disconnectAllSites() {
+  const list = getConnectedSites();
+  for (const s of list) {
+    try { await web3wallet.disconnectSession({ topic: s.topic, reason: getSdkError('USER_DISCONNECTED') }); }
+    catch (e) { console.log('⚠️ disconnectAllSites:', e?.message); }
+  }
+  WCEvents.emit('sessions_changed');
 }
 
 export async function rejectSession(proposal) {

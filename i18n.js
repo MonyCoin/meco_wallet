@@ -690,6 +690,14 @@ const resources = {
       wc: {
         session_mismatch: "هذه الجلسة مرتبطة بحساب آخر غير الحساب النشط حالياً. بدّل إلى الحساب المرتبط بها أو أعد الاتصال بالموقع.",
         tx_failed_onchain: "فشلت المعاملة على الشبكة",
+        sites_title: "المواقع المتصلة",
+        sites_empty: "لم تربط أي موقع بمحفظتك بعد.",
+        sites_desc: "هذه المواقع يمكنها طلب توقيعات منك. كل طلب يحتاج موافقتك دائماً، ويمكنك قطع أي موقع في أي وقت.",
+        sites_account: "الحساب",
+        sites_disconnect: "قطع الاتصال",
+        sites_disconnect_all: "قطع كل المواقع",
+        sites_confirm_one: "سيتم قطع اتصال {{name}}. يمكنك ربطه من جديد لاحقاً.",
+        sites_confirm_all: "سيتم قطع اتصال كل المواقع. يمكنك ربطها من جديد لاحقاً.",
       },
       web3: {
         connecting: "جاري الاتصال 🌐",
@@ -1378,6 +1386,14 @@ const resources = {
       wc: {
         session_mismatch: "This session belongs to a different account than the active one. Switch to the linked account or reconnect to the site.",
         tx_failed_onchain: "Transaction failed on-chain",
+        sites_title: "Connected sites",
+        sites_empty: "You haven't connected any site to your wallet yet.",
+        sites_desc: "These sites can request signatures from you. Every request always needs your approval, and you can disconnect any site at any time.",
+        sites_account: "Account",
+        sites_disconnect: "Disconnect",
+        sites_disconnect_all: "Disconnect all sites",
+        sites_confirm_one: "{{name}} will be disconnected. You can connect it again later.",
+        sites_confirm_all: "All sites will be disconnected. You can connect them again later.",
       },
       web3: {
         connecting: "Connecting 🌐",

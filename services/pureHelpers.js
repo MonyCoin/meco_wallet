@@ -69,4 +69,28 @@ function extractWcUri(url) {
   return /^wc%3A/i.test(rest) ? rest.split('&')[0] : rest;
 }
 
-module.exports = { toBaseUnits, friendlySendError, sessionAccounts, sessionMatchesActive, readVerify, extractWcUri };
+// تجهيز قائمة المواقع المتصلة من كائن الجلسات النشطة (topic -> session)
+// الناتج مرتب أبجدياً بالاسم، وكل عنصر: { topic, name, host, url, icon, account }
+function buildSiteList(sessions) {
+  const out = [];
+  try {
+    Object.keys(sessions || {}).forEach((topic) => {
+      const s    = sessions[topic] || {};
+      const meta = (s.peer && s.peer.metadata) || {};
+      const url  = typeof meta.url === 'string' ? meta.url : '';
+      const host = url.replace(/^[a-z][a-z0-9+.-]*:\/\//i, '').split(/[/?#]/)[0];
+      const accs = sessionAccounts(s);
+      out.push({
+        topic,
+        name:    meta.name || host || 'dApp',
+        host,
+        url,
+        icon:    (Array.isArray(meta.icons) && meta.icons[0]) || null,
+        account: accs[0] || '',
+      });
+    });
+  } catch (_) {}
+  return out.sort((a, b) => String(a.name).localeCompare(String(b.name)));
+}
+
+module.exports = { buildSiteList, toBaseUnits, friendlySendError, sessionAccounts, sessionMatchesActive, readVerify, extractWcUri };
