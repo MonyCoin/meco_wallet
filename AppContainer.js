@@ -139,7 +139,11 @@ export default function AppContainer() {
   const handleDeepLink = async (url) => {
     if (!url) return;
     if (url.startsWith('meco-wallet://wc')) {
-      const uri = url.replace('meco-wallet://wc?uri=', '');
+      // نقرأ uri كمعامل رابط قياسي (حتى لو أُضيفت معاملات أخرى بعده)
+      // المشفّر (wc%3A...) نقطعه عند أول & ؛ وغير المشفّر نأخذه كاملاً كما كان
+      const m    = url.match(/[?&]uri=(.*)$/);
+      const rest = m ? m[1] : '';
+      const uri  = /^wc%3A/i.test(rest) ? rest.split('&')[0] : rest;
       if (uri) {
         try { await pairWalletConnect(decodeURIComponent(uri)); }
         catch (e) { console.error('Deep link pairing failed:', e); }

@@ -332,6 +332,20 @@ export default function WalletConnectSignModal({ locked = false }) {
             </View>
           )}
 
+          {/* ── تحذير التحقق من هوية الموقع ── */}
+          {request.verify && request.verify !== 'VALID' && (
+            <View style={[S.warningRow, {
+              backgroundColor: (request.verify === 'INVALID' ? C.error : C.warning) + '12',
+              borderColor:     (request.verify === 'INVALID' ? C.error : C.warning) + '30',
+              marginBottom: 10,
+            }]}>
+              <Ionicons name="shield-outline" size={16} color={request.verify === 'INVALID' ? C.error : C.warning} />
+              <Text style={[S.warningTxt, { color: request.verify === 'INVALID' ? C.error : C.warning }]}>
+                {t(request.verify === 'INVALID' ? 'walletConnect.verify_banner_invalid' : 'walletConnect.verify_banner_unknown')}
+              </Text>
+            </View>
+          )}
+
           {/* ── تحذير الثقة ── */}
           <View style={[S.warningRow, { backgroundColor: C.warning + '12', borderColor: C.warning + '30' }]}>
             <Ionicons name="warning-outline" size={16} color={C.warning} />

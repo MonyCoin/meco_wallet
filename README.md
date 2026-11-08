@@ -204,7 +204,19 @@
 
 </div>
 
-> حمّل التطبيق من [الموقع الرسمي](https://monycoin.github.io/meco_web/) فقط، واحرص على حماية عبارة الاسترداد وعدم مشاركتها مع أي جهة.
+> حمّل التطبيق من [صفحة التحميل الرسمية](https://monycoin.github.io/meco_wallet-app/) فقط، واحرص على حماية عبارة الاسترداد وعدم مشاركتها مع أي جهة.
+
+### 🔎 التحقق من سلامة ملف التحميل
+
+لكل إصدار بصمة **SHA-256** لملف الـ APK، تُنشر تلقائياً في ملاحظات الإصدار على [GitHub Releases](https://github.com/MonyCoin/meco_wallet/releases) وفي صفحة التحميل. بعد التنزيل، قارن بصمة الملف بالمنشورة، ولا تثبّت الملف إن اختلفت:
+
+```bash
+# أندرويد (Termux) أو لينكس
+sha256sum MECO-Wallet.apk
+
+# ويندوز (PowerShell)
+Get-FileHash .\MECO-Wallet.apk -Algorithm SHA256
+```
 
 ---
 
@@ -412,7 +424,7 @@ EXPO_PUBLIC_FINNHUB_API_KEY=your_finnhub_key_here
 | 🪙 MECO Token | [meco-token](https://github.com/monycoin/meco-token) |
 | 📱 MECO Wallet | [meco_wallet](https://github.com/MonyCoin/meco_wallet) |
 | 🌐 الموقع الرسمي | [monycoin.github.io/meco_web](https://monycoin.github.io/meco_web/) |
-| 📖 الوثائق | [docs.monycoin.io](https://docs.monycoin.io) |
+| 📖 الوثائق | [الوثائق الرسمية للمشروع](https://github.com/MonyCoin/meco-token) |
 | 🐛 Issues | [الإبلاغ عن مشكلة](https://github.com/MonyCoin/meco_wallet/issues) |
 
 ---

@@ -8,6 +8,8 @@ on:
 jobs:
   update-version-file:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write   # لتعديل ملاحظات الإصدار (إضافة بصمة SHA-256)
     steps:
       - name: Checkout meco_wallet-app repo
         uses: actions/checkout@v4
@@ -49,6 +51,22 @@ jobs:
           
           echo "url=$URL" >> $GITHUB_OUTPUT
 
+      - name: Compute APK SHA-256
+        id: sha
+        env:
+          APK_URL: ${{ steps.apk.outputs.url }}
+        run: |
+          curl -fsSL -o /tmp/release.apk "$APK_URL"
+          SHA=$(sha256sum /tmp/release.apk | awk '{print $1}')
+          NAME=$(basename "$APK_URL")
+          rm -f /tmp/release.apk
+          if [ -z "$SHA" ] || [ ${#SHA} -ne 64 ]; then
+            echo "Error: failed to compute SHA-256"
+            exit 1
+          fi
+          echo "sha256=$SHA" >> $GITHUB_OUTPUT
+          echo "name=$NAME" >> $GITHUB_OUTPUT
+
       - name: Update version.json
         run: |
           cat > version.json <<EOF
@@ -56,7 +74,9 @@ jobs:
             "latestVersion": "${{ steps.version.outputs.version }}",
             "buildNumber": "${{ github.run_number }}",
             "releaseNotes": "تحديث تلقائي للإصدار ${{ steps.version.outputs.tag }}",
-            "downloadUrl": "${{ steps.apk.outputs.url }}"
+            "downloadUrl": "${{ steps.apk.outputs.url }}",
+            "apkName": "${{ steps.sha.outputs.name }}",
+            "sha256": "${{ steps.sha.outputs.sha256 }}"
           }
           EOF
 
@@ -67,3 +87,23 @@ jobs:
           git add version.json
           git diff --staged --quiet || git commit -m "chore: auto-sync version.json to ${{ steps.version.outputs.version }}"
           git push https://x-access-token:${{ secrets.PAT_TOKEN }}@github.com/MonyCoin/meco_wallet-app.git main
+
+      - name: Add SHA-256 to release notes
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+          SHA: ${{ steps.sha.outputs.sha256 }}
+          NAME: ${{ steps.sha.outputs.name }}
+        run: |
+          BODY=$(gh release view "$TAG" --repo MonyCoin/meco_wallet --json body -q .body)
+          if echo "$BODY" | grep -q "SHA-256"; then
+            echo "Checksum already present in release notes"
+            exit 0
+          fi
+          {
+            printf '%s\n\n' "$BODY"
+            printf -- '---\n'
+            printf '**SHA-256 (%s):**\n\n`%s`\n' "$NAME" "$SHA"
+          } > /tmp/notes.md
+          gh release edit "$TAG" --repo MonyCoin/meco_wallet --notes-file /tmp/notes.md

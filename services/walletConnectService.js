@@ -291,14 +291,40 @@ export async function initWalletConnect() {
   }
 }
 
+// نتيجة تحقق Reown من هوية الموقع (VALID / INVALID / UNKNOWN + تصنيف احتيال)
+function readVerify(ctx) {
+  const v = ctx?.verified || {};
+  return {
+    scam:       v.isScam === true,
+    validation: v.validation || 'UNKNOWN',
+    origin:     v.origin || '',
+  };
+}
+
 function setupEventListeners() {
   if (!web3wallet) return;
 
   web3wallet.on('session_proposal', async (proposal) => {
     const { name, url } = proposal.params.proposer.metadata;
+    const vf = readVerify(proposal.verifyContext);
+
+    // موقع مصنّف احتيالاً: نرفض الاتصال مباشرة
+    if (vf.scam) {
+      await rejectSession(proposal);
+      Alert.alert(i18n.t('error'), i18n.t('walletConnect.verify_scam'));
+      return;
+    }
+
+    let message = i18n.t('walletConnect.connection_request_message', { name, url });
+    if (vf.validation === 'INVALID') {
+      message += '\n\n' + i18n.t('walletConnect.verify_invalid', { origin: vf.origin || '—' });
+    } else if (vf.validation !== 'VALID') {
+      message += '\n\n' + i18n.t('walletConnect.verify_unknown');
+    }
+
     Alert.alert(
       i18n.t('walletConnect.connection_request'),
-      i18n.t('walletConnect.connection_request_message', { name, url }),
+      message,
       [
         { text: i18n.t('walletConnect.reject'),  onPress: () => rejectSession(proposal), style: 'cancel' },
         { text: i18n.t('walletConnect.approve'), onPress: () => approveSession(proposal) },
@@ -322,6 +348,14 @@ function setupEventListeners() {
       return;
     }
 
+    // موقع مصنّف احتيالاً: نرفض الطلب دون عرضه
+    const vf = readVerify(event.verifyContext);
+    if (vf.scam) {
+      await handleRequestRejection(topic, id);
+      Alert.alert(i18n.t('error'), i18n.t('walletConnect.verify_scam'));
+      return;
+    }
+
     if (listeners['sign_request']) {
       const { instructionCount, programs, operation, estimatedFee } = await parseTransactionDetails(request.method, request.params);
       WCEvents.emit('sign_request', {
@@ -330,6 +364,7 @@ function setupEventListeners() {
         appName,
         appUrl,
         appIcon,
+        verify: vf.validation,
         details: { instructionCount, programs, estimatedFee },
         operation,
         onApprove: () => handleRequestApproval(event),
