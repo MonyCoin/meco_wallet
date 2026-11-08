@@ -23,6 +23,7 @@ import * as Clipboard from 'expo-clipboard';
 import { requireAuth } from '../services/appLock';
 import { CORE_TOKENS, getSolPriceUsd } from '../services/jupiterMarketService';
 import { addNotification, NOTIF_TYPES } from '../services/notificationsService';
+import { toBaseUnits, friendlySendError } from '../services/pureHelpers';
 
 const FEE_COLLECTOR_ADDRESS = 'BkaJsFAJKPQZgreBFLrY2pPUi44fTJzXhmeBc8LeuF5W';
 const SERVICE_FEE_SOL       = 0.0005;
@@ -46,20 +47,6 @@ function getKeypairFromStore(storePrivateKey) {
     console.error('Keypair Error:', error);
     throw error;
   }
-}
-
-// رسالة مفهومة للمستخدم: أخطاء الخدمات المترجمة (SVC_*) تُعرض كما هي، ورسائل الشبكة الخام تُحوَّل لنص مترجم
-function friendlySendError(error, t) {
-  const raw = String((error && error.message) || error || '');
-  if (error && typeof error.code === 'string' && error.code.startsWith('SVC_')) return raw;
-  if (/Attempt to debit an account but found no record of a prior credit|insufficient lamports|insufficient funds/i.test(raw)) {
-    return t('sendScreen.alerts.sender_needs_sol');
-  }
-  if (/blockhash|block height exceeded|expired/i.test(raw)) return t('sendScreen.alerts.tx_expired');
-  if (/Network request failed|fetch failed|timeout|timed out/i.test(raw)) return t('sendScreen.alerts.network_failed');
-  if (/User rejected|cancel/i.test(raw)) return t('sendScreen.alerts.cancelled');
-  // أي رسالة خام أخرى: نص عام + أول جزء من الرسالة للتشخيص
-  return raw ? `${t('sendScreen.alerts.sendFailed')}\n${raw.slice(0, 120)}` : t('sendScreen.alerts.sendFailed');
 }
 
 export default function SendScreen() {
@@ -344,16 +331,16 @@ export default function SendScreen() {
       transaction.recentBlockhash = blockhash;
       transaction.feePayer        = fromPubkey;
 
-      const serviceLamports = Math.floor(SERVICE_FEE_SOL * web3.LAMPORTS_PER_SOL);
+      const serviceLamports = Number(toBaseUnits(SERVICE_FEE_SOL, 9));
 
       if (token.symbol === 'SOL') {
-        const lamportsToSend = Math.floor(amount * web3.LAMPORTS_PER_SOL);
+        const lamportsToSend = Number(toBaseUnits(amount, 9));
         transaction.add(web3.SystemProgram.transfer({ fromPubkey, toPubkey, lamports: lamportsToSend }));
         transaction.add(web3.SystemProgram.transfer({ fromPubkey, toPubkey: feeCollectorPubkey, lamports: serviceLamports }));
       } else if (token.mint) {
         const mint        = new web3.PublicKey(token.mint);
         const mintInfo    = await splToken.getMint(connection, mint);
-        const amountBigInt= BigInt(Math.floor(amount * Math.pow(10, mintInfo.decimals)));
+        const amountBigInt= toBaseUnits(amount, mintInfo.decimals);
         const fromATA     = await splToken.getAssociatedTokenAddress(mint, fromPubkey);
         const toATA       = await splToken.getAssociatedTokenAddress(mint, toPubkey);
         const toAccountInfo = await heliusRpcRequest('getAccountInfo', [toATA.toBase58()]);

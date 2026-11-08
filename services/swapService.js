@@ -6,6 +6,7 @@ import { Buffer } from 'buffer';
 import { getSolBalance, getTokenBalance } from './heliusService';
 import { default as heliusService } from './heliusService';
 import { svcError, svcText } from './svcError';
+import { toBaseUnits } from './pureHelpers';
 
 // ─── TOKEN_MINTS ──────────────────────────────────────────────────────────────
 export const TOKEN_MINTS = {
@@ -285,7 +286,7 @@ export async function executeSwap(
   // ── حلقة Retry — الرسوم لا تتكرر لأن المعاملة ذرية ─────────────────────
   const inputDecimals    = TOKEN_DECIMALS[inputSymbol]  || 9;
   const outputDecimals   = TOKEN_DECIMALS[outputSymbol] || 9;
-  const amountInLamports = Math.floor(amount * Math.pow(10, inputDecimals));
+  const amountInLamports = toBaseUnits(amount, inputDecimals).toString();
 
   let lastError;
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -373,7 +374,7 @@ export async function getSwapRate(inputSymbol, outputSymbol, amount) {
   try {
     const inputDecimals        = TOKEN_DECIMALS[inputSymbol]  || 9;
     const outputDecimals       = TOKEN_DECIMALS[outputSymbol] || 9;
-    const amountInSmallestUnit = Math.floor(amount * Math.pow(10, inputDecimals));
+    const amountInSmallestUnit = toBaseUnits(amount, inputDecimals).toString();
     const slippage             = (inputSymbol === 'MECO' || outputSymbol === 'MECO') ? 300 : 100;
 
     const quote = await getSwapQuote(

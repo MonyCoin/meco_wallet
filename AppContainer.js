@@ -16,6 +16,7 @@ import * as SplashScreen from 'expo-splash-screen';
 
 import * as Linking from 'expo-linking';
 import { initWalletConnect, pairWalletConnect } from './services/walletConnectService';
+import { extractWcUri } from './services/pureHelpers';
 import WalletConnectSignModal from './components/WalletConnectSignModal';
 import AnimatedSplash from './components/AnimatedSplash';
 import { LogBox } from 'react-native';
@@ -139,11 +140,8 @@ export default function AppContainer() {
   const handleDeepLink = async (url) => {
     if (!url) return;
     if (url.startsWith('meco-wallet://wc')) {
-      // نقرأ uri كمعامل رابط قياسي (حتى لو أُضيفت معاملات أخرى بعده)
-      // المشفّر (wc%3A...) نقطعه عند أول & ؛ وغير المشفّر نأخذه كاملاً كما كان
-      const m    = url.match(/[?&]uri=(.*)$/);
-      const rest = m ? m[1] : '';
-      const uri  = /^wc%3A/i.test(rest) ? rest.split('&')[0] : rest;
+      // استخراج uri (المنطق في services/pureHelpers.js وله اختبارات آلية)
+      const uri = extractWcUri(url);
       if (uri) {
         try { await pairWalletConnect(decodeURIComponent(uri)); }
         catch (e) { console.error('Deep link pairing failed:', e); }

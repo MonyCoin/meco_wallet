@@ -13,6 +13,7 @@ import bs58 from 'bs58';
 import { Buffer } from 'buffer';
 import { default as heliusService } from './heliusService';
 import { svcError } from './svcError';
+import { sessionMatchesActive, readVerify } from './pureHelpers';
 
 // معرّف مشروع WalletConnect/Reown: علني بطبيعته. يُقرأ من EXPO_PUBLIC_WC_PROJECT_ID إن وُجد، وإلا القيمة الحالية.
 // (يجب كتابة process.env.EXPO_PUBLIC_* بهذه الصيغة المباشرة ليُدمج عند البناء)
@@ -223,26 +224,6 @@ function isArabicUi() {
   try { return String(i18n.language || '').startsWith('ar'); } catch (_) { return true; }
 }
 
-function sessionAccounts(session) {
-  const out = [];
-  try {
-    Object.values(session?.namespaces || {}).forEach((ns) => {
-      (ns?.accounts || []).forEach((a) => {
-        const pk = String(a).split(':').pop();
-        if (pk) out.push(pk);
-      });
-    });
-  } catch (_) {}
-  return out;
-}
-
-// true إذا كانت الجلسة تخص الحساب النشط، أو إذا تعذّر تحديد حساب الجلسة (سلوك سابق)
-function sessionMatchesActive(session, activePubkey) {
-  const accs = sessionAccounts(session);
-  if (accs.length === 0 || !activePubkey) return true;
-  return accs.includes(activePubkey);
-}
-
 function mismatchMessage() {
   return i18n.t('wc.session_mismatch', { lng: isArabicUi() ? 'ar' : 'en' });
 }
@@ -289,16 +270,6 @@ export async function initWalletConnect() {
   } catch (error) {
     console.log('⚠️ WalletConnect init error:', error.message);
   }
-}
-
-// نتيجة تحقق Reown من هوية الموقع (VALID / INVALID / UNKNOWN + تصنيف احتيال)
-function readVerify(ctx) {
-  const v = ctx?.verified || {};
-  return {
-    scam:       v.isScam === true,
-    validation: v.validation || 'UNKNOWN',
-    origin:     v.origin || '',
-  };
 }
 
 function setupEventListeners() {
