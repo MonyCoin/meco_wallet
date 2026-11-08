@@ -17,6 +17,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import * as Linking from 'expo-linking';
 import { initWalletConnect, pairWalletConnect } from './services/walletConnectService';
 import WalletConnectSignModal from './components/WalletConnectSignModal';
+import AnimatedSplash from './components/AnimatedSplash';
 import { LogBox } from 'react-native';
 LogBox.ignoreLogs(['"solana" is not a valid icon name']);
 
@@ -48,7 +49,7 @@ import { checkPriceAlerts }     from './services/priceAlertService';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
-const SPLASH_BG = '#0A0A0F';
+const SPLASH_BG = '#000000';
 
 const Stack = createStackNavigator();
 const Tab   = createBottomTabNavigator();
@@ -108,6 +109,7 @@ export default function AppContainer() {
   const primaryColor = useAppStore(state => state.primaryColor);
   const [initialRoute, setInitialRoute] = useState(null);
   const [navReady,     setNavReady]     = useState(false);
+  const [splashDone, setSplashDone] = useState(false);
   const { t } = useTranslation();
 
   const isDark = theme === 'dark';
@@ -260,15 +262,18 @@ export default function AppContainer() {
     }
   }, [initialRoute]);
 
-  if (!initialRoute) {
-    return (
-      <View style={{ flex:1, justifyContent:'center', alignItems:'center', backgroundColor: SPLASH_BG }}>
-        <ActivityIndicator size="large" color={primaryColor} />
-      </View>
-    );
-  }
+  // شاشة الفتح المتحركة: نسخة واحدة تبقى مركّبة في الموضع نفسه حتى يجهز التطبيق
+  const splash = splashDone ? null : (
+    <AnimatedSplash
+      ready={!!initialRoute && navReady}
+      onShown={() => SplashScreen.hideAsync().catch(() => {})}
+      onDone={() => setSplashDone(true)}
+    />
+  );
 
   return (
+    <View style={{ flex: 1, backgroundColor: SPLASH_BG }}>
+    {initialRoute ? (
     <SafeAreaProvider style={{ flex: 1, backgroundColor: SPLASH_BG }}>
       <NavigationContainer
         theme={theme==='dark' ? DarkTheme : DefaultTheme}
@@ -322,5 +327,8 @@ export default function AppContainer() {
         </View>
       )}
     </SafeAreaProvider>
+    ) : null}
+    {splash}
+    </View>
   );
 }

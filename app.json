@@ -2,7 +2,7 @@
   "expo": {
     "name": "meco wallet",
     "slug": "meco_wallet",
-    "version": "1.24.0",
+    "version": "1.25.0",
     "scheme": "meco-wallet",
     "updates": {
       "enabled": true,
@@ -13,23 +13,19 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
-    "splash": {
-      "image": "./assets/logo.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#0A0A0F"
-    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.meco.wallet",
-      "buildNumber": "24"
+      "buildNumber": "25"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#0A0A0F"
+        "monochromeImage": "./assets/monochrome-icon.png",
+        "backgroundColor": "#000000"
       },
       "package": "com.meco.wallet",
-      "versionCode": 24,
+      "versionCode": 25,
       "permissions": [
         "CAMERA",
         "INTERNET",
@@ -54,7 +50,16 @@
           }
         }
       ],
-      "expo-video"
+      "expo-video",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/logo.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#000000"
+        }
+      ]
     ],
     "owner": "monycoin",
     "extra": {
