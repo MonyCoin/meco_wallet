@@ -17,14 +17,17 @@ import { initWalletConnect, pairWalletConnect } from '../services/walletConnectS
 const { width } = Dimensions.get('window');
 const BOOKMARKS_KEY = '@meco_bookmarks';
 const HISTORY_KEY   = '@meco_browsing_history';
-const BANNER_W      = width - 40;
-const BANNER_GAP    = 12;
-const BANNER_H      = 124;
+const BANNER_SIDE   = 12;              // هامش البطاقات (مثل المحفظة والسوق)
+const BANNER_W      = width - BANNER_SIDE * 2;
+const BANNER_GAP    = 10;
+const BANNER_AUTO_MS  = 4000;          // مدة بقاء كل بطاقة
+const BANNER_PAUSE_MS = 6000;          // مهلة التوقف بعد لمس المستخدم
+const BANNER_H      = 84;              // بطاقات مضغوطة (قريبة من Solflare)
 
 const DAPPS = [
   { id:'jupiter',  name:'Jupiter',  icon:'https://assets.coingecko.com/coins/images/34188/large/jup.png',  url:'https://jup.ag',  category:'trading', badge:'DEX',  featured:true },
-  { id:'marinade', name:'Marinade', icon:'https://assets.coingecko.com/coins/images/18612/large/mnde.png', url:'https://app.marinade.finance/earn/liquid/', category:'staking', badge:'Staking' },
-  { id:'jito',     name:'Jito',     icon:'https://assets.coingecko.com/coins/images/33228/large/jto.png',  url:'https://jito.network/staking',         category:'staking', badge:'Staking' },
+  { id:'marinade', name:'Marinade', icon:'https://www.google.com/s2/favicons?domain=marinade.finance&sz=128', url:'https://app.marinade.finance/earn/liquid/', category:'staking', badge:'Staking' },
+  { id:'jito',     name:'Jito',     icon:'https://assets.coingecko.com/coins/images/33228/large/jto.png',  url:'https://jito.network/staking',         category:'staking', badge:'Staking', iconBg:'#FFFFFF' },
   { id:'orca',     name:'Orca',     icon:'https://assets.coingecko.com/coins/images/17547/large/Orca_Logo.png', url:'https://www.orca.so/pools',       category:'pools',   badge:'Pools' },
   { id:'raydium', name:'Raydium', icon:'https://assets.coingecko.com/coins/images/13928/large/PSigc4ie_400x400.jpg', url:'https://raydium.io/liquidity-pools/', category:'pools', badge:'Pools' },
   { id:'meteora',  name:'Meteora',  icon:'https://assets.coingecko.com/coins/images/69110/standard/meteora.png', url:'https://app.meteora.ag',               category:'defi',    badge:'DeFi' },
@@ -40,29 +43,53 @@ const DISCOVER_TABS = [
   { id:'ecosystem', labelKey:'portal_tab_ecosystem', def:'نظام بيئي',   apps:['raydium', 'meteora', 'drift'] },
 ];
 
+// تطبيقات ويب إضافية (قسم "تطبيقات ويب"): أيقونات مربعة من favicon الموقع نفسه
+const favicon = (domain) => `https://www.google.com/s2/favicons?domain=${domain}&sz=128`;
+const WEB_APPS = [
+  { id:'coinfactory', name:'Coinfactory', url:'https://coinfactory.app/',     icon:favicon('coinfactory.app'), badge:'Token Tools' },
+  { id:'magiceden',   name:'Magic Eden',  url:'https://magiceden.io/',        icon:favicon('magiceden.io'),    badge:'NFT' },
+  { id:'tensor',      name:'Tensor',      url:'https://www.tensor.trade/',    icon:favicon('tensor.trade'),    badge:'NFT' },
+  { id:'sanctum',     name:'Sanctum',     url:'https://sanctum.so/',          icon:favicon('sanctum.so'),      badge:'Staking' },
+  { id:'dexscreener', name:'DEX Screener',url:'https://dexscreener.com/solana', icon:favicon('dexscreener.com'), badge:'Analytics' },
+  { id:'birdeye',     name:'Birdeye',     url:'https://birdeye.so/',          icon:favicon('birdeye.so'),      badge:'Analytics' },
+  { id:'solscan',     name:'Solscan',     url:'https://solscan.io/',          icon:favicon('solscan.io'),      badge:'Explorer' },
+];
+
 // البطاقات المميزة القابلة للتمرير
 const BANNERS = [
   { id:'jupiter',  app:'jupiter',  colors:['#3B2FB8', '#241C86'], tKey:'portal_b1_title', sKey:'portal_b1_sub', tDef:'تداول بأفضل سعر',       sDef:'مبادلة فورية عبر Jupiter' },
   { id:'marinade', app:'marinade', colors:['#0E7A6B', '#0A4F47'], tKey:'portal_b2_title', sKey:'portal_b2_sub', tDef:'اربح من SOL',           sDef:'تخزين سائل مع Marinade' },
   { id:'orca',     app:'orca',     colors:['#B4325F', '#7A1F40'], tKey:'portal_b3_title', sKey:'portal_b3_sub', tDef:'وفّر السيولة واربح',    sDef:'مجمعات السيولة على Orca' },
   { id:'drift',    app:'drift',    colors:['#5B3BC4', '#33217D'], tKey:'portal_b4_title', sKey:'portal_b4_sub', tDef:'تداول العقود الدائمة',  sDef:'منصة Drift اللامركزية' },
+  { id:'kamino',   app:'kamino',   colors:['#1F5FBF', '#143F80'], tKey:'portal_b5_title', sKey:'portal_b5_sub', tDef:'أقرض واقترض',           sDef:'إقراض لامركزي مع Kamino' },
+  { id:'jito',     app:'jito',     colors:['#2F7D32', '#1B4D1E'], tKey:'portal_b6_title', sKey:'portal_b6_sub', tDef:'خزّن SOL مع Jito',       sDef:'عوائد تخزين مع JitoSOL' },
+  { id:'coinfactory', app:'coinfactory', colors:['#C2570C', '#8A3C06'], tKey:'portal_b7_title', sKey:'portal_b7_sub', tDef:'أنشئ رمزك',        sDef:'أدوات رموز SPL مع Coinfactory' },
 ];
 
 const getHost = (url) => {
   try { return url.replace(/^https?:\/\//, '').split('/')[0]; } catch (_) { return ''; }
 };
 
-const SafeImg = ({ uri, size, radiusRatio = 0.28 }) => {
+// bg: خلفية فاتحة للشعارات الداكنة (مثل Jito) — label: حرف بديل إن فشل تحميل الصورة
+const SafeImg = ({ uri, size, radiusRatio = 0.28, bg, label }) => {
   const [err, setErr] = useState(false);
+  const radius = size * radiusRatio;
   if (err || !uri) return (
-    <View style={{ width:size, height:size, borderRadius:size*radiusRatio,
-      backgroundColor:'rgba(100,100,160,0.12)', justifyContent:'center', alignItems:'center' }}>
-      <Ionicons name="globe-outline" size={size*0.45} color="rgba(140,140,200,0.5)" />
+    <View style={{ width:size, height:size, borderRadius:radius,
+      backgroundColor:'rgba(100,100,160,0.18)', justifyContent:'center', alignItems:'center' }}>
+      {label
+        ? <Text style={{ color:'#FFFFFF', fontSize:size*0.42, fontWeight:'800' }}>{String(label).trim().charAt(0).toUpperCase()}</Text>
+        : <Ionicons name="globe-outline" size={size*0.45} color="rgba(140,140,200,0.5)" />}
+    </View>
+  );
+  if (bg) return (
+    <View style={{ width:size, height:size, borderRadius:radius, backgroundColor:bg, justifyContent:'center', alignItems:'center' }}>
+      <Image source={{ uri }} style={{ width:size*0.72, height:size*0.72, borderRadius:radius*0.6 }} onError={() => setErr(true)} />
     </View>
   );
   return (
     <Image source={{ uri }}
-      style={{ width:size, height:size, borderRadius:size*radiusRatio }}
+      style={{ width:size, height:size, borderRadius:radius }}
       onError={() => setErr(true)} />
   );
 };
@@ -93,6 +120,9 @@ export default function AppPortalScreen() {
   const [view,        setView]        = useState('explore');
   const [menuOpen,    setMenuOpen]    = useState(false);
   const [bannerIdx,   setBannerIdx]   = useState(0);
+  const bannerRef        = useRef(null);
+  const bannerIdxRef     = useRef(0);
+  const bannerPauseUntil = useRef(0);
   const [search,      setSearch]      = useState('');
   const [bookmarks,   setBookmarks]   = useState([]);
   const [bmLoading,   setBmLoading]   = useState(true);
@@ -213,7 +243,7 @@ export default function AppPortalScreen() {
   const padTop = Platform.OS === 'ios' ? insets.top + 10 : insets.top + 18;
   const padBot = insets.bottom + 80;
 
-  const appById = (id) => DAPPS.find(d => d.id === id);
+  const appById = (id) => DAPPS.find(d => d.id === id) || WEB_APPS.find(d => d.id === id);
   const activeTab = DISCOVER_TABS.find(x => x.id === tab) || DISCOVER_TABS[0];
   const discoverApps = activeTab.apps.map(appById).filter(Boolean);
   // المفضلة: مواقع المستخدم المحفوظة، وإن لم توجد تظهر التطبيقات الأساسية
@@ -233,8 +263,24 @@ export default function AppPortalScreen() {
 
   const onBannerScroll = (e) => {
     const i = Math.round(e.nativeEvent.contentOffset.x / (BANNER_W + BANNER_GAP));
+    bannerIdxRef.current = i;
     if (i !== bannerIdx) setBannerIdx(i);
   };
+  const pauseBanner = () => { bannerPauseUntil.current = Date.now() + BANNER_PAUSE_MS; };
+
+  // حركة تلقائية للبطاقات: كل 4 ثوانٍ تنتقل للتالية وتعود للأولى بعد الأخيرة.
+  // تتوقف عند لمس المستخدم وعند فتح المتصفح أو شاشة المفضلة.
+  useEffect(() => {
+    if (browserReq || view !== 'explore') return undefined;
+    bannerIdxRef.current = 0;
+    setBannerIdx(0);
+    const timer = setInterval(() => {
+      if (Date.now() < bannerPauseUntil.current) return;
+      const next = (bannerIdxRef.current + 1) % BANNERS.length;
+      if (bannerRef.current) bannerRef.current.scrollTo({ x: next * (BANNER_W + BANNER_GAP), animated: true });
+    }, BANNER_AUTO_MS);
+    return () => clearInterval(timer);
+  }, [browserReq, view]);
 
   const menuItems = [
     { icon:'time-outline',     label: t('browsing_history', 'سجل التصفح'), action: () => setHistoryOpen(true) },
@@ -295,8 +341,11 @@ export default function AppPortalScreen() {
               snapToInterval={BANNER_W + BANNER_GAP}
               decelerationRate="fast"
               showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ paddingHorizontal:20, gap:BANNER_GAP }}
+              contentContainerStyle={{ paddingHorizontal:BANNER_SIDE, gap:BANNER_GAP }}
+              ref={bannerRef}
               onScroll={onBannerScroll}
+              onScrollBeginDrag={pauseBanner}
+              onMomentumScrollEnd={pauseBanner}
               scrollEventThrottle={16}
               style={{ direction:'ltr' }}
             >
@@ -309,14 +358,14 @@ export default function AppPortalScreen() {
                     style={[S.banner, { backgroundColor:b.colors[0] }]}
                     onPress={() => app && openUrl(app.url, app.name)}
                   >
-                    <View style={[S.bannerOrb, { backgroundColor:b.colors[1], top:-40, right:-30, width:170, height:170, borderRadius:85 }]} />
-                    <View style={[S.bannerOrb, { backgroundColor:'rgba(255,255,255,0.07)', bottom:-50, left:-20, width:120, height:120, borderRadius:60 }]} />
+                    <View style={[S.bannerOrb, { backgroundColor:b.colors[1], top:-34, right:-24, width:130, height:130, borderRadius:65 }]} />
+                    <View style={[S.bannerOrb, { backgroundColor:'rgba(255,255,255,0.07)', bottom:-44, left:-16, width:90, height:90, borderRadius:45 }]} />
                     <View style={{ flex:1, paddingRight:12 }}>
                       <Text style={S.bannerTitle} numberOfLines={2}>{t(b.tKey, b.tDef)}</Text>
                       <Text style={S.bannerSub} numberOfLines={2}>{t(b.sKey, b.sDef)}</Text>
                     </View>
                     <View style={S.bannerIconWrap}>
-                      <SafeImg uri={app?.icon} size={56} radiusRatio={0.3} />
+                      <SafeImg uri={app?.icon} size={44} radiusRatio={0.3} bg={app?.iconBg} label={app?.name} />
                     </View>
                   </TouchableOpacity>
                 );
@@ -348,7 +397,7 @@ export default function AppPortalScreen() {
                   onLongPress={f.removable ? () => saveBm(bookmarks.filter(b => b.id !== f.id)) : undefined}
                   delayLongPress={600}
                 >
-                  <SafeImg uri={f.icon} size={58} radiusRatio={0.3} />
+                  <SafeImg uri={f.icon} size={58} radiusRatio={0.3} bg={f.iconBg} label={f.name} />
                   <Text style={[S.favName, { color:C.text }]} numberOfLines={1}>{f.name}</Text>
                 </TouchableOpacity>
               ))}
@@ -379,12 +428,40 @@ export default function AppPortalScreen() {
                   activeOpacity={0.75}
                   onPress={() => openUrl(item.url, item.name)}
                 >
-                  <SafeImg uri={item.icon} size={44} radiusRatio={0.26} />
+                  <SafeImg uri={item.icon} size={44} radiusRatio={0.26} bg={item.iconBg} label={item.name} />
                   <View style={{ flex:1 }}>
                     <Text style={[S.appName, { color:C.text }]} numberOfLines={1}>{item.name}</Text>
                     <Text style={[S.appDesc, { color:C.muted }]} numberOfLines={1}>
                       {t(`desc_${item.id}`, { defaultValue: item.badge })}
                     </Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* ── تطبيقات ويب (أيقونات مربعة، عنوان واحد) ── */}
+            <View style={[S.sectionHead, { marginTop:26 }]}>
+              <Text style={[S.sectionTitle, { color:C.text }]}>{t('portal_web_apps', 'تطبيقات ويب')}</Text>
+            </View>
+            <View style={{ paddingHorizontal:20 }}>
+              {WEB_APPS.map(item => (
+                <TouchableOpacity
+                  key={item.id}
+                  style={S.webRow}
+                  activeOpacity={0.75}
+                  onPress={() => openUrl(item.url, item.name)}
+                >
+                  <View style={[S.webIcon, { backgroundColor:C.card }]}>
+                    <SafeImg uri={item.icon} size={40} radiusRatio={0.12} label={item.name} />
+                  </View>
+                  <View style={{ flex:1 }}>
+                    <Text style={[S.appName, { color:C.text }]} numberOfLines={1}>{item.name}</Text>
+                    <Text style={[S.appDesc, { color:C.muted }]} numberOfLines={2}>
+                      {t(`web_desc_${item.id}`, { defaultValue: item.badge })}
+                    </Text>
+                    <View style={[S.webChip, { backgroundColor:C.card }]}>
+                      <Text style={[S.webChipTxt, { color:C.muted }]}>{item.badge}</Text>
+                    </View>
                   </View>
                 </TouchableOpacity>
               ))}
@@ -615,13 +692,13 @@ const S = StyleSheet.create({
   dotsBtn:     { width:42, height:'100%', justifyContent:'center', alignItems:'center' },
 
   // Banners
-  banner:      { width:BANNER_W, height:BANNER_H, borderRadius:22, overflow:'hidden', flexDirection:'row',
-                 alignItems:'center', paddingHorizontal:20 },
+  banner:      { width:BANNER_W, height:BANNER_H, borderRadius:20, overflow:'hidden', flexDirection:'row',
+                 alignItems:'center', paddingHorizontal:16 },
   bannerOrb:   { position:'absolute' },
-  bannerTitle: { color:'#FFFFFF', fontSize:19, fontWeight:'800', marginBottom:6 },
-  bannerSub:   { color:'rgba(255,255,255,0.78)', fontSize:13, lineHeight:18 },
-  bannerIconWrap:{ width:64, height:64, justifyContent:'center', alignItems:'center' },
-  dotsRow:     { flexDirection:'row', justifyContent:'center', gap:7, marginTop:12 },
+  bannerTitle: { color:'#FFFFFF', fontSize:16, fontWeight:'800', marginBottom:3 },
+  bannerSub:   { color:'rgba(255,255,255,0.78)', fontSize:12, lineHeight:16 },
+  bannerIconWrap:{ width:52, height:52, justifyContent:'center', alignItems:'center' },
+  dotsRow:     { flexDirection:'row', justifyContent:'center', gap:7, marginTop:10 },
   dot:         { width:7, height:7, borderRadius:3.5 },
 
   // Sections
@@ -643,6 +720,12 @@ const S = StyleSheet.create({
   appRow:      { flexDirection:'row', alignItems:'center', gap:14, paddingVertical:11 },
   appName:     { fontSize:16, fontWeight:'700' },
   appDesc:     { fontSize:13, marginTop:2 },
+
+  // Web apps (أيقونات مربعة)
+  webRow:      { flexDirection:'row', alignItems:'center', gap:14, paddingVertical:10 },
+  webIcon:     { width:64, height:64, borderRadius:14, justifyContent:'center', alignItems:'center' },
+  webChip:     { alignSelf:'flex-start', paddingHorizontal:9, paddingVertical:3, borderRadius:8, marginTop:6 },
+  webChipTxt:  { fontSize:11, fontWeight:'600' },
 
   // Bookmarks view
   bmList:      { paddingHorizontal:20, paddingTop:4 },
