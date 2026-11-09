@@ -24,8 +24,10 @@ const REFRESH_MS    = 60000;
 
 const { width } = require('react-native').Dimensions.get('window');
 
-const EXT_CARD_PADDING = 20;
-const EXT_CARD_GAP     = 20;
+const CARD_SIDE        = 12;   // هامش موحّد للبطاقات (مثل شاشة المحفظة)
+const CARD_BREAK       = 20 - CARD_SIDE; // البطاقة تتجاوز هامش النص 20 بهذا المقدار
+const EXT_CARD_PADDING = CARD_SIDE;
+const EXT_CARD_GAP     = 12;
 const EXT_CARD_WIDTH   = (width - EXT_CARD_PADDING * 2 - EXT_CARD_GAP) / 2;
 
 // ✅ شريط الفوركس — حركة دائمة بلا توقف، وسلوك موحّد في اللغتين
@@ -216,7 +218,7 @@ const ForexTicker = ({ data, isDark }) => {
 // ملاحظة: المنحنى زخرفي وليس بيانات تاريخية حقيقية، يميل صعودًا أو هبوطًا بحسب إشارة تغير MECO خلال 24 ساعة
 // ═════════════════════════════════════════════════════════════════════════════
 const MECO_MINT_ADDR = 'A5Ln25cfww33kfUSzBb89bMha7j1PnFQTy7H3FsQHN7W';
-const HERO_W      = width - 40;           // عرض محتوى الشاشة (هامش 20 على الجانبين)
+const HERO_W      = width - CARD_SIDE * 2; // عرض البانر: هامش البطاقات 12 على الجانبين
 const HERO_H      = 196;
 const HERO_N      = 48;                    // عدد نقاط المنحنى
 const HERO_GREEN  = '#10B981';
@@ -559,6 +561,7 @@ const HorizontalMarketSection = ({ titleKey, descKey, data, isDark, primaryColor
         keyExtractor={item => item.id || item.mint || item.symbol}
         horizontal
         showsHorizontalScrollIndicator={false}
+        style={{ marginHorizontal: -CARD_BREAK }}
         contentContainerStyle={S.extList}
         snapToInterval={EXT_CARD_WIDTH + EXT_CARD_GAP}
         snapToAlignment="start"
@@ -1074,7 +1077,7 @@ const S = StyleSheet.create({
 
   scroll:      { paddingHorizontal:20 },
 
-  hero:          { height:HERO_H, borderRadius:22, overflow:'hidden', marginBottom:16, direction:'ltr' },
+  hero:          { height:HERO_H, borderRadius:22, overflow:'hidden', marginBottom:16, marginHorizontal:-CARD_BREAK, direction:'ltr' },
   heroOrb:       { position:'absolute', width:220, height:220 },
   heroDotWrap:   { position:'absolute', left:0, top:0, width:14, height:14, alignItems:'center', justifyContent:'center' },
   heroDotRing:   { position:'absolute', width:14, height:14, borderRadius:7 },
@@ -1094,7 +1097,7 @@ const S = StyleSheet.create({
   heroChgTxt:    { fontSize:12, fontWeight:'800' },
   heroChgSub:    { color:'rgba(255,255,255,0.5)', fontSize:10, fontWeight:'600', marginLeft:2 },
 
-  overviewCard:  { borderRadius:18, padding:16, marginBottom:14 },
+  overviewCard:  { borderRadius:18, padding:16, marginBottom:14, marginHorizontal:-CARD_BREAK },
   overviewRow:   { flexDirection:'row', justifyContent:'space-between' },
   overviewItem:  { flex:1, alignItems:'center' },
   overviewLabel: { fontSize:11, marginBottom:4 },
@@ -1134,7 +1137,7 @@ const S = StyleSheet.create({
   extHeaderDot:  { width:6, height:6, borderRadius:3 },
   extHeaderTitle:{ fontSize:16, fontWeight:'800' },
   extHeaderSub:  { fontSize:12, marginBottom:12 },
-  extList:       { paddingHorizontal: EXT_CARD_PADDING - 20, gap: EXT_CARD_GAP },
+  extList:       { paddingHorizontal: CARD_BREAK, gap: EXT_CARD_GAP },
   extCard: {
     width: EXT_CARD_WIDTH,
     paddingVertical: 14,
