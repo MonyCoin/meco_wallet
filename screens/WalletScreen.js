@@ -25,8 +25,9 @@ import { WCEvents, getConnectedSites, disconnectSite, disconnectAllSites } from 
 const { width, height } = Dimensions.get('window');
 
 // ✅ Quick Trade — بطاقتان بالضبط مع محاذاة بطاقة الهيرو
-const TRADE_CARD_PADDING = 20;
-const TRADE_CARD_GAP     = 20;
+const CARD_SIDE          = 12;   // هامش موحّد لكل بطاقات الشاشة (أقرب لعرض Solflare)
+const TRADE_CARD_PADDING = CARD_SIDE;
+const TRADE_CARD_GAP     = 12;
 const TRADE_CARD_WIDTH   = (width - TRADE_CARD_PADDING * 2 - TRADE_CARD_GAP) / 2;
 
 // ✅ نافذة الأرصدة المجمّعة لشاشة الحسابات — إعادة فتحها خلال هذه المدة لا تعيد الجلب
@@ -727,7 +728,7 @@ export default function WalletScreen() {
                 backgroundColor: 'transparent',
                 opacity: fadeAnim,
                 transform: [{ translateY: slideAnim }],
-                marginHorizontal: 20,
+                marginHorizontal: CARD_SIDE,
               },
             ]}
           >
@@ -889,7 +890,7 @@ export default function WalletScreen() {
           </View>
 
           <View style={styles.stakingSection}>
-            <View style={styles.assetsHeader}>
+            <View style={[styles.assetsHeader, { paddingHorizontal: 20 - CARD_SIDE }]}>
               <Text style={[styles.sectionTitle, { color: colors.text }]}>
                 {t('wallet_home.liq_summary')}
               </Text>
@@ -959,7 +960,7 @@ export default function WalletScreen() {
           </View>
 
           <View style={styles.stakingSection}>
-            <View style={styles.assetsHeader}>
+            <View style={[styles.assetsHeader, { paddingHorizontal: 20 - CARD_SIDE }]}>
               <Text style={[styles.sectionTitle, { color: colors.text }]}>
                 {t('staking_card.section')}
               </Text>
@@ -1013,7 +1014,7 @@ export default function WalletScreen() {
           </View>
 
           <View style={styles.activitySection}>
-            <View style={styles.assetsHeader}>
+            <View style={[styles.assetsHeader, { paddingHorizontal: 20 - CARD_SIDE }]}>
               <Text style={[styles.sectionTitle, { color: colors.text }]}>
                 {t('activity.section_title')}
               </Text>
@@ -1411,7 +1412,7 @@ const styles = StyleSheet.create({
   emptyContainer:{ alignItems:'center', paddingVertical:50, gap:8 },
   emptyText:    { fontSize:13, marginTop:4 },
 
-  stakingSection: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 4 },
+  stakingSection: { paddingHorizontal: CARD_SIDE, paddingTop: 8, paddingBottom: 4 },
   stakingCard:    { borderRadius: 18, padding: 16 },
   stakingRow:     { flexDirection: 'row', alignItems: 'center' },
   stakingCol:     { flex: 1 },
@@ -1428,7 +1429,7 @@ const styles = StyleSheet.create({
   stakingEmptyTitle:{ fontSize: 14, fontWeight: '700', marginBottom: 2 },
   stakingEmptySub:  { fontSize: 11 },
 
-  activitySection:  { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 20 },
+  activitySection:  { paddingHorizontal: CARD_SIDE, paddingTop: 8, paddingBottom: 20 },
   activityCard:     { flexDirection: 'row', alignItems: 'center', padding: 14, borderRadius: 18, gap: 12 },
   activityIconWrap: { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
   activityLabel:    { fontSize: 14, fontWeight: '700' },
