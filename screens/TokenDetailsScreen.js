@@ -84,6 +84,7 @@ export default function TokenDetailsScreen() {
 
 
   const [loading,    setLoading]    = useState(true);
+  const [descOpen,   setDescOpen]   = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [chartData,  setChartData]  = useState([]);
   const [sparkline,  setSparkline]  = useState([]);
@@ -284,7 +285,7 @@ export default function TokenDetailsScreen() {
           </View>
         </View>
 
-        {/* ── السعر + Sparkline ── */}
+        {/* ── السعر ── */}
         <View style={S.hero}>
           <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
             <Text style={[S.priceLabel, { color:C.muted }]}>{t('current_price')}</Text>
@@ -297,17 +298,6 @@ export default function TokenDetailsScreen() {
               <Text style={[S.changeTxt, { color: up?C.success:C.error }]}>{fmtPct(stats.change)}</Text>
             </View>
           </View>
-          {sparkline.length > 1 && (
-            <View style={S.sparkWrap}>
-              {sparkline.map((v, i) => {
-                const mn = Math.min(...sparkline), mx = Math.max(...sparkline), rng = mx-mn||1;
-                const h  = Math.max(((v-mn)/rng)*30, 2);
-                const isUp = i === 0 ? up : v >= sparkline[i-1];
-                return <View key={i} style={[S.sparkBar, { height:h, backgroundColor: isUp?C.success:C.error }]} />;
-              })}
-            </View>
-          )}
-
           {/* ✅ زر تنبيه السعر — جديد */}
           {!token.isExternal && (
             <TouchableOpacity
@@ -373,7 +363,7 @@ export default function TokenDetailsScreen() {
         </View>
 
         {/* ── الرسم البياني ── */}
-        <View style={[S.card, { minHeight:220 }]}>
+        <View style={[S.card, { minHeight:200 }]}>
           {loading ? (
             <View style={S.chartLoad}>
               <ActivityIndicator size="large" color={C.primary} />
@@ -414,7 +404,7 @@ export default function TokenDetailsScreen() {
               { k:'ohlc_low',   v:fmtPrice(stats.low),     c:C.error   },
               { k:'ohlc_close', v:fmtPrice(stats.current), c:C.text    },
             ].map(item => (
-              <View key={item.k} style={[S.gridItem, { backgroundColor:C.card }]}>
+              <View key={item.k} style={S.gridItem}>
                 <Text style={[S.gridLabel, { color:C.muted }]}>{t(item.k)}</Text>
                 <Text style={[S.gridValue, { color:item.c }]}>{item.v}</Text>
               </View>
@@ -432,7 +422,7 @@ export default function TokenDetailsScreen() {
               { k:'circulating_supply', v:fmtSupply(stats.supply)   },
               { k:'max_supply',         v:stats.maxSupply>0 ? fmtSupply(stats.maxSupply) : '∞' },
             ].map(item => (
-              <View key={item.k} style={[S.gridItem, { backgroundColor:C.card }]}>
+              <View key={item.k} style={S.gridItem}>
                 <Text style={[S.gridLabel, { color:C.muted }]}>{t(item.k)}</Text>
                 <Text style={[S.gridValue, { color:C.text }]}>{item.v}</Text>
               </View>
@@ -463,10 +453,15 @@ export default function TokenDetailsScreen() {
         {(metadata?.description || token.description) && (
           <View style={S.card}>
             <Text style={[S.secTitle, { color:C.text }]}>{t('about_token')}</Text>
-            <Text style={[S.desc, { color:C.muted }]}>
+            <Text style={[S.desc, { color:C.muted }]} numberOfLines={descOpen ? undefined : 3}>
               {(metadata?.description || token.description || '').replace(/<[^>]+>/g,'').slice(0,400)}
               {(metadata?.description||'').length > 400 ? '...' : ''}
             </Text>
+            <TouchableOpacity onPress={() => setDescOpen(v => !v)} hitSlop={{ top:8, bottom:8, left:8, right:8 }}>
+              <Text style={{ color:C.primary, fontSize:12, fontWeight:'700', marginTop:6 }}>
+                {descOpen ? t('market_show_less') : t('show_more_text')}
+              </Text>
+            </TouchableOpacity>
           </View>
         )}
 
@@ -518,63 +513,61 @@ export default function TokenDetailsScreen() {
 const S = StyleSheet.create({
   root:       { flex:1 },
   scroll:     { padding:20, paddingBottom:60 },
-  header:     { flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:16 },
-  iconBtn:    { width:40, height:40, borderRadius:20, justifyContent:'center', alignItems:'center' },
+  header:     { flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:12 },
+  iconBtn:    { width:36, height:36, borderRadius:18, justifyContent:'center', alignItems:'center' },
   tokenHead:  { flex:1, flexDirection:'row', alignItems:'center', gap:10, paddingHorizontal:12 },
   tokenImg:   { width:34, height:34, borderRadius:17 },
   sym:        { fontSize:16, fontWeight:'800' },
   nam:        { fontSize:11, marginTop:1 },
-  card:       { marginBottom:22 },
-  hero:       { marginBottom:18, paddingTop:4 },
+  card:       { marginBottom:16 },
+  hero:       { marginBottom:12, paddingTop:2 },
   priceLabel: { fontSize:12, fontWeight:'600' },
   rankTxt:    { fontSize:11, fontWeight:'600' },
-  price:      { fontSize:38, fontWeight:'800', letterSpacing:-0.5 },
-  changePill: { flexDirection:'row', alignItems:'center', paddingHorizontal:10, paddingVertical:5, borderRadius:12, gap:4 },
-  changeTxt:  { fontSize:12, fontWeight:'700' },
-  sparkWrap:  { flexDirection:'row', alignItems:'flex-end', height:32, marginTop:14, gap:2 },
-  sparkBar:   { flex:1, borderRadius:1 },
+  price:      { fontSize:28, fontWeight:'800', letterSpacing:-0.3 },
+  changePill: { flexDirection:'row', alignItems:'center', paddingHorizontal:8, paddingVertical:4, borderRadius:10, gap:3 },
+  changeTxt:  { fontSize:11, fontWeight:'700' },
 
   // ✅ أنماط زر التنبيه — جديد
   alertBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
+    gap: 8,
+    paddingVertical: 7,
+    paddingHorizontal: 12,
     borderRadius: 999,
-    marginTop: 16,
+    marginTop: 10,
+    alignSelf: 'flex-start',
   },
   alertBtnIcon: {
-    width: 28,
-    height: 28,
-    borderRadius: 8,
+    width: 24,
+    height: 24,
+    borderRadius: 7,
     justifyContent: 'center',
     alignItems: 'center',
   },
   alertBtnTxt: {
-    flex: 1,
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '700',
   },
 
-  actions:    { flexDirection:'row', gap:8, marginBottom:22 },
-  actionBtn:  { flex:1, flexDirection:'row', alignItems:'center', justifyContent:'center', paddingVertical:13, borderRadius:999, gap:6 },
+  actions:    { flexDirection:'row', gap:8, marginBottom:16 },
+  actionBtn:  { flex:1, flexDirection:'row', alignItems:'center', justifyContent:'center', paddingVertical:11, borderRadius:999, gap:6 },
   actionTxt:  { fontSize:12, fontWeight:'700', color:'#FFF' },
-  secTitle:   { fontSize:20, fontWeight:'800', marginBottom:12 },
+  secTitle:   { fontSize:15, fontWeight:'700', marginBottom:8 },
   tfRow:      { flexDirection:'row', justifyContent:'space-between', width:'100%' },
-  tfBtn:      { flex:1, paddingVertical:8, alignItems:'center', borderRadius:999, marginHorizontal:2 },
+  tfBtn:      { flex:1, paddingVertical:6, alignItems:'center', borderRadius:999, marginHorizontal:2 },
   tfTxt:      { fontSize:12, fontWeight:'700' },
   chartArea:  { flexDirection:'row', justifyContent:'space-between', paddingHorizontal:4, overflow:'hidden' },
   chartLoad:  { alignItems:'center', justifyContent:'center', height:180, gap:8 },
   candle:     { flex:1, height:'100%', alignItems:'center' },
   wick:       { position:'absolute', width:1 },
   body:       { position:'absolute', width:'55%', borderRadius:1 },
-  grid:       { flexDirection:'row', flexWrap:'wrap', justifyContent:'space-between', gap:8 },
-  gridItem:   { width:'48%', paddingVertical:10, paddingHorizontal:12, borderRadius:16 },
-  gridLabel:  { fontSize:11, marginBottom:4 },
-  gridValue:  { fontSize:14, fontWeight:'700' },
-  athRow:     { flexDirection:'row', alignItems:'center', marginTop:8 },
-  athItem:    { flex:1, alignItems:'center', gap:2, backgroundColor:'#141414', borderRadius:16, paddingVertical:12, marginHorizontal:4 },
+  grid:       { },
+  gridItem:   { flexDirection:'row', justifyContent:'space-between', alignItems:'center', paddingVertical:11, borderBottomWidth:StyleSheet.hairlineWidth, borderBottomColor:'#262626' },
+  gridLabel:  { fontSize:13 },
+  gridValue:  { fontSize:13, fontWeight:'700' },
+  athRow:     { flexDirection:'row', alignItems:'center', marginTop:12 },
+  athItem:    { flex:1, alignItems:'center', gap:2, backgroundColor:'#141414', borderRadius:14, paddingVertical:10, marginHorizontal:4 },
   athLabel:   { fontSize:11, fontWeight:'600' },
   athVal:     { fontSize:14, fontWeight:'700' },
   athChg:     { fontSize:11, fontWeight:'600' },

@@ -252,7 +252,7 @@ export default function AssetDetailsScreen() {
         </View>
 
         {/* ── الرسم البياني ── */}
-        <View style={[S.card, { minHeight: 220 }]}>
+        <View style={[S.card, { minHeight: 200 }]}>
           {loading ? (
             <View style={S.chartLoad}>
               <ActivityIndicator size="large" color={C.primary} />
@@ -292,7 +292,7 @@ export default function AssetDetailsScreen() {
               { k: 'ohlc_low',   v: fmtPrice(stats.low),     c: C.error   },
               { k: 'ohlc_close', v: fmtPrice(stats.current), c: C.text    },
             ].map(item => (
-              <View key={item.k} style={[S.gridItem, { backgroundColor: C.card }]}>
+              <View key={item.k} style={S.gridItem}>
                 <Text style={[S.gridLabel, { color: C.muted }]}>{t(item.k)}</Text>
                 <Text style={[S.gridValue, { color: item.c }]}>{item.v}</Text>
               </View>
@@ -311,7 +311,7 @@ export default function AssetDetailsScreen() {
                 { k: 'exchange',   v: profile.exchange || '—' },
                 { k: 'country',    v: profile.country  || '—' },
               ].map(item => (
-                <View key={item.k} style={[S.gridItem, { backgroundColor: C.card }]}>
+                <View key={item.k} style={S.gridItem}>
                   <Text style={[S.gridLabel, { color: C.muted }]}>{t(item.k, item.k)}</Text>
                   <Text style={[S.gridValue, { color: C.text }]} numberOfLines={1}>{item.v}</Text>
                 </View>
@@ -392,10 +392,10 @@ const S = StyleSheet.create({
 
   header: {
     flexDirection: 'row', alignItems: 'center',
-    justifyContent: 'space-between', marginBottom: 16,
+    justifyContent: 'space-between', marginBottom: 12,
   },
   iconBtn: {
-    width: 40, height: 40, borderRadius: 20,
+    width: 36, height: 36, borderRadius: 18,
     justifyContent: 'center', alignItems: 'center',
   },
   assetHead: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12 },
@@ -404,19 +404,19 @@ const S = StyleSheet.create({
   sym: { fontSize: 16, fontWeight: '800' },
   nam: { fontSize: 11, marginTop: 1 },
 
-  card: { marginBottom: 22 },
-  hero: { marginBottom: 18, paddingTop: 4 },
+  card: { marginBottom: 16 },
+  hero: { marginBottom: 12, paddingTop: 2 },
 
-  priceLabel: { fontSize: 12, fontWeight: '600', marginBottom: 8 },
+  priceLabel: { fontSize: 12, fontWeight: '600', marginBottom: 4 },
   priceRow:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  price:      { fontSize: 38, fontWeight: '800', letterSpacing: -0.5 },
-  changePill: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, gap: 4 },
-  changeTxt:  { fontSize: 12, fontWeight: '700' },
+  price:      { fontSize: 28, fontWeight: '800', letterSpacing: -0.3 },
+  changePill: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10, gap: 3 },
+  changeTxt:  { fontSize: 11, fontWeight: '700' },
 
-  secTitle: { fontSize: 20, fontWeight: '800', marginBottom: 12 },
+  secTitle: { fontSize: 15, fontWeight: '700', marginBottom: 8 },
 
   tfRow: { flexDirection: 'row', justifyContent: 'space-between', width: '100%' },
-  tfBtn: { flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: 999, marginHorizontal: 2 },
+  tfBtn: { flex: 1, paddingVertical: 6, alignItems: 'center', borderRadius: 999, marginHorizontal: 2 },
   tfTxt: { fontSize: 12, fontWeight: '700' },
 
   chartArea: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 4, overflow: 'hidden' },
@@ -425,10 +425,10 @@ const S = StyleSheet.create({
   wick:      { position: 'absolute', width: 1 },
   body:      { position: 'absolute', width: '55%', borderRadius: 1 },
 
-  grid:      { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 8 },
-  gridItem:  { width: '48%', paddingVertical: 10, paddingHorizontal: 12, borderRadius: 16 },
-  gridLabel: { fontSize: 11, marginBottom: 4 },
-  gridValue: { fontSize: 14, fontWeight: '700' },
+  grid:      { },
+  gridItem:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 11, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#262626' },
+  gridLabel: { fontSize: 13 },
+  gridValue: { fontSize: 13, fontWeight: '700' },
 
   newsHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   newsItem:   { flexDirection: 'row', gap: 12, padding: 12, borderRadius: 16 },
