@@ -17,6 +17,7 @@ import { useAppStore } from '../store';
 import { useTranslation } from 'react-i18next';
 import QRCode from 'react-native-qrcode-styled';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width } = Dimensions.get('window');
 
@@ -28,6 +29,7 @@ export default function ReceiveScreen() {
   const walletPublicKey = useAppStore(state => state.walletPublicKey);
 
   const { t } = useTranslation();
+  const insets = useSafeAreaInsets();
   const [fadeAnim] = useState(new Animated.Value(0));
   const [slideAnim] = useState(new Animated.Value(30));
   const [copied, setCopied] = useState(false);
@@ -100,7 +102,7 @@ export default function ReceiveScreen() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       <ScrollView 
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: 40 + insets.bottom }]}
         showsVerticalScrollIndicator={false}
       >
         <Animated.View 

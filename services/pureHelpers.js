@@ -69,6 +69,21 @@ function extractWcUri(url) {
   return /^wc%3A/i.test(rest) ? rest.split('&')[0] : rest;
 }
 
+// اختيار أيقونة الموقع من بيانات WalletConnect: نتجاوز SVG (لا يدعمها Image في RN)
+// ونحوّل المسارات النسبية (/icon.png) إلى روابط كاملة اعتماداً على نطاق الموقع
+function resolveSiteIcon(icons, url) {
+  const origin = ((typeof url === 'string' ? url : '').match(/^[a-z][a-z0-9+.-]*:\/\/[^/?#]+/i) || [''])[0];
+  const list = Array.isArray(icons) ? icons : [];
+  for (const raw of list) {
+    if (typeof raw !== 'string' || !raw) continue;
+    if (/\.svg(\?|#|$)/i.test(raw)) continue;
+    if (/^https?:\/\//i.test(raw)) return raw;
+    if (raw.startsWith('//')) return 'https:' + raw;
+    if (origin) return origin + (raw.startsWith('/') ? raw : '/' + raw);
+  }
+  return null;
+}
+
 // تجهيز قائمة المواقع المتصلة من كائن الجلسات النشطة (topic -> session)
 // الناتج مرتب أبجدياً بالاسم، وكل عنصر: { topic, name, host, url, icon, account }
 function buildSiteList(sessions) {
@@ -85,7 +100,8 @@ function buildSiteList(sessions) {
         name:    meta.name || host || 'dApp',
         host,
         url,
-        icon:    (Array.isArray(meta.icons) && meta.icons[0]) || null,
+        icon:    resolveSiteIcon(meta.icons, url),
+        fallbackIcon: host ? `https://www.google.com/s2/favicons?domain=${host}&sz=128` : null,
         account: accs[0] || '',
       });
     });
@@ -93,4 +109,4 @@ function buildSiteList(sessions) {
   return out.sort((a, b) => String(a.name).localeCompare(String(b.name)));
 }
 
-module.exports = { buildSiteList, toBaseUnits, friendlySendError, sessionAccounts, sessionMatchesActive, readVerify, extractWcUri };
+module.exports = { resolveSiteIcon, buildSiteList, toBaseUnits, friendlySendError, sessionAccounts, sessionMatchesActive, readVerify, extractWcUri };

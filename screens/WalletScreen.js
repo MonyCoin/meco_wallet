@@ -61,6 +61,18 @@ const fmtTradePrice = (p) => {
 
 const MSOL_MINT = 'mSoLzYCxHdYgdzU16g5QSh3i5K3z3KZK7ytfqcJm7So'; // mSOL (Marinade) — 9 decimals
 
+// أيقونة موقع متصل: الأيقونة المعلنة ← favicon النطاق ← أيقونة كرة أرضية
+const SiteIcon = ({ site, bg }) => {
+  const [stage, setStage] = useState(0);
+  const uri = [site.icon, site.fallbackIcon].filter(Boolean)[stage];
+  if (!uri) return (
+    <View style={{ width:36, height:36, borderRadius:18, backgroundColor:bg, alignItems:'center', justifyContent:'center' }}>
+      <Ionicons name="globe-outline" size={18} color="#8A8A8E" />
+    </View>
+  );
+  return <Image source={{ uri }} onError={() => setStage(n => n + 1)} style={{ width:36, height:36, borderRadius:18, backgroundColor:bg }} />;
+};
+
 export default function WalletScreen() {
   const navigation   = useNavigation();
   const { t, i18n }  = useTranslation();
@@ -529,7 +541,7 @@ export default function WalletScreen() {
       >
         <Swipeable
           ref={ref => (swipeableRefs.current[item.symbol] = ref)}
-          friction={3} leftThreshold={60} rightThreshold={60}
+          friction={1} leftThreshold={36} rightThreshold={36}
           overshootLeft={false} overshootRight={false}
           renderLeftActions={(p,d)  => renderLeftActions(p,d,item)}
           renderRightActions={(p,d) => renderRightActions(p,d,item)}
@@ -579,11 +591,10 @@ export default function WalletScreen() {
       >
         <Image source={{ uri: item.image }} style={styles.tradeCardIcon} />
 
-        <Text style={[styles.tradeCardSymbol, { color: colors.text }]} numberOfLines={1}>
-          {item.symbol}
-        </Text>
-
-        <View style={styles.tradeCardBottomRow}>
+        <View style={styles.tradeCardInfo}>
+          <Text style={[styles.tradeCardSymbol, { color: colors.text }]} numberOfLines={1}>
+            {item.symbol}
+          </Text>
           <Text style={[styles.tradeCardPrice, { color: colors.text }]} numberOfLines={1}>
             {fmtTradePrice(item.current_price)}
           </Text>
@@ -859,10 +870,7 @@ export default function WalletScreen() {
                 horizontal
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.tradingList}
-                snapToInterval={TRADE_CARD_WIDTH + TRADE_CARD_GAP}
-                snapToAlignment="start"
-                decelerationRate="fast"
-                disableIntervalMomentum
+                decelerationRate="normal"
               />
             </View>
           )}
@@ -1139,11 +1147,7 @@ export default function WalletScreen() {
               <ScrollView style={{ maxHeight: 340 }}>
                 {sites.map(site => (
                   <View key={site.topic} style={{ backgroundColor:'#1E1E1E', borderRadius:12, padding:12, marginBottom:8, flexDirection:'row', alignItems:'center', gap:10 }}>
-                    {site.icon
-                      ? <Image source={{ uri: site.icon }} style={{ width:36, height:36, borderRadius:18, backgroundColor: colors.background }} />
-                      : <View style={{ width:36, height:36, borderRadius:18, backgroundColor: colors.background, alignItems:'center', justifyContent:'center' }}>
-                          <Ionicons name="globe-outline" size={18} color={colors.textSecondary} />
-                        </View>}
+                    <SiteIcon site={site} bg={colors.background} />
                     <View style={{ flex:1 }}>
                       <Text style={{ color: colors.text, fontSize:14, fontWeight:'700' }} numberOfLines={1}>{site.name}</Text>
                       {!!site.host && <Text style={{ color: colors.textSecondary, fontSize:12 }} numberOfLines={1}>{site.host}</Text>}
@@ -1258,7 +1262,7 @@ export default function WalletScreen() {
 
         <Modal visible={accountsModalVisible} transparent animationType="slide" onRequestClose={() => setAccountsModalVisible(false)}>
           <View style={styles.modalOverlayBottom}>
-            <View style={[styles.accountsModalContent, { backgroundColor: colors.card, marginBottom: Math.max(insets.bottom, 20) }]}>
+            <View style={[styles.accountsModalContent, { backgroundColor: colors.card, marginBottom: Math.max(insets.bottom, 20) + 16 }]}>
               <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
               <View style={styles.accountsModalHeader}>
                 <View style={styles.accountsHeaderLeft}>
@@ -1347,15 +1351,22 @@ const styles = StyleSheet.create({
   tradingList:    { paddingHorizontal: TRADE_CARD_PADDING, gap: TRADE_CARD_GAP },
   tradeCard: {
     width: TRADE_CARD_WIDTH,
+    minHeight: 92,
     paddingVertical: 14,
     paddingHorizontal: 14,
     borderRadius: 18,
-    gap: 10,
+    flexDirection: 'row',
+    alignItems: 'center',   // الأيقونة في منتصف ارتفاع البطاقة
+    gap: 12,
   },
   tradeCardIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+  },
+  tradeCardInfo: {
+    flex: 1,
+    gap: 2,
   },
   tradeCardSymbol: {
     fontSize: 15,

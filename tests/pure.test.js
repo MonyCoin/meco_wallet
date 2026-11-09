@@ -2,7 +2,7 @@
 const test   = require('node:test');
 const assert = require('node:assert/strict');
 const {
-  toBaseUnits, friendlySendError, sessionMatchesActive, readVerify, extractWcUri, buildSiteList,
+  toBaseUnits, friendlySendError, sessionMatchesActive, readVerify, extractWcUri, buildSiteList, resolveSiteIcon,
 } = require('../services/pureHelpers');
 
 test('toBaseUnits: مبالغ معروفة كانت تفقد وحدة بسبب الفاصلة العائمة', () => {
@@ -126,4 +126,20 @@ test('buildSiteList: جلسات ناقصة أو فارغة لا تسبب خطأ'
   assert.equal(l.length, 1);
   assert.equal(l[0].name, 'dApp');
   assert.equal(l[0].account, '');
+});
+
+test('resolveSiteIcon: يتجاوز SVG ويحوّل النسبي إلى كامل', () => {
+  assert.equal(resolveSiteIcon(['https://a.io/i.svg', 'https://a.io/i.png'], 'https://a.io'), 'https://a.io/i.png');
+  assert.equal(resolveSiteIcon(['/icon.png'], 'https://a.io/app?x=1'), 'https://a.io/icon.png');
+  assert.equal(resolveSiteIcon(['icon.png'], 'https://a.io'), 'https://a.io/icon.png');
+  assert.equal(resolveSiteIcon(['//cdn.a.io/i.png'], 'https://a.io'), 'https://cdn.a.io/i.png');
+  assert.equal(resolveSiteIcon(['/i.svg'], 'https://a.io'), null);
+  assert.equal(resolveSiteIcon(['/i.png'], ''), null);
+  assert.equal(resolveSiteIcon(undefined, 'https://a.io'), null);
+});
+
+test('buildSiteList: أيقونة بديلة من النطاق', () => {
+  const l = buildSiteList({ t: { peer: { metadata: { name: 'X', url: 'https://x.io/app', icons: ['/a.svg'] } } } });
+  assert.equal(l[0].icon, null);
+  assert.equal(l[0].fallbackIcon, 'https://www.google.com/s2/favicons?domain=x.io&sz=128');
 });

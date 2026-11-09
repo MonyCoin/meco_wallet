@@ -8,12 +8,14 @@ import { useAppStore } from '../store';
 import { useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function ImportPrivateKeyScreen() {
   const [privateKey, setPrivateKey] = useState('');
   const [accountName, setAccountName] = useState('');
   const [isImporting, setIsImporting] = useState(false);
   const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
   const { t } = useTranslation();
   const primaryColor = useAppStore(state => state.primaryColor || '#6C63FF');
   const addAccountFromPrivateKey = useAppStore(state => state.addAccountFromPrivateKey);
@@ -64,7 +66,7 @@ export default function ImportPrivateKeyScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.keyboardView}>
-        <ScrollView contentContainerStyle={styles.scrollContent}>
+        <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: 40 + insets.bottom }]}>
           {/* هيدر بدون عنوان */}
           <View style={styles.header}>
             <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>

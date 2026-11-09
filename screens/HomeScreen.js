@@ -7,6 +7,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { useAppStore } from '../store';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, RadialGradient, Stop, Circle } from 'react-native-svg';
 
 // شعار التطبيق داخل دائرة (الصورة الأصلية بخلفية بيضاء، فنقصّها بقناع دائري)
@@ -22,6 +23,7 @@ const AppLogo = ({ size }) => (
 export default function HomeScreen() {
   const navigation = useNavigation();
   const { t, i18n } = useTranslation();
+  const insets = useSafeAreaInsets();
   const primaryColor = useAppStore(state => state.primaryColor || '#6C63FF');
   // ✅ محتاجينها عشان نحفظ اختيار اللغة صح (زي SettingsScreen بالظبط)
   const setLanguage = useAppStore(state => state.setLanguage);
@@ -54,7 +56,7 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={styles.content}>
+      <View style={[styles.content, { paddingBottom: 24 + insets.bottom }]}>
         
         {/* Header with Language Button */}
         <View style={styles.header}>

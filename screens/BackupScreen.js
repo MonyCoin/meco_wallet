@@ -17,11 +17,13 @@ import { useTranslation } from 'react-i18next';
 import { useNavigation } from '@react-navigation/native';
 import { useAppStore } from '../store';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function BackupScreen() {
   const [mnemonic, setMnemonic] = useState('');
   const [biometricAvailable, setBiometricAvailable] = useState(false);
   const { t } = useTranslation();
+  const insets = useSafeAreaInsets();
   const navigation = useNavigation();
   const primaryColor = useAppStore(state => state.primaryColor || '#6C63FF');
 
@@ -111,7 +113,7 @@ export default function BackupScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: 40 + insets.bottom }]}>
         {/* Header */}
         <View style={styles.header}>
           <Text style={[styles.title, { color: colors.text }]}>{t('backup_wallet')}</Text>

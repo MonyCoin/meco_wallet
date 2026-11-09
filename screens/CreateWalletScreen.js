@@ -14,6 +14,7 @@ import { useAppStore } from '../store';
 import { useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import bs58 from 'bs58';
 
 export default function CreateWalletScreen() {
@@ -21,6 +22,7 @@ export default function CreateWalletScreen() {
   const [generating, setGenerating] = useState(true); // ✅ حالة التحميل
   const navigation   = useNavigation();
   const { t }        = useTranslation();
+  const insets = useSafeAreaInsets();
   const primaryColor = useAppStore(state => state.primaryColor || '#6C63FF');
 
   const colors = {
@@ -101,7 +103,7 @@ export default function CreateWalletScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: 40 + insets.bottom }]}>
 
         {/* Header */}
         <View style={styles.header}>

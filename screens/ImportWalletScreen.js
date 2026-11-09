@@ -15,6 +15,7 @@ import { useAppStore } from '../store';
 import { useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import bs58 from 'bs58';
 import { derivePath } from 'ed25519-hd-key';
 
@@ -46,6 +47,7 @@ export default function ImportWalletScreen() {
   const [discoveryStatus, setDiscoveryStatus] = useState('');
   const navigation = useNavigation();
   const { t } = useTranslation();
+  const insets = useSafeAreaInsets();
   const primaryColor = useAppStore(state => state.primaryColor || '#6C63FF');
   const restoreDiscoveredAccounts = useAppStore(state => state.restoreDiscoveredAccounts);
 
@@ -178,7 +180,7 @@ export default function ImportWalletScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.keyboardView}>
-        <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+        <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: 40 + insets.bottom }]} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
 
           <View style={styles.header}>
             <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
