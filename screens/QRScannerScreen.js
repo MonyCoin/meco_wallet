@@ -12,6 +12,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigation, useRoute } from '@react-navigation/native';   // ✅ useRoute
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import DirIcon from '../components/DirIcon';
 import { useAppStore } from '../store';
 import { pairWalletConnect } from '../services/walletConnectService';
 
@@ -204,7 +205,7 @@ export default function QRScannerScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { borderBottomColor: colors.border, paddingTop: Platform.OS === 'ios' ? 12 : insets.top + 10, paddingBottom: 14 }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={[styles.backButton, { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1 }]}>
-          <Ionicons name="arrow-back" size={18} color={colors.text} />
+          <DirIcon name="arrow-back" size={18} color={colors.text} />
         </TouchableOpacity>
         <Text style={[styles.title, { color: colors.text }]}>{t('qr_scanner.title', 'مسح رمز QR')}</Text>
         

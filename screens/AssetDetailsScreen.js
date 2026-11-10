@@ -10,6 +10,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { useAppStore } from '../store';
 import { Ionicons } from '@expo/vector-icons';
+import DirIcon from '../components/DirIcon';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   getAssetChart, getAssetNews, getStockProfile,
@@ -191,7 +192,7 @@ export default function AssetDetailsScreen() {
         <View style={S.header}>
           <TouchableOpacity onPress={() => navigation.goBack()}
             style={[S.iconBtn, { backgroundColor: C.card }]}>
-            <Ionicons name="arrow-back" size={18} color={C.text} />
+            <DirIcon name="arrow-back" size={18} color={C.text} />
           </TouchableOpacity>
 
           <View style={S.assetHead}>

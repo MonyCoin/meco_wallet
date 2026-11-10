@@ -15,6 +15,7 @@ import { requireAuth, getLockSettings, loadLockSettings, saveLockSettings, LOCK_
 import { protectScreen, unprotectScreen } from '../services/screenGuard';
 import * as Linking from 'expo-linking';
 import { Ionicons, MaterialIcons, Feather } from '@expo/vector-icons';
+import DirIcon from '../components/DirIcon';
 import * as SecureStore from 'expo-secure-store';
 import * as Clipboard from 'expo-clipboard';
 import Constants from 'expo-constants';
@@ -235,7 +236,7 @@ export default function SettingsScreen() {
     </TouchableOpacity>
   );
 
-  const Chevron = () => <Ionicons name="chevron-forward" size={16} color={C.textSecondary} />;
+  const Chevron = () => <DirIcon name="chevron-forward" size={16} color={C.textSecondary} />;
 
   return (
     <ScrollView style={{ backgroundColor:C.background, flex:1 }} contentContainerStyle={{ paddingBottom: insets.bottom + 60 }} showsVerticalScrollIndicator={false}>
@@ -246,7 +247,7 @@ export default function SettingsScreen() {
             onPress={() => navigation.goBack()}
             style={[styles.backBtn, { backgroundColor: C.card, borderColor: C.border, borderWidth: 1 }]}
           >
-            <Ionicons name="arrow-back" size={18} color={C.text} />
+            <DirIcon name="arrow-back" size={18} color={C.text} />
           </TouchableOpacity>
           <View style={styles.headerCenter}>
             <Text style={[styles.headerTitle, { color:C.text }]}>{t('settings')}</Text>
@@ -340,7 +341,7 @@ export default function SettingsScreen() {
               title={t('clear_cache','مسح التخزين المؤقت')}
               subtitle={t('clear_cache_desc','مسح بيانات الأسعار المحفوظة مؤقتاً')}
               onPress={clearingCache ? null : handleClearCache}
-              rightComponent={clearingCache ? <ActivityIndicator size="small" color={C.warning} /> : <Ionicons name="chevron-forward" size={18} color={C.warning} />}
+              rightComponent={clearingCache ? <ActivityIndicator size="small" color={C.warning} /> : <DirIcon name="chevron-forward" size={18} color={C.warning} />}
             />
           </View>
         </View>
@@ -365,7 +366,7 @@ export default function SettingsScreen() {
               icon={<Ionicons name="log-out-outline" size={20} color={C.danger} />}
               title={t('logout')} subtitle={t('sign_out_from_wallet')}
               onPress={handleLogout} danger
-              rightComponent={<Ionicons name="chevron-forward" size={18} color={C.danger} />}
+              rightComponent={<DirIcon name="chevron-forward" size={18} color={C.danger} />}
             />
           </View>
         </View>

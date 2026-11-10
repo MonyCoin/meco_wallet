@@ -17,6 +17,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigation } from '@react-navigation/native';
 import { useAppStore } from '../store';
 import { Ionicons } from '@expo/vector-icons';
+import DirIcon from '../components/DirIcon';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function BackupScreen() {
@@ -181,7 +182,7 @@ export default function BackupScreen() {
           <Text style={styles.proceedButtonText}>
             {biometricAvailable ? t('verify_and_continue') : t('continue_to_wallet')}
           </Text>
-          <Ionicons name="arrow-forward" size={20} color="#FFF" />
+          <DirIcon name="arrow-forward" size={20} color="#FFF" />
         </TouchableOpacity>
 
         {/* ملاحظة */}

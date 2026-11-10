@@ -8,6 +8,7 @@ import { useAppStore } from '../store';
 import { useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
+import DirIcon from '../components/DirIcon';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const C = {
@@ -61,7 +62,7 @@ export default function ImportPrivateKeyScreen() {
     <View style={[styles.container, { paddingTop: insets.top + 8 }]}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-          <Ionicons name="arrow-back" size={22} color={C.text} />
+          <DirIcon name="arrow-back" size={22} color={C.text} />
         </TouchableOpacity>
         <Text style={styles.title}>{t('import_private_key.title')}</Text>
         <View style={{ width: 40 }} />

@@ -8,6 +8,7 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { useAppStore } from '../store';
 import { Ionicons } from '@expo/vector-icons';
+import DirIcon from '../components/DirIcon';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getTransactionHistory } from '../services/heliusService';
 
@@ -122,7 +123,7 @@ export default function ActivityHistoryScreen() {
           </Text>
           <Text style={[S.amountSub, { color: colors.textSecondary }]}>{tx.token}</Text>
         </View>
-        <Ionicons name="chevron-forward" size={14} color={colors.textSecondary} style={{ marginLeft: 6 }} />
+        <DirIcon name="chevron-forward" size={14} color={colors.textSecondary} style={{ marginLeft: 6 }} />
       </TouchableOpacity>
     );
   };
@@ -136,7 +137,7 @@ export default function ActivityHistoryScreen() {
           onPress={() => navigation.goBack()}
           style={S.backBtn}
         >
-          <Ionicons name="arrow-back" size={18} color={colors.text} />
+          <DirIcon name="arrow-back" size={18} color={colors.text} />
         </TouchableOpacity>
         <Text style={[S.title, { color: colors.text }]}>
           {t('activity.history_title')}

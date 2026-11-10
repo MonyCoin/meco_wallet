@@ -5,6 +5,7 @@ import {
   Animated, Dimensions, ActivityIndicator, Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import DirIcon from './DirIcon';
 import { useTranslation } from 'react-i18next';
 import { useAppStore } from '../store';
 import { WCEvents } from '../services/walletConnectService';
@@ -258,7 +259,7 @@ export default function WalletConnectSignModal({ locked = false }) {
               </View>
 
               <View style={[S.flowArrow, { backgroundColor: C.cardAlt, borderColor: C.border }]}>
-                <Ionicons name="arrow-forward" size={16} color={heroColor} />
+                <DirIcon name="arrow-forward" size={16} color={heroColor} />
               </View>
 
               <View style={S.flowSide}>

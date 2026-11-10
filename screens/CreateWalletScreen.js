@@ -14,6 +14,7 @@ import { useAppStore } from '../store';
 import { useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
+import DirIcon from '../components/DirIcon';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import bs58 from 'bs58';
 
@@ -108,7 +109,7 @@ export default function CreateWalletScreen() {
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color={colors.text} />
+            <DirIcon name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
           <Text style={[styles.title, { color: colors.text }]}>{t('backup_phrase')}</Text>
           <View style={{ width: 40 }} />

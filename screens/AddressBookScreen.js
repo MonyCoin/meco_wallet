@@ -9,6 +9,7 @@ import {
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
+import DirIcon from '../components/DirIcon';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Clipboard from 'expo-clipboard';
 import { useAppStore } from '../store';
@@ -275,7 +276,7 @@ export default function AddressBookScreen() {
             </View>
           )}
           {isSelectionMode
-            ? <Ionicons name="chevron-forward" size={16} color={C.muted} />
+            ? <DirIcon name="chevron-forward" size={16} color={C.muted} />
             : <Ionicons name="create-outline" size={16} color={C.muted} />
           }
         </View>
@@ -309,7 +310,7 @@ export default function AddressBookScreen() {
           style={S.iconBtn}
           onPress={() => navigation.goBack()}
         >
-          <Ionicons name="arrow-back" size={18} color={C.text} />
+          <DirIcon name="arrow-back" size={18} color={C.text} />
         </TouchableOpacity>
 
         <View style={S.headerCenter}>

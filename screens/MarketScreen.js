@@ -9,6 +9,7 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useAppStore } from '../store';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
+import DirIcon from '../components/DirIcon';
 import Svg, { Defs, LinearGradient, RadialGradient, Stop, Path, Circle } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -367,7 +368,7 @@ const MarketHeroBanner = React.memo(({ token, primaryColor, onPress, onTrade }) 
           activeOpacity={0.85}
         >
           <Text style={S.heroCtaTxt}>{t('market_hero_trade', 'تداول MECO')}</Text>
-          <Ionicons name="arrow-forward" size={13} color="#FFF" />
+          <DirIcon name="arrow-forward" size={13} color="#FFF" />
         </TouchableOpacity>
       </View>
 
@@ -553,7 +554,7 @@ const HorizontalMarketSection = ({ titleKey, descKey, data, isDark, primaryColor
       <View style={S.extHeader}>
         <View style={[S.extHeaderDot, { backgroundColor:primaryColor }]} />
         <Text style={[S.extHeaderTitle, { color:C.text }]}>{t(titleKey)}</Text>
-        <Ionicons name="chevron-forward" size={16} color={C.muted} />
+        <DirIcon name="chevron-forward" size={16} color={C.muted} />
       </View>
       <Text style={[S.extHeaderSub, { color:C.muted }]}>{t(descKey)}</Text>
       <FlatList

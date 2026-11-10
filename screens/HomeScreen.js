@@ -7,6 +7,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { useAppStore } from '../store';
 import { Ionicons } from '@expo/vector-icons';
+import DirIcon from '../components/DirIcon';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, RadialGradient, Stop, Circle } from 'react-native-svg';
 
@@ -114,7 +115,7 @@ export default function HomeScreen() {
                 <Ionicons name="add-circle-outline" size={24} color="#FFF" />
                 <Text style={styles.primaryButtonText}>{t('create_wallet')}</Text>
               </View>
-              <Ionicons name="arrow-forward" size={20} color="#FFF" style={{ opacity: 0.9 }} />
+              <DirIcon name="arrow-forward" size={20} color="#FFF" style={{ opacity: 0.9 }} />
             </View>
           </TouchableOpacity>
 
@@ -131,7 +132,7 @@ export default function HomeScreen() {
                   {t('import_wallet')}
                 </Text>
               </View>
-              <Ionicons name="arrow-forward" size={20} color={colors.textSecondary} />
+              <DirIcon name="arrow-forward" size={20} color={colors.textSecondary} />
             </View>
           </TouchableOpacity>
 

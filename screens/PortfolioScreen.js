@@ -9,6 +9,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useAppStore } from '../store';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
+import DirIcon from '../components/DirIcon';
 import Svg, { G, Path, Circle, Defs, RadialGradient, Stop } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getSolBalance, getTokenAccounts } from '../services/heliusService';
@@ -181,7 +182,7 @@ export default function PortfolioScreen() {
 
        <View style={S.header}>
             <TouchableOpacity style={S.backBtn} onPress={() => navigation.goBack()}>
-                 <Ionicons name="arrow-back" size={18} color={C.text} />
+                 <DirIcon name="arrow-back" size={18} color={C.text} />
             </TouchableOpacity>
             <Text style={[S.headerTitle, { color: C.text }]}>{t('portfolio', 'محفظتي')}</Text>
             <View style={{ width: 40 }} />
@@ -295,7 +296,7 @@ export default function PortfolioScreen() {
                     </View>
                   </View>
 
-                  <Ionicons name="chevron-forward" size={14} color={C.muted} style={{ marginLeft:4 }} />
+                  <DirIcon name="chevron-forward" size={14} color={C.muted} style={{ marginLeft:4 }} />
                 </TouchableOpacity>
               );
             })}

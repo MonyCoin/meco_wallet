@@ -8,6 +8,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { useAppStore } from '../store';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
+import DirIcon from '../components/DirIcon';
 import { WebView } from 'react-native-webview';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getFullChartData } from '../services/priceChartService';
@@ -216,7 +217,7 @@ export default function QuickTradeScreen() {
           onPress={() => navigation.goBack()}
           style={[S.iconBtn, { backgroundColor: C.card2, borderColor: C.border, borderWidth: 1 }]}
         >
-          <Ionicons name="arrow-back" size={18} color={C.text} />
+          <DirIcon name="arrow-back" size={18} color={C.text} />
         </TouchableOpacity>
 
         <View style={S.headerCenter}>

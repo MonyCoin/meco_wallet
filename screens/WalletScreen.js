@@ -10,6 +10,7 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { useAppStore } from '../store';
 import { Ionicons } from '@expo/vector-icons';
+import DirIcon from '../components/DirIcon';
 import { GestureHandlerRootView, Swipeable } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -538,7 +539,7 @@ export default function WalletScreen() {
               </Text>
             </View>
             <View style={styles.assetChevron}>
-              <Ionicons name="chevron-forward" size={14} color={colors.textSecondary} />
+              <DirIcon name="chevron-forward" size={14} color={colors.textSecondary} />
             </View>
           </View>
         </Swipeable>
@@ -725,7 +726,7 @@ export default function WalletScreen() {
                 <Text style={[styles.sectionTitle, { color: colors.text }]}>
                   {t('quick_trade.title', 'تداول')}
                 </Text>
-                <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
+                <DirIcon name="chevron-forward" size={16} color={colors.textSecondary} />
               </View>
 
               <FlatList
@@ -827,7 +828,7 @@ export default function WalletScreen() {
                     {t('wallet_home.liq_empty_sub')}
                   </Text>
                 </View>
-                <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
+                <DirIcon name="chevron-forward" size={16} color={colors.textSecondary} />
               </TouchableOpacity>
             )}
           </View>
@@ -858,7 +859,7 @@ export default function WalletScreen() {
                       </Text>
                     )}
                   </View>
-                  <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
+                  <DirIcon name="chevron-forward" size={16} color={colors.textSecondary} />
                 </View>
                 <Text style={[styles.stakingEmptySub, { color: colors.textSecondary, marginTop: 8 }]}>
                   {t('staking_card.manage')}
@@ -881,7 +882,7 @@ export default function WalletScreen() {
                   {t('staking_card.cta_sub')}
                 </Text>
               </View>
-              <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
+              <DirIcon name="chevron-forward" size={16} color={colors.textSecondary} />
             </TouchableOpacity>
             )}
           </View>
@@ -913,7 +914,7 @@ export default function WalletScreen() {
                 <Text style={[styles.viewPillTxt, { color: primaryColor }]}>
                   {t('activity.view')}
                 </Text>
-                <Ionicons name="arrow-forward" size={12} color={primaryColor} />
+                <DirIcon name="arrow-forward" size={12} color={primaryColor} />
               </View>
             </TouchableOpacity>
           </View>
@@ -939,7 +940,7 @@ export default function WalletScreen() {
                 <Text style={[styles.menuItemText, { color: colors.text }]}>
                   {t('alerts.menu_label', 'تنبيهات الأسعار')}
                 </Text>
-                <Ionicons name="chevron-forward" size={14} color={colors.textSecondary} />
+                <DirIcon name="chevron-forward" size={14} color={colors.textSecondary} />
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -950,7 +951,7 @@ export default function WalletScreen() {
                   <Ionicons name="link-outline" size={18} color="#3B82F6" />
                 </View>
                 <Text style={[styles.menuItemText, { color: colors.text }]}>{t('wc.sites_title')}</Text>
-                <Ionicons name="chevron-forward" size={14} color={colors.textSecondary} />
+                <DirIcon name="chevron-forward" size={14} color={colors.textSecondary} />
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -966,7 +967,7 @@ export default function WalletScreen() {
                   <Ionicons name="pencil" size={18} color="#6366F1" />
                 </View>
                 <Text style={[styles.menuItemText, { color: colors.text }]}>{t('edit_wallet_name')}</Text>
-                <Ionicons name="chevron-forward" size={14} color={colors.textSecondary} />
+                <DirIcon name="chevron-forward" size={14} color={colors.textSecondary} />
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -977,7 +978,7 @@ export default function WalletScreen() {
                   <Text style={{ fontSize: 18 }}>🎨</Text>
                 </View>
                 <Text style={[styles.menuItemText, { color: colors.text }]}>{t('change')}</Text>
-                <Ionicons name="chevron-forward" size={14} color={colors.textSecondary} />
+                <DirIcon name="chevron-forward" size={14} color={colors.textSecondary} />
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -988,7 +989,7 @@ export default function WalletScreen() {
                   <Ionicons name="settings-outline" size={18} color={primaryColor} />
                 </View>
                 <Text style={[styles.menuItemText, { color: colors.text }]}>{t('settings')}</Text>
-                <Ionicons name="chevron-forward" size={14} color={colors.textSecondary} />
+                <DirIcon name="chevron-forward" size={14} color={colors.textSecondary} />
               </TouchableOpacity>
 
             </View>

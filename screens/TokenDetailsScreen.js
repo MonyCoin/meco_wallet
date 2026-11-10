@@ -9,6 +9,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { useAppStore } from '../store';
 import { Ionicons } from '@expo/vector-icons';
+import DirIcon from '../components/DirIcon';
 import * as Clipboard from 'expo-clipboard';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getFullChartData } from '../services/priceChartService';
@@ -307,7 +308,7 @@ export default function TokenDetailsScreen() {
               <Text style={[S.alertBtnTxt, { color: primaryColor }]}>
                 {t('alerts.token_btn', 'أبلغني عند سعر')}
               </Text>
-              <Ionicons name="chevron-forward" size={14} color={primaryColor} />
+              <DirIcon name="chevron-forward" size={14} color={primaryColor} />
             </TouchableOpacity>
           )}
         </View>

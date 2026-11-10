@@ -9,6 +9,7 @@ import { useNavigation, useRoute, StackActions } from '@react-navigation/native'
 import { useAppStore } from '../store';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
+import DirIcon from '../components/DirIcon';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import DappBrowserScreen from './DappBrowserScreen';
@@ -380,7 +381,7 @@ export default function AppPortalScreen() {
             {/* ── التطبيقات المفضلة ── */}
             <TouchableOpacity style={S.sectionHead} onPress={() => setView('bookmarks')} activeOpacity={0.7}>
               <Text style={[S.sectionTitle, { color:C.text }]}>{t('portal_favorite_apps', 'التطبيقات المفضلة')}</Text>
-              <Ionicons name="chevron-forward" size={18} color={C.text} />
+              <DirIcon name="chevron-forward" size={18} color={C.text} />
             </TouchableOpacity>
             <ScrollView
               horizontal
@@ -477,7 +478,7 @@ export default function AppPortalScreen() {
         >
           <View style={S.bmHeader}>
             <TouchableOpacity onPress={() => setView('explore')} hitSlop={{ top:10, bottom:10, left:10, right:10 }} style={{ marginRight:10 }}>
-              <Ionicons name="arrow-back" size={22} color={C.text} />
+              <DirIcon name="arrow-back" size={22} color={C.text} />
             </TouchableOpacity>
             <Text style={[S.sectionTitle, { color:C.text, flex:1 }]}>{t('bookmarks', 'المفضلة')}</Text>
             <TouchableOpacity onPress={() => { setNewBm({ name:'', url:'' }); setAddVisible(true); }} hitSlop={{ top:10, bottom:10, left:10, right:10 }}>

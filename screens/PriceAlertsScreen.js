@@ -9,6 +9,7 @@ import {
 import { useNavigation, useFocusEffect, useRoute } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
+import DirIcon from '../components/DirIcon';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppStore } from '../store';
 import { getJupiterMarketData, CORE_TOKENS } from '../services/jupiterMarketService';
@@ -317,7 +318,7 @@ export default function PriceAlertsScreen() {
           style={[S.iconBtn, { backgroundColor: C.card2, borderColor: C.border }]}
           onPress={() => navigation.goBack()}
         >
-          <Ionicons name="arrow-back" size={18} color={C.text} />
+          <DirIcon name="arrow-back" size={18} color={C.text} />
         </TouchableOpacity>
 
         <View style={S.headerCenter}>

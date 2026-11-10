@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { GestureHandlerRootView, Swipeable } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
+import DirIcon from './DirIcon';
 import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as LocalAuthentication from 'expo-local-authentication';
@@ -206,7 +207,7 @@ export default function AccountsScreen({
         <Text style={st.optionTitle}>{title}</Text>
         {!!desc && <Text style={st.optionDesc}>{desc}</Text>}
       </View>
-      <Ionicons name="chevron-forward" size={16} color={C.muted} />
+      <DirIcon name="chevron-forward" size={16} color={C.muted} />
     </TouchableOpacity>
   );
 
@@ -262,7 +263,7 @@ export default function AccountsScreen({
                     <Text style={st.name} numberOfLines={1}>{a.name}</Text>
                     <Text style={st.addr}>{a.publicKey.slice(0, 6)}...{a.publicKey.slice(-4)}</Text>
                   </View>
-                  {busy ? <ActivityIndicator size="small" color={primaryColor} /> : <Ionicons name="chevron-forward" size={16} color={C.muted} />}
+                  {busy ? <ActivityIndicator size="small" color={primaryColor} /> : <DirIcon name="chevron-forward" size={16} color={C.muted} />}
                 </TouchableOpacity>
               ))}
           </>
@@ -339,7 +340,7 @@ export default function AccountsScreen({
         <View style={[st.screen, { paddingTop: insets.top + 8 }]}>
           <View style={st.header}>
             <TouchableOpacity onPress={onClose} style={st.backBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Ionicons name="arrow-back" size={22} color={C.text} />
+              <DirIcon name="arrow-back" size={22} color={C.text} />
             </TouchableOpacity>
             <Text style={st.title}>{t('accounts')}</Text>
             <View style={{ width: 40 }} />
