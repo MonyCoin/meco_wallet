@@ -26,6 +26,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Check translations
+        run: node scripts/check-i18n.js
+
+      - name: Run unit tests
+        run: node --test tests/*.test.js
+
       - name: Install EAS CLI
         run: npm install -g eas-cli
 
