@@ -256,10 +256,6 @@ export default function TokenDetailsScreen() {
       >
         {/* ── Header ── */}
         <View style={S.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()}
-            style={[S.iconBtn, { backgroundColor:C.card }]}>
-            <Ionicons name="arrow-back" size={18} color={C.text} />
-          </TouchableOpacity>
           <View style={S.tokenHead}>
             {token.image && <Image source={{ uri:token.image }} style={S.tokenImg} />}
             <View style={{ alignItems:'flex-start' }}>

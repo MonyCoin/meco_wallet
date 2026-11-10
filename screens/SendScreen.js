@@ -562,16 +562,11 @@ export default function SendScreen() {
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.background }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       
-      {/* ── الهيدر ── */}
-      <View style={[styles.headerNew, { backgroundColor: colors.background, paddingTop: Platform.OS === 'ios' ? 0 : insets.top }]}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={18} color={colors.text} />
-        </TouchableOpacity>
-
+      {/* ── شريط الحساب + دفتر العناوين (العنوان الرئيسي في هيدر التنقل) ── */}
+      <View style={styles.headerNew}>
         <View style={styles.headerTitleContainer}>
-          <Text style={[styles.headerTitle, { color: colors.text }]}>{t('sendScreen.title')}</Text>
           {activeAccount && (
-            <Text style={[styles.headerSubText, { color: colors.textSecondary }]}>
+            <Text style={[styles.headerSubText, { color: colors.textSecondary }]} numberOfLines={1}>
               {activeAccount.name} ({activeAccount.publicKey.slice(0, 4)}...{activeAccount.publicKey.slice(-4)})
             </Text>
           )}
@@ -874,12 +869,10 @@ export default function SendScreen() {
 const styles = StyleSheet.create({
   scrollContent:       { flexGrow: 1 },
   container:           { flex: 1, padding: 20 },
-  headerNew:           { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 16, gap: 10 },
-  backButton:          { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center', flexShrink: 0 },
+  headerNew:           { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 10, paddingBottom: 2, paddingHorizontal: 20, gap: 10 },
 
-  headerTitleContainer:{ flex: 1, alignItems: 'center', paddingHorizontal: 6 },
-  headerTitle:         { fontSize: 16, fontWeight: '800', textAlign: 'center' },
-  headerSubText:       { fontSize: 10, marginTop: 2, textAlign: 'center' },
+  headerTitleContainer:{ flex: 1, alignItems: 'flex-start' },
+  headerSubText:       { fontSize: 12 },
 
   addressBookButton: {
     flexDirection: 'row',

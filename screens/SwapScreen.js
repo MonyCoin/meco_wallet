@@ -412,18 +412,8 @@ export default function SwapScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background, paddingTop: Platform.OS === 'ios' ? 0 : insets.top }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background, paddingTop: 0 }]}>
       <Animated.View style={[styles.mainContent, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
-
-        <View style={styles.headerSection}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={18} color={colors.text} />
-          </TouchableOpacity>
-          <View style={styles.headerTitle}>
-            <Text style={[styles.title,    { color: colors.text }]}>{t('swap_title')}</Text>
-            <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{t('swap_subtitle')}</Text>
-          </View>
-        </View>
 
         <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 80 }]} showsVerticalScrollIndicator={false}>
 
@@ -609,12 +599,6 @@ const styles = StyleSheet.create({
   container:     { flex: 1 },
   mainContent:   { flex: 1 },
   scrollContent: { padding: 20, paddingBottom: 40 },
-
-  headerSection: { flexDirection: 'row', alignItems: 'center', marginBottom: 16, paddingHorizontal: 4 },
-  backButton:    { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
-  headerTitle:   { flex: 1, alignItems: 'flex-start' },
-  title:         { fontSize: 24, fontWeight: '800', letterSpacing: -0.5 },
-  subtitle:      { fontSize: 13, marginTop: 2 },
 
   accountBar: {
     flexDirection: 'row', alignItems: 'center',
