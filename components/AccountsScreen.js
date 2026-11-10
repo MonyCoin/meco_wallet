@@ -6,7 +6,7 @@
 //  • الحذف والتصدير يمرّان بقفل الهاتف، والمفتاح الخاص مخفي افتراضياً مع Show/Hide ونسخ
 import React, { useState, useRef, useEffect } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, Modal, FlatList, ActivityIndicator,
+  View, Text, TouchableOpacity, StyleSheet, Modal, FlatList, ActivityIndicator, ScrollView, useWindowDimensions,
   TextInput, Alert, Pressable, AppState, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { GestureHandlerRootView, Swipeable } from 'react-native-gesture-handler';
@@ -29,6 +29,9 @@ export default function AccountsScreen({
 }) {
   const { t }   = useTranslation();
   const insets  = useSafeAreaInsets();
+  const { height: winH } = useWindowDimensions();
+  // أقصى ارتفاع للنافذة السفلية: لا تغطي شريط الحالة، وما زاد عنه يُمرَّر
+  const sheetMax = Math.max(280, winH - insets.top - 48);
 
   const [sheet,     setSheet]     = useState(null);   // add | manage | pick | confirmDelete | export | rename
   const [pickMode,  setPickMode]  = useState('export');
@@ -252,7 +255,14 @@ export default function AccountsScreen({
             <Text style={st.sheetTitle}>{pickMode === 'delete' ? t('acc.pick_delete') : t('acc.pick_export')}</Text>
             {list.length === 0
               ? <Text style={st.sheetNote}>{t('acc.delete_none')}</Text>
-              : list.map(a => (
+              : (
+              <ScrollView
+                style={{ maxHeight: sheetMax - 150 - insets.bottom }}
+                showsVerticalScrollIndicator={false}
+                nestedScrollEnabled
+                keyboardShouldPersistTaps="handled"
+              >
+              {list.map(a => (
                 <TouchableOpacity key={a.index} activeOpacity={0.8} style={st.pickRow} onPress={() => onPickAccount(a)} disabled={busy}>
                   <View style={[st.avatarSm, { backgroundColor: primaryColor + '22' }]}>
                     <Text style={a && emojis[a.publicKey] ? st.avatarEmoji : [st.avatarTxt, { color: primaryColor }]}>
@@ -266,6 +276,8 @@ export default function AccountsScreen({
                   {busy ? <ActivityIndicator size="small" color={primaryColor} /> : <DirIcon name="chevron-forward" size={16} color={C.muted} />}
                 </TouchableOpacity>
               ))}
+              </ScrollView>
+              )}
           </>
         );
       }
@@ -376,7 +388,7 @@ export default function AccountsScreen({
               behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
               style={st.sheetWrap} pointerEvents="box-none"
             >
-              <View style={[st.sheet, { paddingBottom: insets.bottom + 20 }]}>
+              <View style={[st.sheet, { paddingBottom: insets.bottom + 20, maxHeight: sheetMax }]}>
                 <View style={st.handle} />
                 <TouchableOpacity onPress={closeSheet} style={st.sheetClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                   <Ionicons name="close" size={18} color={C.text} />
