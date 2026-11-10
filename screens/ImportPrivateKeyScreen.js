@@ -1,7 +1,7 @@
 import React, { useState, useLayoutEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  Alert, ScrollView, SafeAreaView, KeyboardAvoidingView, Platform, ActivityIndicator
+  Alert, ScrollView, KeyboardAvoidingView, Platform, ActivityIndicator,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { useAppStore } from '../store';
@@ -10,8 +10,13 @@ import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+const C = {
+  bg: '#000000', card: '#141414', card2: '#1E1E1E', border: '#262626',
+  text: '#F2F2F2', muted: '#8A8A8E', warnBg: 'rgba(245,158,11,0.12)', warnTxt: '#FCD34D',
+};
+
 export default function ImportPrivateKeyScreen() {
-  const [privateKey, setPrivateKey] = useState('');
+  const [privateKey, setPrivateKey]   = useState('');
   const [accountName, setAccountName] = useState('');
   const [isImporting, setIsImporting] = useState(false);
   const navigation = useNavigation();
@@ -20,23 +25,12 @@ export default function ImportPrivateKeyScreen() {
   const primaryColor = useAppStore(state => state.primaryColor || '#6C63FF');
   const addAccountFromPrivateKey = useAppStore(state => state.addAccountFromPrivateKey);
 
-  // ✅ ضبط العنوان الديناميكي لشريط التنقل العلوي
+  // الترويسة مرسومة داخل الشاشة نفسها (بنفس أسلوب شاشة الحسابات)
   useLayoutEffect(() => {
-    navigation.setOptions({
-      title: t('import_private_key.title'),
-      headerBackTitle: t('back'),
-    });
-  }, [navigation, t]);
+    navigation.setOptions({ headerShown: false });
+  }, [navigation]);
 
-  const colors = {
-    background:    '#000000',
-    text:          '#F2F2F2',
-    textSecondary: '#8A8A8E',
-    card:          '#141414',
-    border:        '#262626',
-    warningBg:     'rgba(245,158,11,0.12)',
-    warningText:   '#FFB74D',
-  };
+  const canImport = privateKey.trim().length > 0 && !isImporting;
 
   const handleImport = async () => {
     if (isImporting) return;
@@ -64,100 +58,92 @@ export default function ImportPrivateKeyScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.keyboardView}>
-        <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: 40 + insets.bottom }]}>
-          {/* هيدر بدون عنوان */}
-          <View style={styles.header}>
-            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-              <Ionicons name="arrow-back" size={24} color={colors.text} />
-            </TouchableOpacity>
-            <View style={{ width: 40 }} />
-          </View>
+    <View style={[styles.container, { paddingTop: insets.top + 8 }]}>
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <Ionicons name="arrow-back" size={22} color={C.text} />
+        </TouchableOpacity>
+        <Text style={styles.title}>{t('import_private_key.title')}</Text>
+        <View style={{ width: 40 }} />
+      </View>
 
-          {/* ⚠️ تحذير أمني مزدوج */}
-          <View style={[styles.warningBox, { backgroundColor: colors.warningBg }]}>
-            <Ionicons name="warning" size={24} color={colors.warningText} />
-            <View style={styles.warningContent}>
-              <Text style={[styles.warningText, { color: colors.warningText }]}>
-                {t('import_private_key.warning')}
-              </Text>
-              <Text style={[styles.warningText, { color: colors.warningText, marginTop: 8 }]}>
-                {t('import_private_key.warning_not_recoverable')}
-              </Text>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+          <View style={styles.warnBox}>
+            <Ionicons name="warning" size={18} color={C.warnTxt} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.warnTxt}>{t('import_private_key.warning')}</Text>
+              <Text style={[styles.warnTxt, { marginTop: 6 }]}>{t('import_private_key.warning_not_recoverable')}</Text>
             </View>
           </View>
 
-          <View style={styles.inputCard}>
-            <Text style={[styles.inputLabel, { color: colors.text }]}>
-              {t('import_private_key.account_name_label')}
-            </Text>
+          <Text style={styles.label}>{t('import_private_key.account_name_label')}</Text>
+          <TextInput
+            style={styles.input}
+            value={accountName}
+            onChangeText={setAccountName}
+            placeholder={t('import_private_key.account_name_placeholder')}
+            placeholderTextColor={C.muted}
+          />
+
+          <Text style={[styles.label, { marginTop: 16 }]}>{t('import_private_key.private_key_label')}</Text>
+          <View style={styles.keyBox}>
             <TextInput
-              style={[styles.input, { color: colors.text, backgroundColor: colors.card }]}
-              value={accountName}
-              onChangeText={setAccountName}
-              placeholder={t('import_private_key.account_name_placeholder')}
-              placeholderTextColor={colors.textSecondary}
-            />
-            
-            <Text style={[styles.inputLabel, { color: colors.text, marginTop: 16 }]}>
-              {t('import_private_key.private_key_label')}
-            </Text>
-            <TextInput
-              style={[styles.inputLarge, { color: colors.text, backgroundColor: colors.card }]}
+              style={styles.keyInput}
               value={privateKey}
               onChangeText={setPrivateKey}
               placeholder={t('import_private_key.private_key_placeholder')}
-              placeholderTextColor={colors.textSecondary}
+              placeholderTextColor={C.muted}
               multiline
               textAlignVertical="top"
               autoCapitalize="none"
               autoCorrect={false}
               secureTextEntry
             />
-            
-            <TouchableOpacity style={[styles.pasteButton, { backgroundColor: primaryColor }]} onPress={handlePaste}>
-              <Ionicons name="clipboard-outline" size={20} color="#FFF" />
-              <Text style={styles.pasteButtonText}>{t('import_private_key.paste')}</Text>
+            <TouchableOpacity onPress={handlePaste} style={styles.pasteBtn} activeOpacity={0.8} accessibilityLabel={t('import_private_key.paste')}>
+              <Ionicons name="clipboard-outline" size={18} color={C.text} />
             </TouchableOpacity>
           </View>
-
-          <TouchableOpacity
-            style={[styles.importButton, { backgroundColor: primaryColor, opacity: isImporting ? 0.5 : 1 }]}
-            onPress={handleImport}
-            disabled={isImporting}
-          >
-            {isImporting ? (
-              <ActivityIndicator size="small" color="#FFF" />
-            ) : (
-              <>
-                <Ionicons name="key" size={22} color="#FFF" />
-                <Text style={styles.importButtonText}>{t('import_private_key.import_button')}</Text>
-              </>
-            )}
-          </TouchableOpacity>
         </ScrollView>
+
+        <View style={[styles.footer, { paddingBottom: insets.bottom + 16 }]}>
+          <TouchableOpacity
+            style={[styles.importBtn, { backgroundColor: primaryColor, opacity: canImport ? 1 : 0.4 }]}
+            onPress={handleImport}
+            disabled={!canImport}
+            activeOpacity={0.85}
+          >
+            {isImporting
+              ? <ActivityIndicator size="small" color="#FFF" />
+              : <>
+                  <Ionicons name="key" size={18} color="#FFF" />
+                  <Text style={styles.importTxt}>{t('import_private_key.import_button')}</Text>
+                </>}
+          </TouchableOpacity>
+        </View>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  keyboardView: { flex: 1 },
-  scrollContent: { flexGrow: 1, padding: 20, paddingBottom: 40 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
-  backButton: { padding: 8 },
-  title: { fontSize: 24, fontWeight: 'bold', textAlign: 'center' },
-  warningBox: { flexDirection: 'row', alignItems: 'flex-start', padding: 16, borderRadius: 14, marginBottom: 20 },
-  warningContent: { flex: 1, marginLeft: 12 },
-  warningText: { fontSize: 14, lineHeight: 20 },
-  inputCard: { marginBottom: 20 },
-  inputLabel: { fontSize: 16, fontWeight: '600', marginBottom: 8 },
-  input: { fontSize: 16, borderRadius: 14, padding: 14 },
-  inputLarge: { fontSize: 14, lineHeight: 20, minHeight: 100, borderRadius: 14, padding: 14, textAlignVertical: 'top' },
-  pasteButton: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: 14, borderRadius: 999, marginTop: 16 },
-  pasteButtonText: { color: '#FFF', fontSize: 16, fontWeight: '600', marginLeft: 8 },
-  importButton: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: 18, borderRadius: 999, marginTop: 8 },
-  importButtonText: { color: '#FFF', fontSize: 18, fontWeight: 'bold', marginLeft: 8 },
+  container: { flex: 1, backgroundColor: C.bg },
+  header:    { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, marginBottom: 8 },
+  backBtn:   { width: 40, height: 40, borderRadius: 20, backgroundColor: C.card, alignItems: 'center', justifyContent: 'center' },
+  title:     { color: C.text, fontSize: 18, fontWeight: '800' },
+  content:   { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 16 },
+
+  warnBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, backgroundColor: C.warnBg, borderRadius: 14, padding: 12, marginBottom: 20 },
+  warnTxt: { color: C.warnTxt, fontSize: 12.5, lineHeight: 19 },
+
+  label: { color: C.muted, fontSize: 13, fontWeight: '600', marginBottom: 8 },
+  input: { backgroundColor: C.card, color: C.text, borderRadius: 14, paddingHorizontal: 14, height: 48, fontSize: 15 },
+
+  keyBox:   { backgroundColor: C.card, borderRadius: 14 },
+  keyInput: { color: C.text, fontSize: 14, lineHeight: 20, minHeight: 104, paddingHorizontal: 14, paddingTop: 12, paddingBottom: 12, paddingRight: 56, textAlignVertical: 'top' },
+  pasteBtn: { position: 'absolute', top: 8, right: 8, width: 36, height: 36, borderRadius: 18, backgroundColor: C.card2, alignItems: 'center', justifyContent: 'center' },
+
+  footer:    { paddingHorizontal: 16, paddingTop: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.border },
+  importBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 48, borderRadius: 999 },
+  importTxt: { color: '#FFF', fontSize: 15, fontWeight: '700' },
 });

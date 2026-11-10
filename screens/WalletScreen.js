@@ -16,11 +16,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getSolBalance, getTokenAccounts, getAccountsOverview, clearBalanceCache } from '../services/heliusService';
 import { CORE_TOKENS, getJupiterMarketData, getCustomTokens, getMintPriceUsd } from '../services/jupiterMarketService';
 import { listPositions } from '../services/liquidityActions';
-import * as LocalAuthentication from 'expo-local-authentication';
-import { copySensitive } from '../services/secureClipboard';
-import { protectScreen, unprotectScreen } from '../services/screenGuard';
 import { getUnreadCount } from '../services/notificationsService';
 import { WCEvents, getConnectedSites, disconnectSite, disconnectAllSites } from '../services/walletConnectService';
+import AccountsScreen from '../components/AccountsScreen';
 
 const { width, height } = Dimensions.get('window');
 
@@ -149,7 +147,6 @@ export default function WalletScreen() {
   const slideAnim = useRef(new Animated.Value(20)).current;
   const scaleAnim = useRef(new Animated.Value(0.95)).current;
   const swipeableRefs        = useRef({});
-  const accountSwipeableRefs = useRef({});
 
   // ملخص مراكز السيولة للمستخدم نفسه فقط (يُحدَّث عند العودة للشاشة)
   useFocusEffect(useCallback(() => {
@@ -435,44 +432,13 @@ export default function WalletScreen() {
     await switchAccount(index);
   };
 
-  const handleDeleteAccount = (account) => {
-    Alert.alert(
-      t('delete_account'),
-      t('delete_account_confirmation', { name: account.name }),
-      [
-        { text: t('cancel'), style: 'cancel' },
-        { text: t('delete'), style: 'destructive', onPress: async () => await deleteAccount(account.index) },
-      ]
-    );
+  // الحذف: القفل والتأكيد داخل شاشة الحسابات
+  const handleRenameFromAccounts = async (index, name) => {
+    await renameAccount(index, name);
+    if (index === activeAccountIndex) setWalletName(name);
   };
-
-  const authenticateWithPhonePasscode = async () => {
-    try {
-      const result = await LocalAuthentication.authenticateAsync({
-        promptMessage: t('passcode_prompt'), disableDeviceFallback: false, fallbackLabel: t('use_phone_passcode'),
-      });
-      return result.success;
-    } catch (_) { return false; }
-  };
-
-  const handleExportPrivateKey = async (account) => {
-    const authSuccess = await authenticateWithPhonePasscode();
-    if (!authSuccess) { Alert.alert(t('error'), t('auth_failed')); return; }
-    try {
-      const privateKey = await useAppStore.getState().getPrivateKeyForAccount(account.index);
-      if (!privateKey) { Alert.alert(t('error'), t('private_key_not_found')); return; }
-      protectScreen('key');
-      Alert.alert(
-        t('key_warning_title'),
-        t('key_warning_message', { key: privateKey }),
-        [
-          { text: t('cancel'), style: 'cancel', onPress: () => unprotectScreen('key') },
-          { text: t('copy_key'), onPress: () => { unprotectScreen('key'); copySensitive(privateKey); Alert.alert(t('success'), t('copied')); } },
-        ],
-        { cancelable: true, onDismiss: () => unprotectScreen('key') }
-      );
-    } catch (_) { Alert.alert(t('error'), t('unexpected_error')); }
-  };
+  const handleDeleteFromAccounts = async (index) => { await deleteAccount(index); };
+  const handleGetPrivateKey = (index) => useAppStore.getState().getPrivateKeyForAccount(index);
 
   const activeAccount = accounts[activeAccountIndex];
   const activeEmoji   = activeAccount ? accountEmojis[activeAccount.publicKey] : null;
@@ -612,107 +578,6 @@ export default function WalletScreen() {
       </TouchableOpacity>
     );
   };
-
-  const renderAccountLeftActions = (item) => {
-    const isActive = item.index === activeAccountIndex;
-    return (
-      <View style={styles.accountActionContainer}>
-        <TouchableOpacity
-          style={[styles.accountActionBtn, { backgroundColor: '#6366F1', borderTopLeftRadius: 16, borderBottomLeftRadius: isActive ? 16 : 0 }]}
-          onPress={() => {
-            accountSwipeableRefs.current[item.index]?.close();
-            setEditingAccountIndex(item.index);
-            setTempWalletName(item.name);
-            setAccountsModalVisible(false);
-            setTimeout(() => setModalVisible(true), 300);
-          }}
-        >
-          <Ionicons name="pencil" size={18} color="#FFF" />
-          <Text style={styles.actionText}>{t('edit')}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.accountActionBtn, { backgroundColor: '#F59E0B' }]}
-          onPress={() => { accountSwipeableRefs.current[item.index]?.close(); handleExportPrivateKey(item); }}
-        >
-          <Ionicons name="key" size={18} color="#FFF" />
-          <Text style={styles.actionText}>{t('export')}</Text>
-        </TouchableOpacity>
-        {!isActive && (
-          <TouchableOpacity
-            style={[styles.accountActionBtn, { backgroundColor: colors.error }]}
-            onPress={() => { accountSwipeableRefs.current[item.index]?.close(); handleDeleteAccount(item); }}
-          >
-            <Ionicons name="trash" size={18} color="#FFF" />
-            <Text style={styles.actionText}>{t('delete')}</Text>
-          </TouchableOpacity>
-        )}
-      </View>
-    );
-  };
-
-  const renderAccountRightActions = (item) => (
-    <View style={styles.accountActionContainer}>
-      <TouchableOpacity
-        style={[styles.accountActionBtn, { backgroundColor: colors.success, borderTopRightRadius: 16, borderBottomRightRadius: 16, width: 80 }]}
-        onPress={() => { accountSwipeableRefs.current[item.index]?.close(); copyAddress(item.publicKey); }}
-      >
-        <Ionicons name="copy" size={18} color="#FFF" />
-        <Text style={styles.actionText}>{t('copy')}</Text>
-      </TouchableOpacity>
-    </View>
-  );
-
-  const renderAccountItem = ({ item }) => {
-    const isActive   = item.index === activeAccountIndex;
-    const usdBalance = accountUsdBalances[item.publicKey];
-    const isLoading  = loadingAccountBalances && usdBalance === undefined;
-    const emoji      = accountEmojis[item.publicKey];
-    return (
-      <View style={{ marginBottom: 8 }}>
-        <Swipeable
-          ref={ref => (accountSwipeableRefs.current[item.index] = ref)}
-          friction={2} leftThreshold={40} rightThreshold={40}
-          overshootLeft={false} overshootRight={false}
-          renderLeftActions={() => renderAccountLeftActions(item)}
-          renderRightActions={() => renderAccountRightActions(item)}
-          onSwipeableWillOpen={() => closeOtherSwipeables(item.index, accountSwipeableRefs)}
-        >
-          <TouchableOpacity
-            style={[styles.accountItem, { backgroundColor: colors.card }]}
-            activeOpacity={0.7}
-            onPress={() => handleSwitchAccount(item.index)}
-          >
-            <View style={styles.accountInfo}>
-              <View style={[styles.accountAvatar, { backgroundColor: isActive ? primaryColor + '30' : primaryColor + '15' }]}>
-                <Text style={emoji ? styles.accountAvatarEmoji : [styles.accountAvatarText, { color: primaryColor }]}>
-                  {emoji || item.name.charAt(0).toUpperCase()}
-                </Text>
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.accountName,    { color: colors.text }]}>{item.name}</Text>
-                <Text style={[styles.accountAddress, { color: colors.textSecondary }]}>
-                  {item.publicKey.slice(0,6)}...{item.publicKey.slice(-4)}
-                </Text>
-              </View>
-            </View>
-            <View style={styles.accountBalanceContainer}>
-              {isActive && <Ionicons name="checkmark-circle" size={18} color={primaryColor} style={{ marginRight: 8 }} />}
-              {isLoading
-                ? <ActivityIndicator size="small" color={primaryColor} />
-                : <Text style={[styles.accountBalance, { color: colors.text }]}>
-                    {hideBalance
-                      ? '•••••'
-                      : `$${usdBalance?.toLocaleString('en-US', { minimumFractionDigits:2, maximumFractionDigits:2 }) || '0.00'}`
-                    }
-                  </Text>
-              }
-            </View>
-          </TouchableOpacity>
-        </Swipeable>
-      </View>
-    );
-  };
-
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
@@ -1260,48 +1125,25 @@ export default function WalletScreen() {
           </KeyboardAvoidingView>
         </Modal>
 
-        <Modal visible={accountsModalVisible} transparent animationType="slide" onRequestClose={() => setAccountsModalVisible(false)}>
-          <View style={styles.modalOverlayBottom}>
-            <View style={[styles.accountsModalContent, { backgroundColor: colors.card, marginBottom: Math.max(insets.bottom, 20) + 16 }]}>
-              <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
-              <View style={styles.accountsModalHeader}>
-                <View style={styles.accountsHeaderLeft}>
-                  <Ionicons name="layers" size={20} color={primaryColor} />
-                  <Text style={[styles.modalTitle, { color: colors.text, marginBottom: 0 }]}>{t('accounts')}</Text>
-                </View>
-                <TouchableOpacity onPress={() => setAccountsModalVisible(false)} style={[styles.closeBtn, { backgroundColor: colors.background }]}>
-                  <Ionicons name="close" size={18} color={colors.text} />
-                </TouchableOpacity>
-              </View>
-              <Text style={{ textAlign:'center', fontSize:11, color:colors.textSecondary, marginBottom:16 }}>
-                {t('swipe_hint')}
-              </Text>
-              <GestureHandlerRootView style={{ flex: 1 }}>
-                <FlatList
-                  data={accounts} renderItem={renderAccountItem}
-                  keyExtractor={item => item.index.toString()}
-                  style={{ flex:1 }} contentContainerStyle={{ paddingBottom:8 }}
-                  showsVerticalScrollIndicator={false}
-                />
-              </GestureHandlerRootView>
-              <View style={styles.addAccountButtons}>
-                <TouchableOpacity style={[styles.addAccountBtn, { borderColor: primaryColor }]} onPress={handleAddAccount} disabled={addingAccount}>
-                  {addingAccount
-                    ? <ActivityIndicator size="small" color={primaryColor} />
-                    : <><Ionicons name="add-circle" size={20} color={primaryColor} /><Text style={[styles.addAccountText, { color: primaryColor }]}>{t('add_account')}</Text></>
-                  }
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.addAccountBtn, { borderColor: primaryColor }]}
-                  onPress={() => { setAccountsModalVisible(false); navigation.navigate('ImportPrivateKey'); }}
-                >
-                  <Ionicons name="key" size={20} color={primaryColor} />
-                  <Text style={[styles.addAccountText, { color: primaryColor }]}>{t('import_private_key.title')}</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        </Modal>
+        <AccountsScreen
+          visible={accountsModalVisible}
+          onClose={() => setAccountsModalVisible(false)}
+          accounts={accounts}
+          activeAccountIndex={activeAccountIndex}
+          balances={accountUsdBalances}
+          loading={loadingAccountBalances}
+          hideBalance={hideBalance}
+          emojis={accountEmojis}
+          primaryColor={primaryColor}
+          adding={addingAccount}
+          onSwitch={handleSwitchAccount}
+          onCopy={copyAddress}
+          onRename={handleRenameFromAccounts}
+          onAdd={handleAddAccount}
+          onImport={() => { setAccountsModalVisible(false); navigation.navigate('ImportPrivateKey'); }}
+          onDelete={handleDeleteFromAccounts}
+          getPrivateKey={handleGetPrivateKey}
+        />
 
       </View>
     </GestureHandlerRootView>
