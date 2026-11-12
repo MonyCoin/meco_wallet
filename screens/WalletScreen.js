@@ -562,13 +562,13 @@ export default function WalletScreen() {
           <Text style={[styles.tradeCardSymbol, { color: colors.text }]} numberOfLines={1}>
             {item.symbol}
           </Text>
-          <Text style={[styles.tradeCardPrice, { color: colors.text }]} numberOfLines={1}>
+          <Text style={[styles.tradeCardPrice, { color: colors.text }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
             {fmtTradePrice(item.current_price)}
           </Text>
-          <View style={styles.tradeCardChangeRow}>
+          <View style={[styles.tradeCardChangePill, { backgroundColor: (up ? colors.success : colors.error) + '1F' }]}>
             <Ionicons
               name={up ? 'trending-up' : 'trending-down'}
-              size={12}
+              size={11}
               color={up ? colors.success : colors.error}
             />
             <Text style={[styles.tradeCardChange, { color: up ? colors.success : colors.error }]}>
@@ -1209,29 +1209,26 @@ const styles = StyleSheet.create({
   },
   tradeCardInfo: {
     flex: 1,
-    gap: 2,
+    alignItems: 'flex-end',   // النص في الجهة المقابلة للأيقونة
+    gap: 3,
   },
   tradeCardSymbol: {
     fontSize: 15,
     fontWeight: '800',
-    textAlign: 'left',
-  },
-  tradeCardBottomRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 6,
   },
   tradeCardPrice: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '600',
-    flexShrink: 1,
+    maxWidth: '100%',
   },
-  tradeCardChangeRow: {
+  tradeCardChangePill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 2,
-    flexShrink: 0,
+    gap: 3,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 8,
+    marginTop: 1,
   },
   tradeCardChange: {
     fontSize: 11,
