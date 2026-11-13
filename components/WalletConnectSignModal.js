@@ -27,6 +27,8 @@ const OPERATION_STYLES = {
   collect_reward:   { icon: 'gift',            color: '#10B981' },
   close_position:   { icon: 'close-circle',    color: '#EF4444' },
   swap:             { icon: 'swap-horizontal', color: '#8B5CF6' },
+  jupiter_swap:     { icon: 'swap-horizontal', color: '#8B5CF6' },
+  jupiter_lock:     { icon: 'lock-closed',     color: '#06B6D4' },
   transfer:         { icon: 'paper-plane',     color: '#10B981' },
 };
 
@@ -39,6 +41,8 @@ const OPERATION_LABEL_KEYS = {
   collect_reward:   'walletConnect.op_collect_reward',
   close_position:   'walletConnect.op_close_position',
   swap:             'walletConnect.op_swap',
+  jupiter_swap:     'walletConnect.op_jupiter_swap',
+  jupiter_lock:     'walletConnect.op_jupiter_lock',
 };
 
 // locked: عندما يكون التطبيق مقفلًا نُخفي النافذة (الطلب يبقى محفوظًا ويظهر بعد فتح القفل)
@@ -289,6 +293,19 @@ export default function WalletConnectSignModal({ locked = false }) {
                   <Text style={[S.detailValue, { color: C.text }]} numberOfLines={1}>{row.value}</Text>
                 </View>
               ))}
+            </View>
+          )}
+
+          {/* ── تعذّر التحقق من أثر المعاملة / أو لا تغيّر في الأرصدة ── */}
+          {!summaryRows && request.details?.verified === false && (
+            <View style={[S.warningRow, { backgroundColor: C.warning + '12', borderColor: C.warning + '30', marginBottom: 10 }]}>
+              <Ionicons name="alert-circle-outline" size={16} color={C.warning} />
+              <Text style={[S.warningTxt, { color: C.warning }]}>{t('walletConnect.unverified_effect')}</Text>
+            </View>
+          )}
+          {!summaryRows && request.details?.noChange && (
+            <View style={[S.detailsCard, { backgroundColor: C.card, borderColor: C.border }]}>
+              <Text style={[S.detailLabel, { color: C.secondary }]}>{t('walletConnect.no_balance_change')}</Text>
             </View>
           )}
 

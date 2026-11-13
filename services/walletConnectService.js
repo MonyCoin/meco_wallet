@@ -8,7 +8,7 @@ import i18n from '../i18n';
 import { useAppStore } from '../store';
 import { requireAuth } from './appLock';
 import * as web3 from '@solana/web3.js';
-import { getAssociatedTokenAddress, AccountLayout, getMint } from '@solana/spl-token';
+import { getAssociatedTokenAddress, AccountLayout, TOKEN_PROGRAM_ID, TOKEN_2022_PROGRAM_ID } from '@solana/spl-token';
 import bs58 from 'bs58';
 import { Buffer } from 'buffer';
 import { default as heliusService } from './heliusService';
@@ -19,6 +19,11 @@ import { sessionMatchesActive, readVerify, buildSiteList } from './pureHelpers';
 // (يجب كتابة process.env.EXPO_PUBLIC_* بهذه الصيغة المباشرة ليُدمج عند البناء)
 const PROJECT_ID = process.env.EXPO_PUBLIC_WC_PROJECT_ID || '21dc279d9fb09e92a14421d4a189efec';
 const WHIRLPOOL_PROGRAM_ID = 'whirLbMiicVdio4qvUfM5KAg6Ct8VwpYzGff3uctyCc';
+// Jupiter Lock (العنوان الرسمي من وثائق Jupiter) و Jupiter Swap v6
+const JUPITER_LOCK_PROGRAM_ID = 'LocpQgucEQHbqNABEYvBvwoxCPsSbG91A1QaQhQQqjn';
+const JUPITER_V6_PROGRAM_ID   = 'JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4';
+const ATA_PROGRAM_ID         = 'ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJe1gdS';
+const SOL_MINT               = 'So11111111111111111111111111111111111111112';
 export let web3wallet;
 
 const listeners = {};
@@ -91,53 +96,97 @@ const KNOWN_TOKENS = {
   'A5Ln25cfww33kfUSzBb89bMha7j1PnFQTy7H3FsQHN7W': 'MECO',
 };
 
-const decimalsCache = {};
+const WELL_KNOWN_DECIMALS = {
+  'So11111111111111111111111111111111111111112': 9,
+  'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v': 6,
+  'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB': 6,
+  'A5Ln25cfww33kfUSzBb89bMha7j1PnFQTy7H3FsQHN7W': 9,
+};
+const mintDecimalsCache = {};
 async function getMintDecimals(connection, mint) {
-  if (decimalsCache[mint] != null) return decimalsCache[mint];
-  const info = await getMint(connection, new web3.PublicKey(mint));
-  decimalsCache[mint] = info.decimals;
-  return info.decimals;
+  if (WELL_KNOWN_DECIMALS[mint] != null) return WELL_KNOWN_DECIMALS[mint];
+  if (mintDecimalsCache[mint] != null) return mintDecimalsCache[mint];
+  const info = await connection.getParsedAccountInfo(new web3.PublicKey(mint));
+  const d = info?.value?.data?.parsed?.info?.decimals;
+  if (typeof d !== 'number') throw new Error('mint decimals unavailable');
+  mintDecimalsCache[mint] = d;
+  return d;
 }
 
-async function getBalanceChanges(connection, ownerPubkey, txForSim) {
-  try {
-    const owner = new web3.PublicKey(ownerPubkey);
-    const mints = Object.keys(KNOWN_TOKENS);
-    const atas  = await Promise.all(mints.map(m => getAssociatedTokenAddress(new web3.PublicKey(m), owner)));
+const shortMint = (m) => `${m.slice(0, 4)}…${m.slice(-4)}`;
+const MAX_SIM_ACCOUNTS = 100; // حد RPC لعدد الحسابات المُرجَعة من المحاكاة
 
-    const [preSol, preInfos, decimalsList] = await Promise.all([
+// يحاكي المعاملة ويُرجع تغيّر أرصدة المحفظة (SOL + كل رموزها). يُرجع null إن تعذّر التحقق.
+async function getBalanceChanges(connection, ownerPubkey, txForSim, instructions) {
+  try {
+    const owner   = new web3.PublicKey(ownerPubkey);
+    const owner58 = owner.toBase58();
+
+    const [legacyRes, t22Res, preSol] = await Promise.all([
+      connection.getTokenAccountsByOwner(owner, { programId: TOKEN_PROGRAM_ID }),
+      connection.getTokenAccountsByOwner(owner, { programId: TOKEN_2022_PROGRAM_ID }),
       connection.getBalance(owner),
-      connection.getMultipleAccountsInfo(atas),
-      Promise.all(mints.map(m => getMintDecimals(connection, m).catch(() => null))),
     ]);
 
+    // كل حسابات الرموز الموجودة للمحفظة: العنوان ← { mint, pre }
+    const tracked = new Map();
+    for (const r of [...legacyRes.value, ...t22Res.value]) {
+      const dec = AccountLayout.decode(r.account.data.slice(0, AccountLayout.span));
+      tracked.set(r.pubkey.toBase58(), { mint: dec.mint.toBase58(), pre: dec.amount });
+    }
+
+    // حسابات قد تُنشأ داخل المعاملة نفسها: الرموز المعروفة + أي AToken create تخص المحفظة
+    await Promise.all(Object.keys(KNOWN_TOKENS).map(async (m) => {
+      const ata = (await getAssociatedTokenAddress(new web3.PublicKey(m), owner)).toBase58();
+      if (!tracked.has(ata)) tracked.set(ata, { mint: m, pre: 0n });
+    }));
+    for (const ix of instructions) {
+      if (ix.programId?.toBase58?.() !== ATA_PROGRAM_ID) continue;
+      const k = ix.keys;
+      if (!k || k.length < 4 || k[2].pubkey.toBase58() !== owner58) continue;
+      const ata = k[1].pubkey.toBase58();
+      if (!tracked.has(ata)) tracked.set(ata, { mint: k[3].pubkey.toBase58(), pre: 0n });
+    }
+
+    const addrs = [...tracked.keys()];
+    if (addrs.length + 1 > MAX_SIM_ACCOUNTS) return null; // لا نعرض ملخصاً ناقصاً
+
     const sim = await connection.simulateTransaction(txForSim, {
-      accounts: { encoding: 'base64', addresses: [owner.toBase58(), ...atas.map(a => a.toBase58())] },
+      accounts: { encoding: 'base64', addresses: [owner58, ...addrs] },
       sigVerify: false,
+      replaceRecentBlockhash: true,
     });
     if (sim.value.err || !sim.value.accounts) return null;
 
     const [postOwner, ...postTokenAccs] = sim.value.accounts;
-    const changes = [];
+    const deltas = new Map(); // mint ← bigint (SOL الأصلي و wSOL يُدمجان تحت mint واحد)
+    const add = (mint, d) => { if (d !== 0n) deltas.set(mint, (deltas.get(mint) || 0n) + d); };
 
-    const solDelta = ((postOwner?.lamports ?? preSol) - preSol) / web3.LAMPORTS_PER_SOL;
-    if (Math.abs(solDelta) > 0.000001) changes.push({ symbol: 'SOL', amount: solDelta });
+    add(SOL_MINT, BigInt((postOwner?.lamports ?? preSol) - preSol));
 
-    mints.forEach((mint, i) => {
-      if (decimalsList[i] == null) return;
-      const preAmt  = preInfos[i] ? AccountLayout.decode(preInfos[i].data).amount : 0n;
-      const postRaw = postTokenAccs[i]?.data?.[0];
-      let    postAmt = preAmt;
-      if (postRaw) {
-        try { postAmt = AccountLayout.decode(Buffer.from(postRaw, 'base64')).amount; } catch (_) {}
+    addrs.forEach((addr, i) => {
+      const { mint, pre } = tracked.get(addr);
+      const acc = postTokenAccs[i];
+      let post = 0n;
+      if (acc?.data?.[0]) {
+        try {
+          const raw = Buffer.from(acc.data[0], 'base64');
+          post = raw.length >= AccountLayout.span ? AccountLayout.decode(raw.slice(0, AccountLayout.span)).amount : 0n;
+        } catch (_) { post = pre; }
       }
-      const delta = postAmt - preAmt;
-      if (delta !== 0n) changes.push({ symbol: KNOWN_TOKENS[mint], amount: Number(delta) / 10 ** decimalsList[i] });
+      add(mint, post - pre);
     });
 
-    return changes.length ? changes : null;
+    const changes = [];
+    for (const [mint, delta] of deltas) {
+      if (mint === SOL_MINT && (delta > -1000n && delta < 1000n)) continue;
+      const decimals = await getMintDecimals(connection, mint);
+      changes.push({ symbol: KNOWN_TOKENS[mint] || shortMint(mint), amount: Number(delta) / 10 ** decimals });
+    }
+    changes.sort((a, b) => (a.amount < 0 ? 0 : 1) - (b.amount < 0 ? 0 : 1));
+    return changes; // قد تكون فارغة = المحاكاة نجحت ولا تغيّر في الأرصدة
   } catch (e) {
-    console.warn('⚠️ [getBalanceChanges] رجعنا للعرض العام:', e.message);
+    console.warn('⚠️ [getBalanceChanges] تعذّر التحقق:', e.message);
     return null;
   }
 }
@@ -153,7 +202,7 @@ async function getNetworkFee(connection, message) {
 
 async function parseTransactionDetails(method, params) {
   try {
-    if (method === 'solana_signMessage') return { instructionCount: 0, programs: [], operation: null, estimatedFee: null };
+    if (method === 'solana_signMessage') return { instructionCount: 0, programs: [], operation: null, estimatedFee: null, verified: null, noChange: false };
     const buffer     = Buffer.from(params.transaction, 'base64');
     const connection = await heliusService.getConnection();
     let   instructions = [];
@@ -168,11 +217,14 @@ async function parseTransactionDetails(method, params) {
     } catch (_) {
       const legacyTx = web3.Transaction.from(buffer);
       instructions   = legacyTx.instructions;
-      txForSim        = legacyTx;
       messageForFee   = legacyTx.compileMessage();
+      txForSim        = new web3.VersionedTransaction(messageForFee);
     }
     const KNOWN = {
       [WHIRLPOOL_PROGRAM_ID]:                          'Orca Whirlpool',
+      [JUPITER_LOCK_PROGRAM_ID]:                       'Jupiter Lock',
+      [JUPITER_V6_PROGRAM_ID]:                         'Jupiter',
+      'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb':  'Token-2022',
       'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA': 'Token',
       'ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJe1gdS': 'AToken',
       '11111111111111111111111111111111':             'System',
@@ -184,37 +236,30 @@ async function parseTransactionDetails(method, params) {
     }))];
 
     let operation = detectWhirlpoolOperation(instructions);
+    if (!operation && programs.includes('Jupiter Lock')) operation = { type: 'jupiter_lock' };
+    if (!operation && programs.includes('Jupiter'))      operation = { type: 'jupiter_swap' };
 
-    // ✅ حتى لو لم نعرف نوع العملية بالتحديد (مثلاً Orca حدّثت الـ discriminator)،
-    // طالما Orca Whirlpool موجودة ضمن البرامج، نجيب التغييرات الفعلية في الأرصدة
-    // هذا يضمن ظهور بطاقة واضحة (Pair / Hero / Flow) بدل العرض العام الخام.
-    const hasOrcaProgram = programs.includes('Orca Whirlpool');
+    // ✅ نحاكي كل معاملة (وليس Orca فقط) لنعرض ما سيخرج من المحفظة وما سيصل إليها،
+    // بدل عرض خام (عدد التعليمات وأسماء البرامج) لا يفهمه المستخدم.
+    const ownerPubkey = useAppStore.getState().walletPublicKey;
+    const [changes, estimatedFee] = await Promise.all([
+      ownerPubkey ? getBalanceChanges(connection, ownerPubkey, txForSim, instructions) : null,
+      getNetworkFee(connection, messageForFee),
+    ]);
 
-    let estimatedFee = null;
-    if (operation || hasOrcaProgram) {
-      const ownerPubkey = useAppStore.getState().walletPublicKey;
-      const [changes, fee] = await Promise.all([
-        ownerPubkey ? getBalanceChanges(connection, ownerPubkey, txForSim) : null,
-        getNetworkFee(connection, messageForFee),
-      ]);
-      estimatedFee = fee;
-      if (changes) {
-        const summary = changes.map(c => ({
-          label: c.amount < 0 ? i18n.t('walletConnect.amount_sent') : i18n.t('walletConnect.amount_received'),
-          value: `${Math.abs(c.amount).toLocaleString('en-US', { maximumFractionDigits: 6 })} ${c.symbol}`,
-        }));
-        if (operation) {
-          operation.summary = summary;
-        } else {
-          // ⚠️ عملية Orca غير معروفة النوع — نُنشئ عملية اصطناعية تحتوي على الملخص فقط
-          operation = { type: null, summary };
-        }
-      }
+    const verified = Array.isArray(changes);
+    const noChange = verified && changes.length === 0;
+    if (verified && !noChange) {
+      const summary = changes.map(c => ({
+        label: c.amount < 0 ? i18n.t('walletConnect.amount_sent') : i18n.t('walletConnect.amount_received'),
+        value: `${Math.abs(c.amount).toLocaleString('en-US', { maximumFractionDigits: 6 })} ${c.symbol}`,
+      }));
+      operation = operation ? { ...operation, summary } : { type: null, summary };
     }
 
-    return { instructionCount: instructions.length, programs, operation, estimatedFee };
+    return { instructionCount: instructions.length, programs, operation, estimatedFee, verified, noChange };
   } catch (_) {
-    return { instructionCount: 0, programs: [], operation: null, estimatedFee: null };
+    return { instructionCount: 0, programs: [], operation: null, estimatedFee: null, verified: false, noChange: false };
   }
 }
 
@@ -331,7 +376,7 @@ function setupEventListeners() {
     }
 
     if (listeners['sign_request']) {
-      const { instructionCount, programs, operation, estimatedFee } = await parseTransactionDetails(request.method, request.params);
+      const { instructionCount, programs, operation, estimatedFee, verified, noChange } = await parseTransactionDetails(request.method, request.params);
       WCEvents.emit('sign_request', {
         event,
         method: request.method,
@@ -339,7 +384,7 @@ function setupEventListeners() {
         appUrl,
         appIcon,
         verify: vf.validation,
-        details: { instructionCount, programs, estimatedFee },
+        details: { instructionCount, programs, estimatedFee, verified, noChange },
         operation,
         onApprove: () => handleRequestApproval(event),
         onReject:  () => handleRequestRejection(topic, id),
