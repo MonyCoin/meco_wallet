@@ -116,7 +116,14 @@ async function getMintDecimals(connection, mint) {
 const shortMint = (m) => `${m.slice(0, 4)}…${m.slice(-4)}`;
 const MAX_SIM_ACCOUNTS = 100; // حد RPC لعدد الحسابات المُرجَعة من المحاكاة
 
-// يحاكي المعاملة ويُرجع تغيّر أرصدة المحفظة (SOL + كل رموزها). يُرجع null إن تعذّر التحقق.
+// صلاحيات حساب الرمز: المفوَّض والمالك وصلاحية الإغلاق (للكشف عن منح صلاحية التحكم)
+const authOf = (dec) => ({
+  delegate: dec.delegateOption ? dec.delegate.toBase58() : null,
+  owner:    dec.owner.toBase58(),
+  close:    dec.closeAuthorityOption ? dec.closeAuthority.toBase58() : null,
+});
+
+// يحاكي المعاملة ويُرجع { changes, danger }: تغيّر أرصدة المحفظة (SOL + كل رموزها). يُرجع null إن تعذّر التحقق.
 async function getBalanceChanges(connection, ownerPubkey, txForSim, instructions) {
   try {
     const owner   = new web3.PublicKey(ownerPubkey);
@@ -132,20 +139,20 @@ async function getBalanceChanges(connection, ownerPubkey, txForSim, instructions
     const tracked = new Map();
     for (const r of [...legacyRes.value, ...t22Res.value]) {
       const dec = AccountLayout.decode(r.account.data.slice(0, AccountLayout.span));
-      tracked.set(r.pubkey.toBase58(), { mint: dec.mint.toBase58(), pre: dec.amount });
+      tracked.set(r.pubkey.toBase58(), { mint: dec.mint.toBase58(), pre: dec.amount, auth: authOf(dec) });
     }
 
     // حسابات قد تُنشأ داخل المعاملة نفسها: الرموز المعروفة + أي AToken create تخص المحفظة
     await Promise.all(Object.keys(KNOWN_TOKENS).map(async (m) => {
       const ata = (await getAssociatedTokenAddress(new web3.PublicKey(m), owner)).toBase58();
-      if (!tracked.has(ata)) tracked.set(ata, { mint: m, pre: 0n });
+      if (!tracked.has(ata)) tracked.set(ata, { mint: m, pre: 0n, auth: { delegate: null, owner: owner58, close: null } });
     }));
     for (const ix of instructions) {
       if (ix.programId?.toBase58?.() !== ATA_PROGRAM_ID) continue;
       const k = ix.keys;
       if (!k || k.length < 4 || k[2].pubkey.toBase58() !== owner58) continue;
       const ata = k[1].pubkey.toBase58();
-      if (!tracked.has(ata)) tracked.set(ata, { mint: k[3].pubkey.toBase58(), pre: 0n });
+      if (!tracked.has(ata)) tracked.set(ata, { mint: k[3].pubkey.toBase58(), pre: 0n, auth: { delegate: null, owner: owner58, close: null } });
     }
 
     const addrs = [...tracked.keys()];
@@ -159,6 +166,11 @@ async function getBalanceChanges(connection, ownerPubkey, txForSim, instructions
     if (sim.value.err || !sim.value.accounts) return null;
 
     const [postOwner, ...postTokenAccs] = sim.value.accounts;
+    // 🔒 كشف منح صلاحية التحكم (حتى لو كانت داخل استدعاء داخلي لبرنامج آخر):
+    // نقارن حالة الحسابات بعد المحاكاة بحالتها قبلها.
+    let danger = false;
+    if (postOwner && postOwner.owner !== '11111111111111111111111111111111') danger = true; // Assign
+
     const deltas = new Map(); // mint ← bigint (SOL الأصلي و wSOL يُدمجان تحت mint واحد)
     const add = (mint, d) => { if (d !== 0n) deltas.set(mint, (deltas.get(mint) || 0n) + d); };
 
@@ -171,7 +183,14 @@ async function getBalanceChanges(connection, ownerPubkey, txForSim, instructions
       if (acc?.data?.[0]) {
         try {
           const raw = Buffer.from(acc.data[0], 'base64');
-          post = raw.length >= AccountLayout.span ? AccountLayout.decode(raw.slice(0, AccountLayout.span)).amount : 0n;
+          if (raw.length >= AccountLayout.span) {
+            const d = AccountLayout.decode(raw.slice(0, AccountLayout.span));
+            post = d.amount;
+            const a = authOf(d), b = tracked.get(addr).auth;
+            if (a.owner !== b.owner) danger = true;                       // تغيير مالك الحساب
+            if (a.delegate && a.delegate !== b.delegate) danger = true;   // تفويض جديد (الإلغاء آمن)
+            if (a.close && a.close !== b.close) danger = true;            // صلاحية إغلاق جديدة
+          }
         } catch (_) { post = pre; }
       }
       add(mint, post - pre);
@@ -184,7 +203,7 @@ async function getBalanceChanges(connection, ownerPubkey, txForSim, instructions
       changes.push({ symbol: KNOWN_TOKENS[mint] || shortMint(mint), amount: Number(delta) / 10 ** decimals });
     }
     changes.sort((a, b) => (a.amount < 0 ? 0 : 1) - (b.amount < 0 ? 0 : 1));
-    return changes; // قد تكون فارغة = المحاكاة نجحت ولا تغيّر في الأرصدة
+    return { changes, danger }; // changes قد تكون فارغة = المحاكاة نجحت ولا تغيّر في الأرصدة
   } catch (e) {
     console.warn('⚠️ [getBalanceChanges] تعذّر التحقق:', e.message);
     return null;
@@ -242,11 +261,13 @@ async function parseTransactionDetails(method, params) {
     // ✅ نحاكي كل معاملة (وليس Orca فقط) لنعرض ما سيخرج من المحفظة وما سيصل إليها،
     // بدل عرض خام (عدد التعليمات وأسماء البرامج) لا يفهمه المستخدم.
     const ownerPubkey = useAppStore.getState().walletPublicKey;
-    const [changes, estimatedFee] = await Promise.all([
+    const [sim, estimatedFee] = await Promise.all([
       ownerPubkey ? getBalanceChanges(connection, ownerPubkey, txForSim, instructions) : null,
       getNetworkFee(connection, messageForFee),
     ]);
 
+    const changes   = sim?.changes ?? null;
+    const dangerous = !!sim?.danger;
     const verified = Array.isArray(changes);
     const noChange = verified && changes.length === 0;
     if (verified && !noChange) {
@@ -257,7 +278,7 @@ async function parseTransactionDetails(method, params) {
       operation = operation ? { ...operation, summary } : { type: null, summary };
     }
 
-    return { instructionCount: instructions.length, programs, operation, estimatedFee, verified, noChange };
+    return { instructionCount: instructions.length, programs, operation, estimatedFee, verified, noChange, dangerous };
   } catch (_) {
     return { instructionCount: 0, programs: [], operation: null, estimatedFee: null, verified: false, noChange: false };
   }
@@ -376,7 +397,13 @@ function setupEventListeners() {
     }
 
     if (listeners['sign_request']) {
-      const { instructionCount, programs, operation, estimatedFee, verified, noChange } = await parseTransactionDetails(request.method, request.params);
+      const { instructionCount, programs, operation, estimatedFee, verified, noChange, dangerous } = await parseTransactionDetails(request.method, request.params);
+      if (dangerous) {
+        // 🔒 المعاملة تمنح جهة أخرى صلاحية التحكم برموزك/محفظتك: نرفضها تلقائياً قبل عرض أي بطاقة
+        await handleRequestRejection(topic, id);
+        Alert.alert(i18n.t('error'), i18n.t('walletConnect.blocked_authority'));
+        return;
+      }
       WCEvents.emit('sign_request', {
         event,
         method: request.method,
