@@ -114,7 +114,7 @@ export async function getCoinGeckoChart(coinId, tfLabel = '30D') {
 
 // ─── موجّه عام ────────────────────────────────────────────────────────────────
 export async function getAssetChart(asset, tfLabel = '30D') {
-  if (asset.type === 'stock' || asset.type === 'commodity') {
+  if (asset.type === 'stock') {
     return getYahooChart(asset.id, tfLabel);
   }
   if (asset.coingeckoId) return getCoinGeckoChart(asset.coingeckoId, tfLabel);

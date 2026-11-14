@@ -18,7 +18,7 @@ import {
   fetchCustomTokenByMint, saveCustomToken, deleteCustomToken,
 } from '../services/jupiterMarketService';
 import { getGlobalMarketData } from '../services/marketOverviewService';
-import { getCommodities, getUSStocks, getForexRates } from '../services/marketDataService';
+import { getUSStocks, getForexRates } from '../services/marketDataService';
 
 const WATCHLIST_KEY = '@meco_watchlist';
 const REFRESH_MS    = 60000;
@@ -46,6 +46,14 @@ const EXTERNAL_TOKENS = [
   { id:'tron',       symbol:'TRX',  name:'TRON',     image:'https://assets.coingecko.com/coins/images/1094/large/photo_2026-04-13_09-59-16.png',       coingeckoId:'tron',       mint:'external:tron',       swapAvailable:false },
   { id:'chainlink',  symbol:'LINK', name:'Chainlink',image:'https://assets.coingecko.com/coins/images/877/large/Chainlink_Logo_500.png',               coingeckoId:'chainlink',  mint:'external:chainlink',  swapAvailable:false },
   { id:'polkadot',   symbol:'DOT',  name:'Polkadot', image:'https://assets.coingecko.com/coins/images/12171/large/polkadot.jpg',                       coingeckoId:'polkadot',   mint:'external:polkadot',   swapAvailable:false },
+];
+
+// عملات إضافية تظهر عند الضغط على "عرض المزيد" في قسم الأسواق العالمية.
+// تُجلب أسعارها وشعاراتها بطلب واحد من CoinGecko (coins/markets)، وأي معرّف غير متاح يُتجاهل تلقائياً.
+const MORE_COIN_IDS = [
+  'the-open-network', 'shiba-inu', 'litecoin', 'bitcoin-cash', 'stellar',
+  'sui', 'near', 'uniswap', 'aptos', 'internet-computer',
+  'ethereum-classic', 'hedera-hashgraph', 'cosmos', 'filecoin', 'aave',
 ];
 
 const fmtPrice = (p) => {
@@ -543,7 +551,25 @@ const GlobalMarketCard = ({ item, isDark, onPress }) => {
   );
 };
 
-const HorizontalMarketSection = ({ titleKey, descKey, data, isDark, primaryColor, onPressItem, t }) => {
+// بطاقة "عرض المزيد / عرض أقل" في نهاية بطاقات الأسواق العالمية
+const MoreCoinsCard = ({ expanded, count, onPress, isDark, primaryColor, t }) => {
+  const C = { border: isDark?'#2A2A2A':'#DADAE6', text: isDark?'#F2F2F2':'#1C1C24', muted: isDark?'#8A8A8E':'#8A8A9E' };
+  return (
+    <TouchableOpacity style={[S.extMoreCard, { borderColor: C.border }]} onPress={onPress} activeOpacity={0.8}>
+      <View style={[S.extMoreIcon, { backgroundColor: primaryColor + '22' }]}>
+        <Ionicons name={expanded ? 'chevron-up' : 'add'} size={20} color={primaryColor} />
+      </View>
+      <Text style={[S.extMoreTitle, { color: C.text }]} numberOfLines={1}>
+        {expanded ? t('market_show_less') : t('global_more_title')}
+      </Text>
+      <Text style={[S.extMoreSub, { color: C.muted }]} numberOfLines={1}>
+        {expanded ? t('global_less_sub') : t('global_more_sub', { count })}
+      </Text>
+    </TouchableOpacity>
+  );
+};
+
+const HorizontalMarketSection = ({ titleKey, descKey, data, isDark, primaryColor, onPressItem, t, footer }) => {
   const C = {
     text: isDark?'#F2F2F2':'#1C1C24',
     muted: isDark?'#8A8A8E':'#8A8A9E',
@@ -564,10 +590,8 @@ const HorizontalMarketSection = ({ titleKey, descKey, data, isDark, primaryColor
         showsHorizontalScrollIndicator={false}
         style={{ marginHorizontal: -CARD_BREAK }}
         contentContainerStyle={S.extList}
-        snapToInterval={EXT_CARD_WIDTH + EXT_CARD_GAP}
-        snapToAlignment="start"
-        decelerationRate="fast"
-        disableIntervalMomentum
+        decelerationRate="normal"
+        ListFooterComponent={footer || null}
         renderItem={({ item }) => (
           <GlobalMarketCard item={item} isDark={isDark} onPress={() => onPressItem(item)} />
         )}
@@ -610,7 +634,8 @@ export default function MarketScreen() {
   const [fetchErr,     setFetchErr]     = useState('');
   const [extPrices,    setExtPrices]    = useState({});
 
-  const [commodities,  setCommodities]  = useState([]);
+  const [moreCoins,    setMoreCoins]    = useState([]);
+  const [showMoreCoins, setShowMoreCoins] = useState(false);
   const [stocks,       setStocks]       = useState([]);
   const [forex,        setForex]        = useState([]);
 
@@ -632,6 +657,33 @@ export default function MarketScreen() {
     } catch (_) {}
   };
 
+  const fetchMoreCoins = async () => {
+    try {
+      const res = await fetch(
+        `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${MORE_COIN_IDS.join(',')}&per_page=${MORE_COIN_IDS.length}&sparkline=false`
+      );
+      if (!res.ok) return;
+      const rows = await res.json();
+      if (!Array.isArray(rows)) return;
+      const byId = {};
+      rows.forEach(r => { byId[r.id] = r; });
+      setMoreCoins(MORE_COIN_IDS.filter(id => byId[id]).map(id => {
+        const r = byId[id];
+        return {
+          id:     r.id,
+          symbol: String(r.symbol || '').toUpperCase(),
+          name:   r.name,
+          image:  r.image,
+          isExternal: true,
+          type:   'external_crypto',
+          coingeckoId: r.id,
+          current_price:               r.current_price || 0,
+          price_change_percentage_24h: r.price_change_percentage_24h || 0,
+        };
+      }));
+    } catch (_) {}
+  };
+
   const fetchAll = useCallback(async () => {
     try {
       const [tokenData, ovData] = await Promise.all([
@@ -641,13 +693,12 @@ export default function MarketScreen() {
       setTokens(tokenData);
       setOverview(ovData);
       fetchExtPrices();
+      fetchMoreCoins();
 
       Promise.all([
-        getCommodities().catch(() => []),
         getUSStocks().catch(() => []),
         getForexRates().catch(() => []),
-      ]).then(([comm, stk, fx]) => {
-        setCommodities((comm || []).map(x => ({ ...x, type: 'commodity' })));
+      ]).then(([stk, fx]) => {
         setStocks((stk  || []).map(x => ({ ...x, type: 'stock' })));
         setForex(fx || []);
       });
@@ -920,17 +971,36 @@ export default function MarketScreen() {
               primaryColor={primaryColor}
               onPressItem={handleExtPress}
               t={t}
+              footer={moreCoins.length > 0 ? (
+                <MoreCoinsCard
+                  expanded={showMoreCoins}
+                  count={moreCoins.length}
+                  onPress={() => setShowMoreCoins(v => !v)}
+                  isDark={isDark}
+                  primaryColor={primaryColor}
+                  t={t}
+                />
+              ) : null}
             />
 
-            <HorizontalMarketSection
-              titleKey="commodities_section_title"
-              descKey="commodities_section_desc"
-              data={commodities}
-              isDark={isDark}
-              primaryColor={primaryColor}
-              onPressItem={handleExtPress}
-              t={t}
-            />
+            {showMoreCoins && moreCoins.length > 0 && (
+              <View style={S.moreCoinsList}>
+                {moreCoins.map(coin => (
+                  <TokenListItem
+                    key={coin.id}
+                    token={coin}
+                    isDark={isDark}
+                    primaryColor={primaryColor}
+                    onPress={handleExtPress}
+                    onLongPress={() => {}}
+                  />
+                ))}
+                <TouchableOpacity style={S.showMoreBtn} onPress={() => setShowMoreCoins(false)} activeOpacity={0.7}>
+                  <Ionicons name="chevron-up" size={14} color={isDark ? '#8A8A8E' : '#8A8A9E'} />
+                  <Text style={[S.showMoreTxt, { color: isDark ? '#8A8A8E' : '#8A8A9E' }]}>{t('market_show_less')}</Text>
+                </TouchableOpacity>
+              </View>
+            )}
 
             <HorizontalMarketSection
               titleKey="us_stocks_section_title"
@@ -1139,6 +1209,11 @@ const S = StyleSheet.create({
   extHeaderTitle:{ fontSize:16, fontWeight:'800' },
   extHeaderSub:  { fontSize:12, marginBottom:12 },
   extList:       { paddingHorizontal: CARD_BREAK, gap: EXT_CARD_GAP },
+  extMoreCard:   { width: EXT_CARD_WIDTH, borderRadius: 18, borderWidth: 1, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 14, paddingHorizontal: 12 },
+  extMoreIcon:   { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center' },
+  extMoreTitle:  { fontSize: 14, fontWeight: '700' },
+  extMoreSub:    { fontSize: 11 },
+  moreCoinsList: { marginBottom: 16 },
   extCard: {
     width: EXT_CARD_WIDTH,
     paddingVertical: 14,
