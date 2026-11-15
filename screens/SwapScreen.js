@@ -14,7 +14,7 @@ import * as Clipboard from 'expo-clipboard';
 import { requireAuth } from '../services/appLock';
 import * as SwapAPI from '../services/swapService';
 import NetInfo from '@react-native-community/netinfo';
-import { CORE_TOKENS, getSolPriceUsd } from '../services/jupiterMarketService';
+import { CORE_TOKENS, getSolPriceUsd, WRAPPED_SYMBOLS, ensureTokenImages } from '../services/jupiterMarketService';
 import { getSolBalance, getTokenBalance } from '../services/heliusService';
 import { addNotification, NOTIF_TYPES } from '../services/notificationsService';
 
@@ -28,6 +28,20 @@ const ERROR_TYPE = {
   ROUTE:   'route',
   GENERAL: 'general',
   NONE:    null,
+};
+
+const TokenImg = ({ uri, style, symbol }) => {
+  const [failed, setFailed] = useState(false);
+  useEffect(() => { setFailed(false); }, [uri]);
+  if (!uri || failed) {
+    const sz = (StyleSheet.flatten(style) || {}).width || 32;
+    return (
+      <View style={[style, { backgroundColor: 'rgba(128,128,128,0.2)', alignItems: 'center', justifyContent: 'center' }]}>
+        <Text style={{ fontSize: sz * 0.42, fontWeight: '800', color: '#8A8A8E' }}>{(symbol || '?').charAt(0)}</Text>
+      </View>
+    );
+  }
+  return <Image source={{ uri }} style={style} onError={() => setFailed(true)} />;
 };
 
 export default function SwapScreen() {
@@ -50,8 +64,12 @@ export default function SwapScreen() {
   });
 
   const initialSymbol    = route.params?.fromToken || 'SOL';
-  const initialFromToken = CORE_TOKENS.find(tk => tk.symbol === initialSymbol) || CORE_TOKENS[0];
-  const initialToToken   = CORE_TOKENS.find(tk => tk.symbol === 'USDC')        || CORE_TOKENS[3];
+  const targetSymbol     = route.params?.toToken;   // شراء عملة معيّنة (مثل cbBTC) من شاشة تفاصيل الأصل
+  const initialFromToken = targetSymbol
+    ? (CORE_TOKENS.find(tk => tk.symbol === 'SOL') || CORE_TOKENS[0])
+    : (CORE_TOKENS.find(tk => tk.symbol === initialSymbol) || CORE_TOKENS[0]);
+  const initialToToken   = (targetSymbol && CORE_TOKENS.find(tk => tk.symbol === targetSymbol))
+    || CORE_TOKENS.find(tk => tk.symbol === 'USDC')        || CORE_TOKENS[3];
 
   const [fromToken,        setFromToken]        = useState(initialFromToken);
   const [toToken,          setToToken]          = useState(initialToToken);
@@ -63,6 +81,12 @@ export default function SwapScreen() {
   const [quoteLoading,     setQuoteLoading]     = useState(false);
   const [balances,         setBalances]         = useState({});
   const [balancesCached,   setBalancesCached]   = useState(false);
+  const [, bumpImages] = useState(0);
+  useEffect(() => {
+    let alive = true;
+    ensureTokenImages().then(() => { if (alive) bumpImages(n => n + 1); });
+    return () => { alive = false; };
+  }, []);
   const [fromModalVisible, setFromModalVisible] = useState(false);
   const [toModalVisible,   setToModalVisible]   = useState(false);
   const [errorMsg,         setErrorMsg]         = useState('');
@@ -191,7 +215,16 @@ export default function SwapScreen() {
     return () => clearTimeout(timer);
   }, [fromAmount, fromToken, toToken]);
 
+  // حارس التأثير السعري للعملات المغلّفة: تحذير فوق 2%، وإيقاف التنفيذ فوق 5%
+  const isWrappedSwap  = WRAPPED_SYMBOLS.includes(fromToken.symbol) || WRAPPED_SYMBOLS.includes(toToken.symbol);
+  const impactWarn     = isWrappedSwap && priceImpact > 2 && priceImpact <= 5;
+  const impactBlocked  = isWrappedSwap && priceImpact > 5;
+
   const handleSwap = async () => {
+    if (impactBlocked) {
+      Alert.alert(t('error'), t('wrapped_impact_block'));
+      return;
+    }
     if (!fromAmount || parseFloat(fromAmount) <= 0) {
       Alert.alert(t('error'), t('swap_enter_amount'));
       return;
@@ -286,7 +319,7 @@ export default function SwapScreen() {
                   ],
                 );
               } else {
-                Alert.alert(t('error'), result.error);
+                Alert.alert(t('error'), result.error === 'PRICE_IMPACT_TOO_HIGH' ? t('wrapped_impact_block') : result.error);
               }
             } catch (err) {
               Alert.alert(t('error'), err.message);
@@ -373,7 +406,7 @@ export default function SwapScreen() {
                 onPress={() => { onSelect(item); onClose(); }}
               >
                 <View style={[styles.tokenIconWrapper, { backgroundColor: isDark ? '#1E1E1E' : '#ECECF4' }]}>
-                  <Image source={{ uri: item.image }} style={styles.tokenIcon} />
+                  <TokenImg uri={item.image} symbol={item.symbol} style={styles.tokenIcon} />
                 </View>
                 <View style={styles.tokenInfo}>
                   <Text style={[styles.tokenSymbolTxt, { color: colors.text }]}>{item.symbol}</Text>
@@ -464,7 +497,7 @@ export default function SwapScreen() {
                   style={[styles.tokenSelectorPill, { backgroundColor: colors.background }]}
                   onPress={() => setFromModalVisible(true)}
                 >
-                  <Image source={{ uri: fromToken.image }} style={styles.tokenImage} />
+                  <TokenImg uri={fromToken.image} symbol={fromToken.symbol} style={styles.tokenImage} />
                   <Text style={[styles.tokenSelectorTxt, { color: colors.text }]}>{fromToken.symbol}</Text>
                   <Ionicons name="chevron-down" size={13} color={colors.textSecondary} />
                 </TouchableOpacity>
@@ -498,7 +531,7 @@ export default function SwapScreen() {
                   style={[styles.tokenSelectorPill, { backgroundColor: colors.background }]}
                   onPress={() => setToModalVisible(true)}
                 >
-                  <Image source={{ uri: toToken.image }} style={styles.tokenImage} />
+                  <TokenImg uri={toToken.image} symbol={toToken.symbol} style={styles.tokenImage} />
                   <Text style={[styles.tokenSelectorTxt, { color: colors.text }]}>{toToken.symbol}</Text>
                   <Ionicons name="chevron-down" size={13} color={colors.textSecondary} />
                 </TouchableOpacity>
@@ -532,10 +565,16 @@ export default function SwapScreen() {
                     <Ionicons name="trending-down" size={14} color={colors.textSecondary} />
                     <Text style={[styles.rateLabel, { color: colors.textSecondary }]}>{t('price_impact')}</Text>
                   </View>
-                  <Text style={[styles.rateValue, { color: priceImpact > 5 ? colors.error : colors.success }]}>
+                  <Text style={[styles.rateValue, { color: priceImpact > 5 ? colors.error : (priceImpact > 2 ? '#F59E0B' : colors.success) }]}>
                     {priceImpact.toFixed(2)}%
                   </Text>
                 </View>
+              )}
+
+              {(impactWarn || impactBlocked) && (
+                <Text style={{ color: impactBlocked ? colors.error : '#F59E0B', fontSize: 12, lineHeight: 18, marginTop: 4, marginBottom: 4 }}>
+                  {impactBlocked ? t('wrapped_impact_block') : t('wrapped_impact_warn', { impact: priceImpact.toFixed(2) })}
+                </Text>
               )}
 
               <View style={styles.rateRow}>
@@ -567,11 +606,11 @@ export default function SwapScreen() {
               styles.executeButton,
               {
                 backgroundColor: primaryColor,
-                opacity: (loading || quoteLoading || !fromAmount || isOffline) ? 0.6 : 1,
+                opacity: (loading || quoteLoading || !fromAmount || isOffline || impactBlocked) ? 0.6 : 1,
               },
             ]}
             onPress={handleSwap}
-            disabled={loading || quoteLoading || !fromAmount || isOffline}
+            disabled={loading || quoteLoading || !fromAmount || isOffline || impactBlocked}
             activeOpacity={0.8}
           >
             {loading ? (

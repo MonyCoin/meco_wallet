@@ -5,6 +5,7 @@ import bs58 from 'bs58';
 import { Buffer } from 'buffer';
 import { default as heliusService } from './heliusService';
 import { svcError } from './svcError';
+import { GUARDED_MINTS, IMPACT_BLOCK_PCT } from './guardedTokens';
 
 const FEE_COLLECTOR_ADDRESS = 'BkaJsFAJKPQZgreBFLrY2pPUi44fTJzXhmeBc8LeuF5W';
 const SERVICE_FEE_SOL       = 0.0005;
@@ -184,6 +185,10 @@ export async function executeMarketSwap({
   const keypair    = await getKeypair(activeIndex);
   const connection = await getConnection();
   const quote      = await getQuote(inputMint, outputMint, amount);
+  if ((GUARDED_MINTS.includes(inputMint) || GUARDED_MINTS.includes(outputMint))
+      && parseFloat(quote.priceImpactPct || 0) * 100 > IMPACT_BLOCK_PCT) {
+    throw new Error('PRICE_IMPACT_TOO_HIGH');
+  }
   const swapTx     = await buildSwapTx(quote, walletPublicKey);
   return executeVersionedTx(swapTx, keypair, connection, walletPublicKey);
 }

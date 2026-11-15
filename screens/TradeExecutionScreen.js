@@ -11,6 +11,8 @@ import { useAppStore } from '../store';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { executeMarketSwap } from '../services/tradingService';
+import { resolveDecimalsByMint } from '../services/swapService';
+import { GUARDED_MINTS } from '../services/guardedTokens';
 import { requireAuth } from '../services/appLock';
 import { getSolBalance, getTokenBalance } from '../services/heliusService';
 import { CORE_TOKENS, getJupiterMarketData } from '../services/jupiterMarketService';
@@ -190,6 +192,9 @@ export default function TradeExecutionScreen() {
     if (msg === 'TOKEN_NOT_TRADABLE' || msg.includes('TOKEN_NOT_TRADABLE') || msg.includes('is not tradable')) {
       return t('trading_errors.token_not_tradable');
     }
+    if (msg.includes('PRICE_IMPACT_TOO_HIGH')) {
+      return t('wrapped_impact_block');
+    }
     if (msg === 'NO_ROUTE' || msg.includes('NO_ROUTES') || msg.includes('no route')) {
       return t('trading_errors.no_route');
     }
@@ -204,7 +209,13 @@ export default function TradeExecutionScreen() {
     const amt = validate();
     if (!amt) return;
 
-    const rawIn = Math.round(amt * Math.pow(10, inputToken.decimals));
+    // العملات الإضافية: الخانات العشرية من السلسلة (بلا تخمين)
+    let inDecimals = inputToken.decimals;
+    if (GUARDED_MINTS.includes(inputToken.mint)) {
+      try { inDecimals = await resolveDecimalsByMint(inputToken.mint); }
+      catch (_) { Alert.alert(t('error'), t('trading_errors.general')); return; }
+    }
+    const rawIn = Math.round(amt * Math.pow(10, inDecimals));
     const title = side === 'buy'
       ? t('trade_execution.confirm_buy_title')
       : t('trade_execution.confirm_sell_title');

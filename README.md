@@ -269,14 +269,12 @@ eas build --platform android --build-profile production
 ```env
 EXPO_PUBLIC_HELIUS_API_KEY=your_helius_key_here
 EXPO_PUBLIC_ALCHEMY_API_KEY=your_alchemy_key_here
-EXPO_PUBLIC_FINNHUB_API_KEY=your_finnhub_key_here
 ```
 
 | المتغير | الاستخدام |
 |:---|:---|
 | `EXPO_PUBLIC_HELIUS_API_KEY` | مزود RPC الأساسي (`heliusService.js`) |
 | `EXPO_PUBLIC_ALCHEMY_API_KEY` | مزود RPC الاحتياطي (`alchemyService.js`) |
-| `EXPO_PUBLIC_FINNHUB_API_KEY` | أسعار الأسهم والأخبار (`marketDataService.js` و`assetChartService.js`) |
 
 عند التشغيل المحلي تُقرأ المتغيرات من ملف `.env`. أما في تحديثات الإنتاج فتُضاف إلى بيئة `production` في Expo (EAS Environment Variables)، ثم تُحقن وقت البناء أو تنفيذ `eas update`. يجب كتابة `process.env.EXPO_PUBLIC_*` بصيغتها المباشرة في الكود ليعمل الاستبدال الثابت.
 
@@ -331,7 +329,7 @@ EXPO_PUBLIC_FINNHUB_API_KEY=your_finnhub_key_here
 - المتصفح المدمج يقبل روابط `http/https` فقط.
 - يمكنك رؤية المواقع المرتبطة بمحفظتك وقطع اتصالها في أي وقت من قائمة ⋮ في شاشة المحفظة.
 - يُرفض توقيع أي طلب WalletConnect لا يخص الحساب النشط، ويُتحقق من نتيجة المعاملة على الشبكة قبل إبلاغ الموقع بالنجاح.
-- مفاتيح الخدمات (Helius وAlchemy وFinnhub) تُقرأ من متغيرات البيئة ولا تُكتب في الكود المصدري.
+- مفاتيح الخدمات (Helius وAlchemy) تُقرأ من متغيرات البيئة ولا تُكتب في الكود المصدري.
 - عند تعطل مزود RPC الأساسي يتحول التطبيق تلقائيًا إلى مزود احتياطي دون انقطاع الخدمة.
 
 > **تنبيه:** أنت المسؤول عن حفظ عبارة الاسترداد والمفاتيح الخاصة. لا يستطيع فريق MECO استعادتها إذا فُقدت.

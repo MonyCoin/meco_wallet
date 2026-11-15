@@ -1,6 +1,7 @@
 // services/jupiterMarketService.js
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { svcError } from './svcError';
+import { GUARDED_TOKENS, GUARDED_SYMBOLS, WRAPPED_BY_COINGECKO_ID } from './guardedTokens';
 
 export const CORE_TOKENS = [
   { id:'solana',                   symbol:'SOL',    name:'Solana',              decimals:9, swapAvailable:true,  image:'https://assets.coingecko.com/coins/images/4128/large/solana.png',         mint:'So11111111111111111111111111111111111111112' },
@@ -18,7 +19,14 @@ export const CORE_TOKENS = [
   { id:'pudgy-penguins',           symbol:'PENGU',  name:'Pudgy Penguins',      decimals:6, swapAvailable:true,  image:'https://assets.coingecko.com/coins/images/52622/large/PUDGY_PENGUINS_PENGU_PFP.png', mint:'2zMMhcVQEXDtdE6vsFS7S7D5oUodfJHE8vd1gnBouauv' },
   { id:'pump-fun',                 symbol:'PUMP',   name:'Pump.fun',            decimals:6, swapAvailable:true,  image:'https://assets.coingecko.com/coins/images/67164/large/pump.jpg',          mint:'pumpCmXqMfrsAkQ5r49WcJnRayYRqmXz6ae8H7H9Dfn'   },
   { id:'render-token',             symbol:'RENDER', name:'Render',              decimals:8, swapAvailable:true,  image:'https://assets.coingecko.com/coins/images/11636/large/rndr.png',          mint:'rndrizKT3MK1iimdxRdWabcF7Zg7AR5T4nud4EkHBof'   },
+  ...GUARDED_TOKENS.map(g => ({
+    id: `guarded-${g.symbol.toLowerCase()}`, symbol: g.symbol, name: g.name, decimals: g.dec,
+    swapAvailable: true, guarded: true, wrapped: true,
+    image: null, mint: g.mint,   // يُملأ بالشعار الحقيقي عبر ensureTokenImages
+  })),
 ];
+
+export { WRAPPED_BY_COINGECKO_ID, GUARDED_SYMBOLS as WRAPPED_SYMBOLS };
 
 const MECO_MINT         = 'A5Ln25cfww33kfUSzBb89bMha7j1PnFQTy7H3FsQHN7W';
 const MECO_TOTAL_SUPPLY = 1_000_000_000;
@@ -64,6 +72,70 @@ const fetchDexScreener = async (mints) => {
   return result;
 };
 
+// ─── شعارات العملات الإضافية ───────────────────────────────────────────────────
+// المصدر الأول: CoinGecko (نفس مصدر شاشة العملات العالمية حيث تظهر كل الأيقونات)، والثاني DexScreener.
+// تُخزَّن وتُطبَّق على CORE_TOKENS حتى تظهر الأيقونات في كل الشاشات (التبديل، التداول السريع، المحفظة).
+const IMAGES_KEY = '@meco_token_images_v2';
+const CG_IMAGE_IDS = {
+  cbBTC: ['coinbase-wrapped-btc', 'bitcoin'], WBTC: ['wrapped-bitcoin', 'bitcoin'], WETH: ['weth', 'ethereum'],
+  WBNB: ['binancecoin'], LINK: ['chainlink'], UNI: ['uniswap'], AAVE: ['aave'], SHIB: ['shiba-inu'],
+  PEPE: ['pepe'], ONDO: ['ondo-finance'], WLD: ['worldcoin-wld'], AVAX: ['avalanche-2'],
+  JTO: ['jito-governance-token'], JitoSOL: ['jito-staked-sol'], mSOL: ['msol', 'marinade-staked-sol'],
+  PYUSD: ['paypal-usd'], TRUMP: ['official-trump'], FARTCOIN: ['fartcoin'], POPCAT: ['popcat'],
+  MEW: ['cat-in-a-dogs-world'],
+};
+const applyImages = (map) => {
+  for (const tk of CORE_TOKENS) {
+    if (tk.guarded && map[tk.mint]) tk.image = map[tk.mint];
+  }
+};
+async function applyStoredImages() {
+  try {
+    const raw = await AsyncStorage.getItem(IMAGES_KEY);
+    if (raw) applyImages(JSON.parse(raw));
+  } catch (_) {}
+}
+let imagesRefreshedAt = 0;
+export async function ensureTokenImages() {
+  await applyStoredImages();
+  if (Date.now() - imagesRefreshedAt < 10 * 60 * 1000) return;
+  imagesRefreshedAt = Date.now();
+  const guarded = CORE_TOKENS.filter(tk => tk.guarded);
+  const map = {};
+  try {
+    const ids = [...new Set(guarded.flatMap(tk => CG_IMAGE_IDS[tk.symbol] || []))];
+    const res = await fetchWithTimeout(
+      `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${ids.join(',')}&per_page=${ids.length}&sparkline=false`
+    );
+    if (res.ok) {
+      const rows = await res.json();
+      const byId = {};
+      (Array.isArray(rows) ? rows : []).forEach(r => { if (r?.id && r.image) byId[r.id] = r.image; });
+      for (const tk of guarded) {
+        const hit = (CG_IMAGE_IDS[tk.symbol] || []).find(id => byId[id]);
+        if (hit) map[tk.mint] = byId[hit];
+      }
+    }
+  } catch (_) {}
+  try {
+    const missing = guarded.filter(tk => !map[tk.mint]);
+    if (missing.length) {
+      const dex = await fetchDexScreener(missing.map(tk => tk.mint));
+      for (const tk of missing) {
+        const u = dex.get(tk.mint.toLowerCase())?.imageUrl;
+        if (u) map[tk.mint] = u;
+      }
+    }
+  } catch (_) {}
+  if (Object.keys(map).length) {
+    applyImages(map);
+    try {
+      const old = JSON.parse((await AsyncStorage.getItem(IMAGES_KEY)) || '{}');
+      await AsyncStorage.setItem(IMAGES_KEY, JSON.stringify({ ...old, ...map }));
+    } catch (_) {}
+  }
+}
+
 // ─── Jupiter v3 — أسعار العملات الكبرى ───────────────────────────────────────
 const fetchJupiterPrices = async (mints) => {
   const result = new Map();
@@ -108,6 +180,8 @@ export async function getMintPriceUsd(mint) {
 
 // ─── الدالة الرئيسية ──────────────────────────────────────────────────────────
 export async function getJupiterMarketData() {
+  await applyStoredImages();
+  ensureTokenImages();   // تحديث الشعارات في الخلفية دون تأخير العرض
   try {
     const customTokens = await getCustomTokens();
 
@@ -150,7 +224,7 @@ export async function getJupiterMarketData() {
         change24h = dex?.change24h ?? 0;
       }
 
-      const resolvedImage = dex?.imageUrl || token.image;
+      const resolvedImage = token.guarded ? (token.image || dex?.imageUrl || null) : (dex?.imageUrl || token.image);
 
       if (token.symbol === 'USDT' || token.symbol === 'USDC') {
         if (price < 0.95 || price > 1.05 || price === 0) price = 1.00;

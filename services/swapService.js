@@ -7,6 +7,7 @@ import { getSolBalance, getTokenBalance } from './heliusService';
 import { default as heliusService } from './heliusService';
 import { svcError, svcText } from './svcError';
 import { toBaseUnits } from './pureHelpers';
+import { GUARDED_TOKENS, GUARDED_SYMBOLS, GUARDED_MINTS, IMPACT_BLOCK_PCT } from './guardedTokens';
 
 // ─── TOKEN_MINTS ──────────────────────────────────────────────────────────────
 export const TOKEN_MINTS = {
@@ -25,6 +26,7 @@ export const TOKEN_MINTS = {
   PENGU:  '2zMMhcVQEXDtdE6vsFS7S7D5oUodfJHE8vd1gnBouauv',
   PUMP:   'pumpCmXqMfrsAkQ5r49WcJnRayYRqmXz6ae8H7H9Dfn',
   RENDER: 'rndrizKT3MK1iimdxRdWabcF7Zg7AR5T4nud4EkHBof',
+  ...Object.fromEntries(GUARDED_TOKENS.map(g => [g.symbol, g.mint])),
 };
 
 // ─── TOKEN_DECIMALS ───────────────────────────────────────────────────────────
@@ -44,6 +46,7 @@ export const TOKEN_DECIMALS = {
   PENGU:  6,
   PUMP:   6,
   RENDER: 8,
+  ...Object.fromEntries(GUARDED_TOKENS.map(g => [g.symbol, g.dec])),   // تُستبدل بقيمة السلسلة قبل أي تبديل
 };
 // ─── ثوابت ────────────────────────────────────────────────────────────────────
 const FEE_COLLECTOR_ADDRESS = 'BkaJsFAJKPQZgreBFLrY2pPUi44fTJzXhmeBc8LeuF5W';
@@ -106,6 +109,28 @@ async function checkSignatureConfirmed(connection, signature) {
   } catch (_) {
     return null;
   }
+}
+
+// ─── الخانات العشرية من السلسلة (للعملات الإضافية) ───────────────────────────
+const DECIMALS_CACHE = {};
+export async function resolveDecimalsByMint(mint, fallback = null) {
+  if (DECIMALS_CACHE[mint] != null) return DECIMALS_CACHE[mint];
+  try {
+    const connection = await getConnection();
+    const info = await connection.getParsedAccountInfo(new web3.PublicKey(mint));
+    const d = info?.value?.data?.parsed?.info?.decimals;
+    if (typeof d === 'number') { DECIMALS_CACHE[mint] = d; return d; }
+  } catch (_) {}
+  if (fallback != null) return fallback;
+  throw svcError('quote_failed', { msg: 'decimals_unavailable' });
+}
+async function decimalsFor(symbol) {
+  if (GUARDED_SYMBOLS.includes(symbol)) {
+    const d = await resolveDecimalsByMint(TOKEN_MINTS[symbol]);   // بلا تخمين: إن تعذّرت القراءة يتوقف التبديل
+    TOKEN_DECIMALS[symbol] = d;
+    return d;
+  }
+  return TOKEN_DECIMALS[symbol] || 9;
 }
 
 // ─── getSwapQuote ─────────────────────────────────────────────────────────────
@@ -284,8 +309,13 @@ export async function executeSwap(
   }
 
   // ── حلقة Retry — الرسوم لا تتكرر لأن المعاملة ذرية ─────────────────────
-  const inputDecimals    = TOKEN_DECIMALS[inputSymbol]  || 9;
-  const outputDecimals   = TOKEN_DECIMALS[outputSymbol] || 9;
+  let inputDecimals, outputDecimals;
+  try {
+    inputDecimals  = await decimalsFor(inputSymbol);
+    outputDecimals = await decimalsFor(outputSymbol);
+  } catch (err) {
+    return { success: false, error: svcText('init_failed', { msg: err.message }) };
+  }
   const amountInLamports = toBaseUnits(amount, inputDecimals).toString();
 
   let lastError;
@@ -299,6 +329,12 @@ export async function executeSwap(
         amountInLamports,
         slippageBps,
       );
+
+      // حماية احتياطية: أوقف التنفيذ إن كان التأثير السعري > 5% لعملة إضافية
+      const guardedPair = GUARDED_MINTS.includes(TOKEN_MINTS[inputSymbol]) || GUARDED_MINTS.includes(TOKEN_MINTS[outputSymbol]);
+      if (guardedPair && parseFloat(quote.priceImpactPct || 0) * 100 > IMPACT_BLOCK_PCT) {
+        return { success: false, error: 'PRICE_IMPACT_TOO_HIGH' };
+      }
 
       const { swapSignature } = await executeSwapTransaction(
         quote, userPubKey, keypair, connection
@@ -372,8 +408,8 @@ export async function getSwapRate(inputSymbol, outputSymbol, amount) {
   }
 
   try {
-    const inputDecimals        = TOKEN_DECIMALS[inputSymbol]  || 9;
-    const outputDecimals       = TOKEN_DECIMALS[outputSymbol] || 9;
+    const inputDecimals        = await decimalsFor(inputSymbol);
+    const outputDecimals       = await decimalsFor(outputSymbol);
     const amountInSmallestUnit = toBaseUnits(amount, inputDecimals).toString();
     const slippage             = (inputSymbol === 'MECO' || outputSymbol === 'MECO') ? 300 : 100;
 
@@ -387,7 +423,8 @@ export async function getSwapRate(inputSymbol, outputSymbol, amount) {
     const outputAmount    = parseInt(quote.outAmount) / Math.pow(10, outputDecimals);
     const inputAmountReal = parseInt(quote.inAmount)  / Math.pow(10, inputDecimals);
     const rate            = outputAmount / inputAmountReal;
-    const priceImpact     = parseFloat(quote.priceImpactPct || 0);
+    // Jupiter يعيد priceImpactPct كنسبة عشرية (0.01 = 1%) — نحوّلها إلى نسبة مئوية
+    const priceImpact     = parseFloat(quote.priceImpactPct || 0) * 100;
 
     return {
       rate,

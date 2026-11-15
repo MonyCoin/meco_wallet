@@ -13,8 +13,10 @@ import { Ionicons } from '@expo/vector-icons';
 import DirIcon from '../components/DirIcon';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
-  getAssetChart, getAssetNews, getStockProfile,
+  getAssetChart,
 } from '../services/assetChartService';
+import { getCoinInfo } from '../services/coinInfoService';
+import { WRAPPED_BY_COINGECKO_ID, GUARDED_TOKENS } from '../services/guardedTokens';
 
 const WATCHLIST_KEY = '@meco_watchlist';
 
@@ -35,44 +37,13 @@ const fmtPrice = (p) => {
   return `$${p.toFixed(8).replace(/\.?0+$/,'')}`;
 };
 
-const fmtBig = (n) => {
-  if (!n) return 'N/A';
-  if (n >= 1e12) return `$${(n/1e12).toFixed(2)}T`;
-  if (n >= 1e9)  return `$${(n/1e9).toFixed(2)}B`;
-  if (n >= 1e6)  return `$${(n/1e6).toFixed(2)}M`;
-  if (n >= 1e3)  return `$${(n/1e3).toFixed(2)}K`;
-  return `$${n.toFixed(2)}`;
-};
-
 const fmtPct = (n) => `${n >= 0 ? '+' : ''}${Number(n || 0).toFixed(2)}%`;
 
-const timeAgo = (ts, t) => {
-  const n = Number(ts);
-  if (!n) return '';
-  const diff = Math.max(0, Date.now() - n);
-  const m = Math.floor(diff / 60000);
-  if (m < 1)  return t('just_now');
-  if (m < 60) return t('minutes_ago', { count: m });
-  const h = Math.floor(m / 60);
-  if (h < 24) return t('hours_ago', { count: h });
-  return t('days_ago', { count: Math.floor(h / 24) });
-};
-
-// رابط خبر صالح: http/https فقط
+// رابط صالح: http/https فقط
 const isValidUrl = (u) => {
   if (typeof u !== 'string') return false;
   const s = u.trim();
   return /^https?:\/\/[^\s/$.?#][^\s]*\.[^\s]{2,}$/i.test(s);
-};
-
-// تنظيف نص الموجز من HTML والكيانات
-const cleanSummary = (s) => {
-  if (typeof s !== 'string') return '';
-  return s
-    .replace(/<[^>]*>/g, ' ')
-    .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&quot;/g, '"')
-    .replace(/&#0?39;|&apos;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>')
-    .replace(/\s+/g, ' ').trim();
 };
 
 export default function AssetDetailsScreen() {
@@ -101,12 +72,14 @@ export default function AssetDetailsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [chartData,  setChartData]  = useState([]);
   const [stats,      setStats]      = useState({ current:0, open:0, high:0, low:0, change:0 });
-  const [news,       setNews]       = useState([]);
-  const [profile,    setProfile]    = useState(null);
+  const [coinInfo,   setCoinInfo]   = useState(null);
+  const isCrypto = asset?.type === 'external_crypto';
   const [timeframe,  setTimeframe]  = useState('30D');
   const [watchlist,  setWatchlist]  = useState([]);
 
   if (!asset) { navigation.goBack(); return null; }
+
+  const wrappedList = WRAPPED_BY_COINGECKO_ID[asset.coingeckoId || asset.id] || [];
 
   const livePrice  = asset.current_price || 0;
   const liveChange = asset.price_change_percentage_24h || 0;
@@ -129,11 +102,7 @@ export default function AssetDetailsScreen() {
   const fetchAll = useCallback(async (tf, isRefresh = false) => {
     if (!isRefresh) setLoading(true);
     try {
-      const [chartRes, newsRes, profileRes] = await Promise.all([
-        getAssetChart(asset, tf),
-        getAssetNews(asset, 5),
-        asset.type === 'stock' ? getStockProfile(asset.id) : Promise.resolve(null),
-      ]);
+      const chartRes = await getAssetChart(asset, tf);
 
       setChartData(chartRes.data || []);
       setStats({
@@ -143,8 +112,6 @@ export default function AssetDetailsScreen() {
         low:     chartRes.stats?.low   || asset.low  || 0,
         change:  liveChange || chartRes.stats?.change || 0,
       });
-      setNews((newsRes || []).filter(n => n && n.headline && isValidUrl(n.url)));
-      setProfile(profileRes);
     } catch (e) {
       console.warn('[AssetDetails] fetch error:', e.message);
     } finally {
@@ -154,6 +121,13 @@ export default function AssetDetailsScreen() {
   }, [asset.id, timeframe, livePrice, liveChange]);
 
   useEffect(() => { fetchAll(timeframe); }, [timeframe]);
+
+  useEffect(() => {
+    if (!isCrypto) return;
+    let alive = true;
+    getCoinInfo(asset.coingeckoId || asset.id).then(d => { if (alive) setCoinInfo(d); });
+    return () => { alive = false; };
+  }, [asset.id]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -237,6 +211,35 @@ export default function AssetDetailsScreen() {
           </View>
         </View>
 
+        {/* ── التداول على سولانا (نسخة مغلّفة موثّقة) ── */}
+        {wrappedList.length > 0 && (
+          <View style={[S.tradeCard, { backgroundColor: C.card, borderColor: C.border }]}>
+            <View style={S.tradeHead}>
+              <Text style={[S.tradeTitle, { color: C.text }]}>{t('wrapped_trade_title')}</Text>
+              <View style={[S.tradeBadge, { backgroundColor: 'rgba(16,185,129,0.12)' }]}>
+                <Text style={[S.tradeBadgeTxt, { color: C.success }]}>{t('wrapped_badge')}</Text>
+              </View>
+            </View>
+            {!wrappedList.every(sym => GUARDED_TOKENS.find(g => g.symbol === sym)?.native) && (
+              <Text style={[S.tradeNote, { color: C.muted }]}>
+                {t('wrapped_trade_note', { coin: asset.symbol })}
+              </Text>
+            )}
+            {wrappedList.map(sym => (
+              <TouchableOpacity
+                key={sym}
+                style={[S.tradeBtn, { backgroundColor: C.primary }]}
+                activeOpacity={0.8}
+                onPress={() => navigation.navigate('Swap', { toToken: sym })}
+              >
+                <Text style={S.tradeBtnTxt} numberOfLines={1}>
+                  {t('wrapped_trade_btn')} · {t('wrapped_trade_label', { coin: asset.symbol, wrapped: sym })}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+
         {/* ── التبويب الزمني ── */}
         <View style={S.card}>
           <View style={S.tfRow}>
@@ -301,85 +304,35 @@ export default function AssetDetailsScreen() {
           </View>
         </View>
 
-        {/* ── إحصائيات إضافية للأسهم ── */}
-        {asset.type === 'stock' && profile && (
+        {/* ── معلومات العملة الرقمية ── */}
+        {isCrypto && coinInfo && (coinInfo.description || coinInfo.website || coinInfo.twitter || coinInfo.telegram || coinInfo.reddit) && (
           <View style={S.card}>
-            <Text style={[S.secTitle, { color: C.text }]}>{t('market_stats')}</Text>
-            <View style={S.grid}>
-              {[
-                { k: 'market_cap', v: fmtBig(profile.marketCap) },
-                { k: 'industry',   v: profile.industry || '—' },
-                { k: 'exchange',   v: profile.exchange || '—' },
-                { k: 'country',    v: profile.country  || '—' },
-              ].map(item => (
-                <View key={item.k} style={S.gridItem}>
-                  <Text style={[S.gridLabel, { color: C.muted }]}>{t(item.k, item.k)}</Text>
-                  <Text style={[S.gridValue, { color: C.text }]} numberOfLines={1}>{item.v}</Text>
-                </View>
-              ))}
-            </View>
-          </View>
-        )}
-
-        {/* ── الأخبار ── */}
-        {news.length > 0 && (
-          <View style={S.card}>
-            <View style={S.newsHeader}>
-              <Ionicons name="newspaper-outline" size={16} color={C.primary} />
-              <Text style={[S.secTitle, { color: C.text, marginBottom: 0 }]}>
-                {t('latest_news')}
-              </Text>
-            </View>
-            <View style={{ marginTop: 12, gap: 8 }}>
-              {news.map((n, i) => (
-                <TouchableOpacity
-                  key={n.id || i}
-                  style={[S.newsItem, { backgroundColor: C.card }]}
-                  onPress={() => openUrl(n.url)}
-                  activeOpacity={0.7}
-                >
-                  {n.image ? (
-                    <Image source={{ uri: n.image }} style={S.newsImg} />
-                  ) : (
-                    <View style={[S.newsImg, { backgroundColor: C.card2, justifyContent: 'center', alignItems: 'center' }]}>
-                      <Ionicons name="newspaper-outline" size={20} color={C.dim} />
-                    </View>
-                  )}
-                  <View style={{ flex: 1 }}>
-                    <Text style={[S.newsHeadline, { color: C.text }]} numberOfLines={2}>
-                      {n.headline}
-                    </Text>
-                    {(() => {
-                      const sm = cleanSummary(n.summary);
-                      if (!sm || sm.toLowerCase() === cleanSummary(n.headline).toLowerCase()) return null;
-                      return (
-                        <Text style={[S.newsSummary, { color: C.muted }]} numberOfLines={3}>{sm}</Text>
-                      );
-                    })()}
-                    <View style={S.newsMeta}>
-                      <Text style={[S.newsSource, { color: C.muted }]} numberOfLines={1}>
-                        {n.source}
-                      </Text>
-                      <Text style={[S.newsTime, { color: C.dim }]}>
-                        {timeAgo(n.datetime, t)}
-                      </Text>
-                    </View>
+            <Text style={[S.secTitle, { color: C.text }]}>{t('coin_info_title')}</Text>
+            {coinInfo.categories.length > 0 && (
+              <View style={S.catRow}>
+                {coinInfo.categories.map(c => (
+                  <View key={c} style={[S.catChip, { backgroundColor: C.card2 }]}>
+                    <Text style={[S.catTxt, { color: C.muted }]} numberOfLines={1}>{c}</Text>
                   </View>
+                ))}
+              </View>
+            )}
+            {!!coinInfo.description && (
+              <Text style={[S.desc, { color: C.muted }]}>{coinInfo.description}</Text>
+            )}
+            <View style={S.linkRow}>
+              {[
+                { u: coinInfo.website,  icon: 'globe-outline',     k: 'coin_link_website'  },
+                { u: coinInfo.twitter,  icon: 'logo-twitter',      k: 'coin_link_x'        },
+                { u: coinInfo.telegram, icon: 'paper-plane-outline', k: 'coin_link_telegram' },
+                { u: coinInfo.reddit,   icon: 'logo-reddit',       k: 'coin_link_reddit'   },
+              ].filter(l => l.u).map(l => (
+                <TouchableOpacity key={l.k} style={[S.linkBtn, { backgroundColor: C.card }]} activeOpacity={0.7} onPress={() => openUrl(l.u)}>
+                  <Ionicons name={l.icon} size={14} color={C.primary} />
+                  <Text style={[S.linkTxt, { color: C.text }]}>{t(l.k)}</Text>
                 </TouchableOpacity>
               ))}
             </View>
-          </View>
-        )}
-
-        {/* ── الوصف (للأسهم فقط) ── */}
-        {asset.type === 'stock' && profile && (
-          <View style={S.card}>
-            <Text style={[S.secTitle, { color: C.text }]}>{t('about_token')}</Text>
-            <Text style={[S.desc, { color: C.muted }]}>
-              {profile.name} {profile.industry ? `— ${profile.industry}` : ''}
-              {profile.country ? ` • ${profile.country}` : ''}
-              {profile.ipo ? ` • IPO: ${profile.ipo}` : ''}
-            </Text>
           </View>
         )}
       </ScrollView>
@@ -414,6 +367,15 @@ const S = StyleSheet.create({
   changePill: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10, gap: 3 },
   changeTxt:  { fontSize: 11, fontWeight: '700' },
 
+  tradeCard:  { borderWidth: 1, borderRadius: 16, padding: 14, marginBottom: 16 },
+  tradeHead:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
+  tradeTitle: { fontSize: 14, fontWeight: '700' },
+  tradeBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
+  tradeBadgeTxt: { fontSize: 11, fontWeight: '700' },
+  tradeNote:  { fontSize: 12, lineHeight: 18, marginBottom: 10 },
+  tradeBtn:   { paddingVertical: 11, borderRadius: 12, alignItems: 'center', marginTop: 6 },
+  tradeBtnTxt:{ color: '#FFF', fontSize: 13, fontWeight: '700' },
+
   secTitle: { fontSize: 15, fontWeight: '700', marginBottom: 8 },
 
   tfRow: { flexDirection: 'row', justifyContent: 'space-between', width: '100%' },
@@ -431,14 +393,12 @@ const S = StyleSheet.create({
   gridLabel: { fontSize: 13 },
   gridValue: { fontSize: 13, fontWeight: '700' },
 
-  newsHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  newsItem:   { flexDirection: 'row', gap: 12, padding: 12, borderRadius: 16 },
-  newsImg:    { width: 64, height: 64, borderRadius: 12 },
-  newsSummary:{ fontSize: 12, lineHeight: 17, marginTop: 4 },
-  newsHeadline: { fontSize: 13, fontWeight: '700', lineHeight: 18 },
-  newsMeta:   { flexDirection: 'row', justifyContent: 'space-between', marginTop: 6, gap: 8 },
-  newsSource: { fontSize: 11, flex: 1 },
-  newsTime:   { fontSize: 11 },
 
-  desc: { fontSize: 13, lineHeight: 18 },
+  desc: { fontSize: 13, lineHeight: 19 },
+  catRow:  { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 10 },
+  catChip: { paddingHorizontal: 9, paddingVertical: 4, borderRadius: 8 },
+  catTxt:  { fontSize: 11, fontWeight: '600' },
+  linkRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
+  linkBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, borderWidth: 1, borderColor: '#262626' },
+  linkTxt: { fontSize: 12, fontWeight: '600' },
 });

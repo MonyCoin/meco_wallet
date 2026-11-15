@@ -12,15 +12,14 @@ import { Ionicons } from '@expo/vector-icons';
 import DirIcon from '../components/DirIcon';
 import Svg, { Defs, LinearGradient, RadialGradient, Stop, Path, Circle } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   getJupiterMarketData, CORE_TOKENS,
   fetchCustomTokenByMint, saveCustomToken, deleteCustomToken,
 } from '../services/jupiterMarketService';
 import { getGlobalMarketData } from '../services/marketOverviewService';
-import { getUSStocks, getForexRates } from '../services/marketDataService';
+import { getForexRates } from '../services/marketDataService';
+import { fetchCoinsMarkets } from '../services/globalCoinsService';
 
-const WATCHLIST_KEY = '@meco_watchlist';
 const REFRESH_MS    = 60000;
 
 const { width } = require('react-native').Dimensions.get('window');
@@ -34,27 +33,6 @@ const EXT_CARD_WIDTH   = (width - EXT_CARD_PADDING * 2 - EXT_CARD_GAP) / 2;
 // ✅ شريط الفوركس — حركة دائمة بلا توقف، وسلوك موحّد في اللغتين
 const TICKER_ITEM_WIDTH       = 164; // خانة البطاقة = بطاقة بعرض 156 + هامش 4 على كل جانب — تبقى الحركة متصلة
 const TICKER_SPEED_PX_PER_SEC = 55;
-
-const EXTERNAL_TOKENS = [
-  { id:'bitcoin',    symbol:'BTC',  name:'Bitcoin',  image:'https://assets.coingecko.com/coins/images/1/large/bitcoin.png',                           coingeckoId:'bitcoin',    mint:'external:bitcoin',    swapAvailable:false },
-  { id:'ethereum',   symbol:'ETH',  name:'Ethereum', image:'https://assets.coingecko.com/coins/images/279/large/ethereum.png',                        coingeckoId:'ethereum',   mint:'external:ethereum',   swapAvailable:false },
-  { id:'binancecoin',symbol:'BNB',  name:'BNB',      image:'https://assets.coingecko.com/coins/images/825/large/bnb-icon2_2x.png',                    coingeckoId:'binancecoin',mint:'external:binancecoin',swapAvailable:false },
-  { id:'ripple',     symbol:'XRP',  name:'XRP',      image:'https://assets.coingecko.com/coins/images/44/large/xrp-symbol-white-128.png',              coingeckoId:'ripple',     mint:'external:ripple',     swapAvailable:false },
-  { id:'cardano',    symbol:'ADA',  name:'Cardano',  image:'https://assets.coingecko.com/coins/images/975/large/cardano.png',                          coingeckoId:'cardano',    mint:'external:cardano',    swapAvailable:false },
-  { id:'avalanche-2',symbol:'AVAX', name:'Avalanche',image:'https://assets.coingecko.com/coins/images/12559/large/Avalanche_Circle_RedWhite_Trans.png',coingeckoId:'avalanche-2',mint:'external:avax',       swapAvailable:false },
-  { id:'dogecoin',   symbol:'DOGE', name:'Dogecoin', image:'https://assets.coingecko.com/coins/images/5/large/dogecoin.png',                           coingeckoId:'dogecoin',   mint:'external:dogecoin',   swapAvailable:false },
-  { id:'tron',       symbol:'TRX',  name:'TRON',     image:'https://assets.coingecko.com/coins/images/1094/large/photo_2026-04-13_09-59-16.png',       coingeckoId:'tron',       mint:'external:tron',       swapAvailable:false },
-  { id:'chainlink',  symbol:'LINK', name:'Chainlink',image:'https://assets.coingecko.com/coins/images/877/large/Chainlink_Logo_500.png',               coingeckoId:'chainlink',  mint:'external:chainlink',  swapAvailable:false },
-  { id:'polkadot',   symbol:'DOT',  name:'Polkadot', image:'https://assets.coingecko.com/coins/images/12171/large/polkadot.jpg',                       coingeckoId:'polkadot',   mint:'external:polkadot',   swapAvailable:false },
-];
-
-// عملات إضافية تظهر عند الضغط على "عرض المزيد" في قسم الأسواق العالمية.
-// تُجلب أسعارها وشعاراتها بطلب واحد من CoinGecko (coins/markets)، وأي معرّف غير متاح يُتجاهل تلقائياً.
-const MORE_COIN_IDS = [
-  'the-open-network', 'shiba-inu', 'litecoin', 'bitcoin-cash', 'stellar',
-  'sui', 'near', 'uniswap', 'aptos', 'internet-computer',
-  'ethereum-classic', 'hedera-hashgraph', 'cosmos', 'filecoin', 'aave',
-];
 
 const fmtPrice = (p) => {
   if (!p) return '$0.00';
@@ -551,25 +529,66 @@ const GlobalMarketCard = ({ item, isDark, onPress }) => {
   );
 };
 
-// بطاقة "عرض المزيد / عرض أقل" في نهاية بطاقات الأسواق العالمية
-const MoreCoinsCard = ({ expanded, count, onPress, isDark, primaryColor, t }) => {
-  const C = { border: isDark?'#2A2A2A':'#DADAE6', text: isDark?'#F2F2F2':'#1C1C24', muted: isDark?'#8A8A8E':'#8A8A9E' };
+// بطاقة "عرض المزيد" في نهاية الصفوف الأفقية: دائرة بسهم في منتصف ارتفاع البطاقات
+const MoreCard = ({ onPress, primaryColor, isDark, t }) => (
+  <TouchableOpacity style={S.moreCard} onPress={onPress} activeOpacity={0.7}>
+    <View style={[S.moreCircle, { backgroundColor: isDark ? '#1E1E1E' : '#ECECF4' }]}>
+      <DirIcon name="chevron-forward" size={18} color={primaryColor} />
+    </View>
+    <Text style={[S.moreCardTxt, { color: primaryColor }]} numberOfLines={1}>{t('global_more_title')}</Text>
+  </TouchableOpacity>
+);
+
+// رابط نصي (عرض كل العملات) أسفل معاينة الأسواق العالمية
+const MoreCoinsLink = ({ onPress, primaryColor, label }) => (
+  <TouchableOpacity style={S.extMoreLink} onPress={onPress} activeOpacity={0.7}>
+    <Text style={[S.extMoreTxt, { color: primaryColor }]} numberOfLines={1}>{label}</Text>
+    <DirIcon name="chevron-forward" size={14} color={primaryColor} />
+  </TouchableOpacity>
+);
+
+// صف عملة (معاينة الأسواق العالمية)
+const CoinRow = React.memo(({ item, onPress, C }) => {
+  const change = item.price_change_percentage_24h || 0;
+  const up = change >= 0;
   return (
-    <TouchableOpacity style={[S.extMoreCard, { borderColor: C.border }]} onPress={onPress} activeOpacity={0.8}>
-      <View style={[S.extMoreIcon, { backgroundColor: primaryColor + '22' }]}>
-        <Ionicons name={expanded ? 'chevron-up' : 'add'} size={20} color={primaryColor} />
+    <TouchableOpacity style={[S.coinRow, { borderBottomColor: C.border }]} onPress={() => onPress(item)} activeOpacity={0.7}>
+      <Text style={[S.coinRank, { color: C.muted }]}>{item.rank || ''}</Text>
+      <TokenIconImg uri={item.image} size={36} symbol={item.symbol} bg={C.border} color={C.text} />
+      <View style={{ flex: 1 }}>
+        <Text style={[S.coinSym, { color: C.text }]} numberOfLines={1}>{item.symbol}</Text>
+        <Text style={[S.coinName, { color: C.muted }]} numberOfLines={1}>{item.name}</Text>
       </View>
-      <Text style={[S.extMoreTitle, { color: C.text }]} numberOfLines={1}>
-        {expanded ? t('market_show_less') : t('global_more_title')}
-      </Text>
-      <Text style={[S.extMoreSub, { color: C.muted }]} numberOfLines={1}>
-        {expanded ? t('global_less_sub') : t('global_more_sub', { count })}
-      </Text>
+      <View style={{ alignItems: 'flex-end' }}>
+        <Text style={[S.coinPrice, { color: C.text }]}>{fmtPrice(item.current_price)}</Text>
+        <Text style={[S.coinChg, { color: up ? C.success : C.error }]}>{`${up ? '+' : ''}${change.toFixed(2)}%`}</Text>
+      </View>
+    </TouchableOpacity>
+  );
+});
+
+// بطاقة عملة قابلة للتداول مع زر "تداول"
+const TradableCard = ({ token, isDark, primaryColor, onPress, onTrade, t }) => {
+  const C = { card: isDark?'#141414':'#FFFFFF', text: isDark?'#F2F2F2':'#1C1C24', muted: isDark?'#8A8A8E':'#8A8A9E', border: isDark?'#262626':'#E8E8F2', success:'#10B981', error:'#EF4444' };
+  const change = token.price_change_percentage_24h || 0;
+  const up = change >= 0;
+  return (
+    <TouchableOpacity style={[S.tradeCard, { backgroundColor: C.card }]} onPress={onPress} activeOpacity={0.85}>
+      <View style={S.tradeTop}>
+        <TokenIconImg uri={token.image} size={32} symbol={token.symbol} bg={C.border} color={C.text} />
+        <Text style={[S.tradeChg, { color: up ? C.success : C.error }]}>{`${up ? '+' : ''}${change.toFixed(2)}%`}</Text>
+      </View>
+      <Text style={[S.extSym, { color: C.text }]} numberOfLines={1}>{token.symbol}</Text>
+      <Text style={[S.tradeName, { color: C.muted }]} numberOfLines={1}>{token.name}</Text>
+      <Text style={[S.tradePrice, { color: C.text }]} numberOfLines={1}>{fmtPrice(token.current_price || 0)}</Text>
+      <TouchableOpacity style={[S.tradeBtn, { backgroundColor: primaryColor + '26' }]} onPress={onTrade} activeOpacity={0.8}>
+        <Text style={[S.tradeBtnTxt, { color: primaryColor }]}>{t('wrapped_trade_btn')}</Text>
+      </TouchableOpacity>
     </TouchableOpacity>
   );
 };
 
-const HorizontalMarketSection = ({ titleKey, descKey, data, isDark, primaryColor, onPressItem, t, footer }) => {
+const HorizontalMarketSection = ({ titleKey, descKey, data, isDark, primaryColor, onPressItem, t, footer, headerRight, renderCard }) => {
   const C = {
     text: isDark?'#F2F2F2':'#1C1C24',
     muted: isDark?'#8A8A8E':'#8A8A9E',
@@ -580,9 +599,10 @@ const HorizontalMarketSection = ({ titleKey, descKey, data, isDark, primaryColor
       <View style={S.extHeader}>
         <View style={[S.extHeaderDot, { backgroundColor:primaryColor }]} />
         <Text style={[S.extHeaderTitle, { color:C.text }]}>{t(titleKey)}</Text>
-        <DirIcon name="chevron-forward" size={16} color={C.muted} />
+        <View style={{ flex: 1 }} />
+        {headerRight || null}
       </View>
-      <Text style={[S.extHeaderSub, { color:C.muted }]}>{t(descKey)}</Text>
+      {descKey ? <Text style={[S.extHeaderSub, { color:C.muted }]}>{t(descKey)}</Text> : <View style={{ height: 10 }} />}
       <FlatList
         data={data}
         keyExtractor={item => item.id || item.mint || item.symbol}
@@ -593,7 +613,9 @@ const HorizontalMarketSection = ({ titleKey, descKey, data, isDark, primaryColor
         decelerationRate="normal"
         ListFooterComponent={footer || null}
         renderItem={({ item }) => (
-          <GlobalMarketCard item={item} isDark={isDark} onPress={() => onPressItem(item)} />
+          renderCard
+            ? renderCard(item)
+            : <GlobalMarketCard item={item} isDark={isDark} onPress={() => onPressItem(item)} />
         )}
       />
     </View>
@@ -620,67 +642,37 @@ export default function MarketScreen() {
   const [tokens,       setTokens]       = useState([]);
   const [loading,      setLoading]      = useState(true);
   const [refreshing,   setRefreshing]   = useState(false);
-  const [activeTab,    setActiveTab]    = useState('all');
   const [searchQuery,  setSearchQuery]  = useState('');
   const [searchActive, setSearchActive] = useState(false);
-  const [watchlist,    setWatchlist]    = useState([]);
   const [overview,     setOverview]     = useState(null);
-  const [sortBy,       setSortBy]       = useState('rank');
   const [showAll,      setShowAll]      = useState(false);
   const [addModal,     setAddModal]     = useState(false);
   const [mintInput,    setMintInput]    = useState('');
   const [fetching,     setFetching]     = useState(false);
   const [previewToken, setPreviewToken] = useState(null);
   const [fetchErr,     setFetchErr]     = useState('');
-  const [extPrices,    setExtPrices]    = useState({});
+  const [globalTop,    setGlobalTop]    = useState([]);
+  const [rails,        setRails]        = useState({ meme: [], ai: [] });
+  const [moversDir,    setMoversDir]    = useState('up');
+  const [updatedAt,    setUpdatedAt]    = useState(null);
 
-  const [moreCoins,    setMoreCoins]    = useState([]);
-  const [showMoreCoins, setShowMoreCoins] = useState(false);
-  const [stocks,       setStocks]       = useState([]);
   const [forex,        setForex]        = useState([]);
 
   const firstLoad = useRef(true);
 
-  useEffect(() => {
-    AsyncStorage.getItem(WATCHLIST_KEY)
-      .then(s => { if (s) setWatchlist(JSON.parse(s)); })
-      .catch(() => {});
-  }, []);
-
-  const fetchExtPrices = async () => {
+  // العملات العالمية (معاينة + صفوف التصنيفات) — طلبات مخزّنة مؤقتاً ومتتابعة لتخفيف الضغط على CoinGecko
+  const fetchGlobal = async () => {
     try {
-      const ids = EXTERNAL_TOKENS.map(t => t.coingeckoId).join(',');
-      const res = await fetch(
-        `https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd&include_24hr_change=true&include_market_cap=true`
-      );
-      if (res.ok) setExtPrices(await res.json());
+      const rows = await fetchCoinsMarkets('all', 150);
+      setGlobalTop(rows.slice(0, 5));
     } catch (_) {}
-  };
-
-  const fetchMoreCoins = async () => {
     try {
-      const res = await fetch(
-        `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${MORE_COIN_IDS.join(',')}&per_page=${MORE_COIN_IDS.length}&sparkline=false`
-      );
-      if (!res.ok) return;
-      const rows = await res.json();
-      if (!Array.isArray(rows)) return;
-      const byId = {};
-      rows.forEach(r => { byId[r.id] = r; });
-      setMoreCoins(MORE_COIN_IDS.filter(id => byId[id]).map(id => {
-        const r = byId[id];
-        return {
-          id:     r.id,
-          symbol: String(r.symbol || '').toUpperCase(),
-          name:   r.name,
-          image:  r.image,
-          isExternal: true,
-          type:   'external_crypto',
-          coingeckoId: r.id,
-          current_price:               r.current_price || 0,
-          price_change_percentage_24h: r.price_change_percentage_24h || 0,
-        };
-      }));
+      const meme = await fetchCoinsMarkets('meme-token', 8);
+      setRails(r => ({ ...r, meme }));
+    } catch (_) {}
+    try {
+      const ai = await fetchCoinsMarkets('artificial-intelligence', 8);
+      setRails(r => ({ ...r, ai }));
     } catch (_) {}
   };
 
@@ -692,16 +684,10 @@ export default function MarketScreen() {
       ]);
       setTokens(tokenData);
       setOverview(ovData);
-      fetchExtPrices();
-      fetchMoreCoins();
+      setUpdatedAt(new Date());
+      fetchGlobal();
 
-      Promise.all([
-        getUSStocks().catch(() => []),
-        getForexRates().catch(() => []),
-      ]).then(([stk, fx]) => {
-        setStocks((stk  || []).map(x => ({ ...x, type: 'stock' })));
-        setForex(fx || []);
-      });
+      getForexRates().catch(() => []).then(fx => setForex(fx || []));
     } catch (err) {
       if (!tokens.length)
         setTokens(CORE_TOKENS.map((tk, i) => ({ ...tk, current_price:0, price_change_percentage_24h:0, rank:i+1 })));
@@ -720,14 +706,6 @@ export default function MarketScreen() {
   }, [fetchAll]));
 
   const onRefresh = async () => { setRefreshing(true); await fetchAll(); setRefreshing(false); };
-
-  const toggleWatch = async (token) => {
-    const upd = watchlist.includes(token.symbol)
-      ? watchlist.filter(s => s !== token.symbol)
-      : [...watchlist, token.symbol];
-    setWatchlist(upd);
-    await AsyncStorage.setItem(WATCHLIST_KEY, JSON.stringify(upd));
-  };
 
   const handleFetch = async () => {
     if (!mintInput.trim()) return;
@@ -783,48 +761,24 @@ export default function MarketScreen() {
         const q = searchQuery.toLowerCase();
         if (!tk.symbol?.toLowerCase().includes(q) && !tk.name?.toLowerCase().includes(q)) return false;
       }
-      if (activeTab === 'watchlist') return watchlist.includes(tk.symbol);
-      if (activeTab === 'gainers')   return (tk.price_change_percentage_24h||0) > 0;
-      if (activeTab === 'losers')    return (tk.price_change_percentage_24h||0) < 0;
       return true;
     });
-    list.sort((a,b) => {
-      if (sortBy === 'price')  return (b.current_price||0) - (a.current_price||0);
-      if (sortBy === 'change') return (b.price_change_percentage_24h||0) - (a.price_change_percentage_24h||0);
-      return (a.rank||999) - (b.rank||999);
-    });
+    list.sort((a,b) => (a.rank||999) - (b.rank||999));
     return list;
-  }, [tokens, searchQuery, activeTab, watchlist, sortBy]);
+  }, [tokens, searchQuery]);
 
-  const normalizedExternal = useMemo(() => (
-    EXTERNAL_TOKENS.map(item => {
-      const data = extPrices[item.coingeckoId];
-      return {
-        id:     item.id,
-        symbol: item.symbol,
-        name:   item.name,
-        image:  item.image,
-        mint:   item.mint,
-        isExternal: true,
-        type:   'external_crypto',
-        coingeckoId: item.coingeckoId,
-        current_price:               data?.usd            || 0,
-        price_change_percentage_24h: data?.usd_24h_change || 0,
-      };
-    })
-  ), [extPrices]);
+  const stableLike = (tk) => tk.current_price > 0.97 && tk.current_price < 1.03 && Math.abs(tk.price_change_percentage_24h || 0) < 1;
 
-  const TABS  = [
-    { id:'all',       labelKey:'all_tokens'    },
-    { id:'watchlist', labelKey:'watchlist'     },
-    { id:'gainers',   labelKey:'gainers'       },
-    { id:'losers',    labelKey:'market_losers' },
-  ];
-  const SORTS = [
-    { id:'rank',   labelKey:'rank'   },
-    { id:'price',  labelKey:'price'  },
-    { id:'change', labelKey:'change' },
-  ];
+  // الأكثر حركة: من العملات القابلة للتداول داخل التطبيق فقط
+  const movers = useMemo(() => {
+    const pool = tokens.filter(tk =>
+      tk.swapAvailable !== false && tk.mint !== MECO_MINT_ADDR && tk.current_price > 0 && !stableLike(tk));
+    const sorted = [...pool].sort((a, b) => (b.price_change_percentage_24h || 0) - (a.price_change_percentage_24h || 0));
+    return moversDir === 'up' ? sorted.slice(0, 8) : sorted.slice(-8).reverse();
+  }, [tokens, moversDir]);
+
+  // عملات الإضافة القابلة للتداول (مغلّفة/مجسّرة/أصلية) مع زر تداول
+  const tradables = useMemo(() => tokens.filter(tk => tk.guarded && tk.current_price > 0), [tokens]);
 
   if (loading) return (
     <View style={[S.root, { backgroundColor:C.bg, paddingTop: insets.top }]}>
@@ -841,13 +795,13 @@ export default function MarketScreen() {
       <View style={[S.header, { paddingTop: insets.top + 12 }]}>
         <View>
           <Text style={[S.headerTitle, { color:C.text }]}>{t('market_title')}</Text>
-          <Text style={[S.headerSub,   { color:C.muted }]}>{t('market_subtitle')}</Text>
         </View>
         <TouchableOpacity
-          style={[S.headerBtn, { backgroundColor:C.card }]}
-          onPress={() => setSearchActive(v => !v)}
+          style={[S.headerBtn, { backgroundColor:C.card, opacity: searchActive ? 0 : 1 }]}
+          onPress={() => setSearchActive(true)}
+          disabled={searchActive}
         >
-          <Ionicons name={searchActive?'close':'search'} size={18} color={C.text} />
+          <Ionicons name="search" size={18} color={C.text} />
         </TouchableOpacity>
       </View>
 
@@ -889,44 +843,106 @@ export default function MarketScreen() {
         showsVerticalScrollIndicator={false}
       >
         {!searchActive && (
-          <MarketHeroBanner
-            token={mecoToken}
-            primaryColor={primaryColor}
-            onPress={() => mecoToken && navigation.navigate('TokenDetails', { token: mecoToken })}
-            onTrade={() => mecoToken && navigation.navigate('TradeExecution', { token: mecoToken, side: 'buy' })}
-          />
+          <>
+            <MarketOverviewCard data={overview} isDark={isDark} primaryColor={primaryColor} />
+            {updatedAt && (
+              <Text style={[S.updatedTxt, { color:C.muted }]}>
+                {t('market_updated', { time: updatedAt.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }) })}
+              </Text>
+            )}
+            <MarketHeroBanner
+              token={mecoToken}
+              primaryColor={primaryColor}
+              onPress={() => mecoToken && navigation.navigate('TokenDetails', { token: mecoToken })}
+              onTrade={() => mecoToken && navigation.navigate('TradeExecution', { token: mecoToken, side: 'buy' })}
+            />
+
+            <HorizontalMarketSection
+              titleKey="movers_title"
+              data={movers}
+              isDark={isDark}
+              primaryColor={primaryColor}
+              onPressItem={tk => navigation.navigate('TokenDetails', { token: tk })}
+              t={t}
+              headerRight={
+                <View style={[S.seg, { backgroundColor: C.card }]}>
+                  {[['up','movers_up'],['down','movers_down']].map(([k, label]) => (
+                    <TouchableOpacity
+                      key={k}
+                      style={[S.segBtn, moversDir === k && { backgroundColor: isDark ? '#262626' : '#E8E8F2' }]}
+                      onPress={() => setMoversDir(k)}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={[S.segTxt, { color: moversDir === k ? C.text : C.muted }]}>{t(label)}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              }
+            />
+
+            {globalTop.length > 0 && (
+              <View style={S.extSection}>
+                <View style={[S.extHeader, { marginBottom: 10 }]}>
+                  <View style={[S.extHeaderDot, { backgroundColor: primaryColor }]} />
+                  <Text style={[S.extHeaderTitle, { color:C.text }]}>{t('global_markets')}</Text>
+                </View>
+                <View style={[S.coinGroup, { backgroundColor:C.card }]}>
+                  {globalTop.map(item => (
+                    <CoinRow key={item.id} item={item} C={C} onPress={handleExtPress} />
+                  ))}
+                  <MoreCoinsLink
+                    label={t('global_see_all', { count: 150 })}
+                    onPress={() => navigation.navigate('GlobalCoins')}
+                    primaryColor={primaryColor}
+                  />
+                </View>
+              </View>
+            )}
+
+            {[['meme', 'rail_meme', 'meme-token'], ['ai', 'rail_ai', 'artificial-intelligence']].map(([k, titleKey, cat]) => (
+              <HorizontalMarketSection
+                key={k}
+                titleKey={titleKey}
+                data={rails[k]}
+                isDark={isDark}
+                primaryColor={primaryColor}
+                onPressItem={handleExtPress}
+                t={t}
+                footer={
+                  <MoreCard
+                    onPress={() => navigation.navigate('GlobalCoins', { category: cat })}
+                    primaryColor={primaryColor}
+                    isDark={isDark}
+                    t={t}
+                  />
+                }
+              />
+            ))}
+
+            <HorizontalMarketSection
+              titleKey="tradable_title"
+              data={tradables}
+              isDark={isDark}
+              primaryColor={primaryColor}
+              onPressItem={tk => navigation.navigate('TokenDetails', { token: tk })}
+              t={t}
+              renderCard={tk => (
+                <TradableCard
+                  token={tk}
+                  isDark={isDark}
+                  primaryColor={primaryColor}
+                  t={t}
+                  onPress={() => navigation.navigate('TokenDetails', { token: tk })}
+                  onTrade={() => navigation.navigate('TradeExecution', { token: tk, side: 'buy' })}
+                />
+              )}
+            />
+          </>
         )}
 
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap:6, paddingBottom:12 }}>
-          {TABS.map(tab => (
-            <TouchableOpacity
-              key={tab.id}
-              style={[S.tab, {
-                backgroundColor: activeTab===tab.id ? primaryColor : C.card,
-              }]}
-              onPress={() => setActiveTab(tab.id)}
-            >
-              <Text style={[S.tabTxt, { color: activeTab===tab.id?'#FFF':C.muted }]}>
-                {t(tab.labelKey)}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-
-        <View style={S.sortRow}>
-          {SORTS.map(opt => (
-            <TouchableOpacity
-              key={opt.id}
-              style={[S.sortBtn, {
-                backgroundColor: sortBy===opt.id ? primaryColor+'1F' : 'transparent',
-              }]}
-              onPress={() => setSortBy(opt.id)}
-            >
-              <Text style={[S.sortTxt, { color: sortBy===opt.id ? primaryColor : C.muted }]}>
-                {t(opt.labelKey)}
-              </Text>
-            </TouchableOpacity>
-          ))}
+        <View style={[S.extHeader, { marginBottom: 12 }]}>
+          <View style={[S.extHeaderDot, { backgroundColor: primaryColor }]} />
+          <Text style={[S.extHeaderTitle, { color:C.text }]}>{t('all_tokens')}</Text>
         </View>
 
         <View style={S.listFlat}>
@@ -934,7 +950,7 @@ export default function MarketScreen() {
             <View style={S.empty}>
               <Ionicons name="search-outline" size={36} color={C.muted} />
               <Text style={[S.emptyTxt, { color:C.muted }]}>
-                {activeTab==='watchlist' ? t('watchlist_empty') : t('no_results')}
+                {t('no_results')}
               </Text>
             </View>
           ) : (showAll || searchQuery ? filtered : filtered.slice(0, 5)).map(token => (
@@ -944,7 +960,7 @@ export default function MarketScreen() {
               isDark={isDark}
               primaryColor={primaryColor}
               onPress={tk => navigation.navigate('TokenDetails', { token:tk })}
-              onLongPress={tk => tk.isCustom ? handleDelete(tk) : toggleWatch(tk)}
+              onLongPress={tk => { if (tk.isCustom) handleDelete(tk); }}
             />
           ))}
           {!searchQuery && filtered.length > 5 && (
@@ -957,62 +973,6 @@ export default function MarketScreen() {
           )}
         </View>
 
-        {!searchQuery && (
-          <>
-            {!searchActive && (
-              <MarketOverviewCard data={overview} isDark={isDark} primaryColor={primaryColor} />
-            )}
-
-            <HorizontalMarketSection
-              titleKey="global_markets"
-              descKey="global_markets_desc"
-              data={normalizedExternal}
-              isDark={isDark}
-              primaryColor={primaryColor}
-              onPressItem={handleExtPress}
-              t={t}
-              footer={moreCoins.length > 0 ? (
-                <MoreCoinsCard
-                  expanded={showMoreCoins}
-                  count={moreCoins.length}
-                  onPress={() => setShowMoreCoins(v => !v)}
-                  isDark={isDark}
-                  primaryColor={primaryColor}
-                  t={t}
-                />
-              ) : null}
-            />
-
-            {showMoreCoins && moreCoins.length > 0 && (
-              <View style={S.moreCoinsList}>
-                {moreCoins.map(coin => (
-                  <TokenListItem
-                    key={coin.id}
-                    token={coin}
-                    isDark={isDark}
-                    primaryColor={primaryColor}
-                    onPress={handleExtPress}
-                    onLongPress={() => {}}
-                  />
-                ))}
-                <TouchableOpacity style={S.showMoreBtn} onPress={() => setShowMoreCoins(false)} activeOpacity={0.7}>
-                  <Ionicons name="chevron-up" size={14} color={isDark ? '#8A8A8E' : '#8A8A9E'} />
-                  <Text style={[S.showMoreTxt, { color: isDark ? '#8A8A8E' : '#8A8A9E' }]}>{t('market_show_less')}</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
-            <HorizontalMarketSection
-              titleKey="us_stocks_section_title"
-              descKey="us_stocks_section_desc"
-              data={stocks}
-              isDark={isDark}
-              primaryColor={primaryColor}
-              onPressItem={handleExtPress}
-              t={t}
-            />
-          </>
-        )}
       </ScrollView>
 
       <Modal visible={addModal} transparent animationType="slide" onRequestClose={closeModal}>
@@ -1099,7 +1059,6 @@ const S = StyleSheet.create({
   header:      { flexDirection:'row', justifyContent:'space-between', alignItems:'center',
                  paddingHorizontal:20, paddingBottom:14 },
   headerTitle: { fontSize:28, fontWeight:'800', letterSpacing:-0.5 },
-  headerSub:   { fontSize:13, marginTop:2 },
   headerBtn:   { width:40, height:40, borderRadius:12, justifyContent:'center',
                  alignItems:'center' },
 
@@ -1177,12 +1136,7 @@ const S = StyleSheet.create({
                    marginTop:12, paddingVertical:6, borderRadius:12, gap:6 },
   overviewBarTxt:{ fontSize:13, fontWeight:'600' },
 
-  tab:         { paddingHorizontal:14, paddingVertical:6, borderRadius:12 },
-  tabTxt:      { fontSize:13, fontWeight:'600' },
 
-  sortRow:     { flexDirection:'row', marginBottom:12, gap:6 },
-  sortBtn:     { paddingHorizontal:10, paddingVertical:5, borderRadius:8 },
-  sortTxt:     { fontSize:12, fontWeight:'600' },
 
   listFlat:    { marginBottom:20 },
   showMoreBtn: { flexDirection:'row', alignItems:'center', justifyContent:'center', gap:6, paddingVertical:14 },
@@ -1209,11 +1163,29 @@ const S = StyleSheet.create({
   extHeaderTitle:{ fontSize:16, fontWeight:'800' },
   extHeaderSub:  { fontSize:12, marginBottom:12 },
   extList:       { paddingHorizontal: CARD_BREAK, gap: EXT_CARD_GAP },
-  extMoreCard:   { width: EXT_CARD_WIDTH, borderRadius: 18, borderWidth: 1, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 14, paddingHorizontal: 12 },
-  extMoreIcon:   { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center' },
-  extMoreTitle:  { fontSize: 14, fontWeight: '700' },
-  extMoreSub:    { fontSize: 11 },
-  moreCoinsList: { marginBottom: 16 },
+  updatedTxt:    { fontSize: 10, textAlign: 'center', marginTop: -6, marginBottom: 12 },
+  seg:           { flexDirection: 'row', borderRadius: 10, padding: 3, gap: 2 },
+  segBtn:        { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
+  segTxt:        { fontSize: 11, fontWeight: '700' },
+  coinGroup:     { borderRadius: 16, paddingHorizontal: 12, marginHorizontal: -CARD_BREAK, overflow: 'hidden' },
+  coinRow:       { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 11, borderBottomWidth: StyleSheet.hairlineWidth },
+  coinRank:      { width: 20, fontSize: 12, textAlign: 'center' },
+  coinSym:       { fontSize: 14, fontWeight: '800' },
+  coinName:      { fontSize: 11, marginTop: 2 },
+  coinPrice:     { fontSize: 14, fontWeight: '700' },
+  coinChg:       { fontSize: 12, fontWeight: '700', marginTop: 2 },
+  moreCard:      { alignSelf: 'center', alignItems: 'center', justifyContent: 'center', gap: 8, width: 84, paddingHorizontal: 6 },
+  moreCircle:    { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  moreCardTxt:   { fontSize: 12, fontWeight: '700' },
+  tradeCard:     { width: 132, padding: 12, borderRadius: 18, gap: 3 },
+  tradeTop:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
+  tradeChg:      { fontSize: 11, fontWeight: '700' },
+  tradeName:     { fontSize: 11 },
+  tradePrice:    { fontSize: 13, fontWeight: '700', marginTop: 6, marginBottom: 8 },
+  tradeBtn:      { paddingVertical: 7, borderRadius: 10, alignItems: 'center' },
+  tradeBtnTxt:   { fontSize: 12, fontWeight: '800' },
+  extMoreLink:   { flexDirection: 'row', alignItems: 'center', alignSelf: 'center', gap: 4, paddingHorizontal: 16, paddingVertical: 10 },
+  extMoreTxt:    { fontSize: 14, fontWeight: '700' },
   extCard: {
     width: EXT_CARD_WIDTH,
     paddingVertical: 14,

@@ -1,31 +1,13 @@
 // services/marketDataService.js
 
-const FINNHUB_BASE   = 'https://finnhub.io/api/v1';
 const YAHOO_BASE     = 'https://query1.finance.yahoo.com/v8/finance/chart';
 const FETCH_TIMEOUT  = 8000;
 const CACHE_DURATION = 120000;
 
-// ✅ المفتاح يُقرأ من متغير البيئة (يُحقن وقت البناء/التحديث) ولا يُكتب في الكود
-// ملاحظة: يجب كتابة process.env.EXPO_PUBLIC_* بهذه الصيغة المباشرة ليعمل الاستبدال الثابت
-const FINNHUB_KEY = process.env.EXPO_PUBLIC_FINNHUB_API_KEY;
-
 const CACHE = {
-  stocks:          null,
-  stocksTime:      0,
   forex:           null,
   forexTime:       0,
 };
-
-export const US_STOCKS = [
-  { id:'AAPL',  symbol:'AAPL',  name:'Apple',     nameEn:'Apple',     emoji:'🍎', color:'#A2AAAD' },
-  { id:'TSLA',  symbol:'TSLA',  name:'Tesla',     nameEn:'Tesla',     emoji:'⚡', color:'#E82127' },
-  { id:'NVDA',  symbol:'NVDA',  name:'NVIDIA',    nameEn:'NVIDIA',    emoji:'🎮', color:'#76B900' },
-  { id:'MSFT',  symbol:'MSFT',  name:'Microsoft', nameEn:'Microsoft', emoji:'💻', color:'#00A4EF' },
-  { id:'GOOGL', symbol:'GOOGL', name:'Google',    nameEn:'Google',    emoji:'🔍', color:'#4285F4' },
-  { id:'AMZN',  symbol:'AMZN',  name:'Amazon',    nameEn:'Amazon',    emoji:'📦', color:'#FF9900' },
-  { id:'META',  symbol:'META',  name:'Meta',      nameEn:'Meta',      emoji:'👤', color:'#0866FF' },
-  { id:'AMD',   symbol:'AMD',   name:'AMD',       nameEn:'AMD',       emoji:'⚙️', color:'#ED1C24' },
-];
 
 // ─── أزواج العملات ────────────────────────────────────────────────────────────
 // ✅ موسّعة: أضفنا أزواج رئيسية ناقصة (GBP/JPY, EUR/CHF, AUD/JPY) وأزواج إقليمية
@@ -68,35 +50,6 @@ const fetchWithTimeout = (url, ms = FETCH_TIMEOUT) => {
   }).finally(() => clearTimeout(timer));
 };
 
-const fetchStock = async (item) => {
-  try {
-    if (!FINNHUB_KEY) {
-      console.warn('⚠️ [Finnhub] API key missing');
-      return null;
-    }
-    const url  = `${FINNHUB_BASE}/quote?symbol=${item.id}&token=${FINNHUB_KEY}`;
-    const res  = await fetchWithTimeout(url);
-    if (!res.ok) return null;
-    const data = await res.json();
-    if (!data || typeof data.c !== 'number' || data.c === 0) return null;
-    return {
-      id:                          item.id,
-      symbol:                      item.symbol,
-      name:                        item.name,
-      nameEn:                      item.nameEn || item.name,
-      emoji:                       item.emoji,
-      color:                       item.color,
-      current_price:               data.c,
-      price_change_percentage_24h: +(data.dp || 0).toFixed(2),
-      currency:                    'USD',
-      high:                        data.h || 0,
-      low:                         data.l || 0,
-      open:                        data.o || 0,
-      prev_close:                  data.pc || 0,
-    };
-  } catch (_) { return null; }
-};
-
 // ─── جلب زوج فوركس واحد ───────────────────────────────────────────────────────
 const fetchForexPair = async (item) => {
   try {
@@ -124,22 +77,6 @@ const fetchAll = async (list, fetcher) => {
   return results.filter(Boolean);
 };
 
-export async function getUSStocks() {
-  const now = Date.now();
-  if (CACHE.stocks && now - CACHE.stocksTime < CACHE_DURATION) {
-    return CACHE.stocks;
-  }
-  try {
-    const data = await fetchAll(US_STOCKS, fetchStock);
-    CACHE.stocks     = data;
-    CACHE.stocksTime = now;
-    return data;
-  } catch (err) {
-    console.warn('❌ [Stocks] failed:', err.message);
-    return CACHE.stocks || [];
-  }
-}
-
 // ─── جلب أسعار الفوركس ────────────────────────────────────────────────────────
 export async function getForexRates() {
   const now = Date.now();
@@ -158,10 +95,8 @@ export async function getForexRates() {
 }
 
 export function clearMarketDataCache() {
-  CACHE.stocks          = null;
-  CACHE.stocksTime      = 0;
   CACHE.forex           = null;
   CACHE.forexTime       = 0;
 }
 
-export default { getUSStocks, getForexRates, clearMarketDataCache, US_STOCKS, FOREX_PAIRS };
+export default { getForexRates, clearMarketDataCache, FOREX_PAIRS };
