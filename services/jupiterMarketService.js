@@ -83,6 +83,8 @@ const CG_IMAGE_IDS = {
   JTO: ['jito-governance-token'], JitoSOL: ['jito-staked-sol'], mSOL: ['msol', 'marinade-staked-sol'],
   PYUSD: ['paypal-usd'], TRUMP: ['official-trump'], FARTCOIN: ['fartcoin'], POPCAT: ['popcat'],
   MEW: ['cat-in-a-dogs-world'],
+  TRX: ['tron'], cbLTC: ['coinbase-wrapped-ltc', 'litecoin'], wXRP: ['wrapped-xrp', 'ripple'],
+  pSOL: ['phantom-staked-sol'], KMNO: ['kamino'],
 };
 const applyImages = (map) => {
   for (const tk of CORE_TOKENS) {

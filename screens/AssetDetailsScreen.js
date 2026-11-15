@@ -74,7 +74,7 @@ export default function AssetDetailsScreen() {
   const [stats,      setStats]      = useState({ current:0, open:0, high:0, low:0, change:0 });
   const [coinInfo,   setCoinInfo]   = useState(null);
   const isCrypto = asset?.type === 'external_crypto';
-  const [timeframe,  setTimeframe]  = useState('30D');
+  const [timeframe,  setTimeframe]  = useState('1D');
   const [watchlist,  setWatchlist]  = useState([]);
 
   if (!asset) { navigation.goBack(); return null; }
@@ -212,33 +212,33 @@ export default function AssetDetailsScreen() {
         </View>
 
         {/* ── التداول على سولانا (نسخة مغلّفة موثّقة) ── */}
-        {wrappedList.length > 0 && (
-          <View style={[S.tradeCard, { backgroundColor: C.card, borderColor: C.border }]}>
-            <View style={S.tradeHead}>
-              <Text style={[S.tradeTitle, { color: C.text }]}>{t('wrapped_trade_title')}</Text>
-              <View style={[S.tradeBadge, { backgroundColor: 'rgba(16,185,129,0.12)' }]}>
-                <Text style={[S.tradeBadgeTxt, { color: C.success }]}>{t('wrapped_badge')}</Text>
+        {wrappedList.map(sym => {
+          const tk = GUARDED_TOKENS.find(g => g.symbol === sym);
+          return (
+            <View key={sym} style={[S.tradeCard, { backgroundColor: C.card, borderColor: C.border }]}>
+              <View style={S.tradeHead}>
+                <Text style={[S.tradeTitle, { color: C.text }]} numberOfLines={1}>
+                  {t('wrapped_trade_label', { coin: asset.symbol, wrapped: sym })}
+                </Text>
+                <View style={[S.tradeBadge, { backgroundColor: 'rgba(16,185,129,0.12)' }]}>
+                  <Text style={[S.tradeBadgeTxt, { color: C.success }]}>{t('wrapped_badge')}</Text>
+                </View>
               </View>
-            </View>
-            {!wrappedList.every(sym => GUARDED_TOKENS.find(g => g.symbol === sym)?.native) && (
-              <Text style={[S.tradeNote, { color: C.muted }]}>
-                {t('wrapped_trade_note', { coin: asset.symbol })}
-              </Text>
-            )}
-            {wrappedList.map(sym => (
+              {!tk?.native && (
+                <Text style={[S.tradeNote, { color: C.muted }]}>
+                  {t('wrapped_trade_note', { coin: asset.symbol })}
+                </Text>
+              )}
               <TouchableOpacity
-                key={sym}
                 style={[S.tradeBtn, { backgroundColor: C.primary }]}
                 activeOpacity={0.8}
                 onPress={() => navigation.navigate('Swap', { toToken: sym })}
               >
-                <Text style={S.tradeBtnTxt} numberOfLines={1}>
-                  {t('wrapped_trade_btn')} · {t('wrapped_trade_label', { coin: asset.symbol, wrapped: sym })}
-                </Text>
+                <Text style={S.tradeBtnTxt} numberOfLines={1}>{t('wrapped_trade_btn')} · {sym}</Text>
               </TouchableOpacity>
-            ))}
-          </View>
-        )}
+            </View>
+          );
+        })}
 
         {/* ── التبويب الزمني ── */}
         <View style={S.card}>

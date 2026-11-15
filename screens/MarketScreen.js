@@ -891,7 +891,7 @@ export default function MarketScreen() {
                     <CoinRow key={item.id} item={item} C={C} onPress={handleExtPress} />
                   ))}
                   <MoreCoinsLink
-                    label={t('global_see_all', { count: 150 })}
+                    label={t('global_see_all')}
                     onPress={() => navigation.navigate('GlobalCoins')}
                     primaryColor={primaryColor}
                   />

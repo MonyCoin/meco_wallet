@@ -185,7 +185,6 @@ export default function GlobalCoinsScreen() {
         </TouchableOpacity>
         <View style={S.titleWrap}>
           <Text style={[S.title, { color: C.text }]}>{t('gc_title')}</Text>
-          <Text style={[S.subtitle, { color: C.muted }]}>{t('gc_subtitle', { count: topCoins.length || 150 })}</Text>
         </View>
         <View style={{ width: 36 }} />
       </View>
@@ -322,7 +321,6 @@ const S = StyleSheet.create({
   backBtn:  { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
   titleWrap:{ flex: 1, alignItems: 'center' },
   title:    { fontSize: 17, fontWeight: '800' },
-  subtitle: { fontSize: 11, marginTop: 2 },
 
   searchBox:   { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 14, paddingHorizontal: 12, height: 42, marginBottom: 14 },
   searchInput: { flex: 1, fontSize: 14, paddingVertical: 0 },

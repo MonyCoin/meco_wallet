@@ -2,7 +2,7 @@
 // عملات إضافية على سولانا (مغلّفة/مجسّرة أو سيولتها محدودة): يُقرأ عدد خاناتها العشرية من السلسلة
 // وتُطبَّق عليها حماية التأثير السعري (تحذير > 2%، حجب > 5%).
 export const GUARDED_TOKENS = [
-  { symbol:'cbBTC',   mint:'cbbtcf3aa214zXHbiAZQwf4122FBYbraNdFqgw4iMij', name:'Coinbase Wrapped BTC',   dec:8, cg:'bitcoin'  },
+  { symbol:'cbBTC',   mint:'cbbtcf3aa214zXHbiAZQwf4122FBYbraNdFqgw4iMij', name:'Coinbase Wrapped BTC',   dec:8, cg:'coinbase-wrapped-btc' },
   { symbol:'WBTC',    mint:'3NZ9JMVBmGAqocybic2c7LQCJScmgsAZ6vQqTDzcqmJh', name:'Wrapped BTC (Wormhole)', dec:8, cg:'bitcoin'  },
   { symbol:'WETH',    mint:'7vfCXTUXx5WJV5JADk17DUJ4ksgau7utNKj4b963voxs', name:'Wrapped ETH (Wormhole)', dec:8, cg:'ethereum' },
   { symbol:'WBNB',    mint:'9gP2kCy3wA1ctvYWQk75guqXuHfrEomqydHLtcTCqiLa', name:'Wrapped BNB (Wormhole)', dec:8, cg:'binancecoin' },
@@ -22,6 +22,11 @@ export const GUARDED_TOKENS = [
   { symbol:'FARTCOIN',mint:'9BB6NFEcjBCtnNLFko2FqVQBq8HHM13kCyYcdQbgpump', name:'Fartcoin',               dec:6, cg:'fartcoin', native:true },
   { symbol:'POPCAT',  mint:'7GCihgDB8fe6KNjn2MYtkzZcRjQy3t9GHdC8uHYmW2hr', name:'Popcat',                 dec:9, cg:'popcat', native:true },
   { symbol:'MEW',     mint:'MEW1gQWJ3nEXg2qgERiKu7FAFj79PHvQVREQUzScPP5',  name:'cat in a dogs world',    dec:5, cg:'cat-in-a-dogs-world', native:true },
+  { symbol:'TRX',    mint:'GbbesPbaYh5uiAZSYNXTc7w9jty1rpg3P9L4JeN4LkKc', name:'TRON',                    dec:6, cg:'tron' },
+  { symbol:'cbLTC',  mint:'cbLTC4T5NpzSUtQ7ekgEMZGaUPVJY1ko6BUikqa4gGf', name:'Coinbase Wrapped LTC',    dec:8, cg:'litecoin' },
+  { symbol:'wXRP',   mint:'6UpQcMAb5xMzxc7ZfPaVMgx3KqsvKZdT5U718BzD5We2', name:'Wrapped XRP (Hex Trust)', dec:6, cg:'ripple' },
+  { symbol:'pSOL',   mint:'pSo1f9nQXWgXibFtKf7NWYxb5enAM4qfP6UJSiXRQfL', name:'Phantom Staked SOL',      dec:9, cg:null },
+  { symbol:'KMNO',   mint:'KMNo3nJsBXfcpJTVhZcXLW7RmTwTt4GVFE7suUBo9sS', name:'Kamino',                  dec:6, cg:'kamino', native:true },
 ];
 
 export const GUARDED_SYMBOLS = GUARDED_TOKENS.map(t => t.symbol);
