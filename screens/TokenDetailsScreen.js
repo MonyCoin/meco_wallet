@@ -456,57 +456,55 @@ export default function TokenDetailsScreen() {
         {/* ── OHLC ── */}
         <View style={S.card}>
           <Text style={[S.secTitle, { color:C.text }]}>{t('ohlc_stats')}</Text>
-          <View style={S.grid}>
+          <View style={S.tileRow}>
             {[
               { k:'ohlc_open',  v:fmtPrice(stats.open),    c:C.text    },
               { k:'ohlc_high',  v:fmtPrice(stats.high),    c:C.success },
               { k:'ohlc_low',   v:fmtPrice(stats.low),     c:C.error   },
               { k:'ohlc_close', v:fmtPrice(stats.current), c:C.text    },
             ].map(item => (
-              <View key={item.k} style={S.gridItem}>
-                <Text style={[S.gridLabel, { color:C.muted }]}>{t(item.k)}</Text>
-                <Text style={[S.gridValue, { color:item.c }]}>{item.v}</Text>
+              <View key={item.k} style={[S.tile, { backgroundColor:C.card, borderColor:C.border }]}>
+                <Text style={[S.tileLabel, { color:C.muted }]} numberOfLines={1}>{t(item.k)}</Text>
+                <Text style={[S.tileValue, { color:item.c }]} numberOfLines={1}>{item.v}</Text>
               </View>
             ))}
           </View>
         </View>
 
         {/* ── إحصائيات السوق ── */}
-        <View style={S.card}>
-          <Text style={[S.secTitle, { color:C.text }]}>{t('market_stats')}</Text>
-          <View style={S.grid}>
-            {[
-              { k:'market_cap',         v:fmtBig(stats.cap)    },
-              { k:'volume_24h_label',   v:fmtBig(stats.volume) },
-              { k:'circulating_supply', v:fmtSupply(stats.supply)   },
-              { k:'max_supply',         v:stats.maxSupply>0 ? fmtSupply(stats.maxSupply) : '∞' },
-            ].map(item => (
-              <View key={item.k} style={S.gridItem}>
-                <Text style={[S.gridLabel, { color:C.muted }]}>{t(item.k)}</Text>
-                <Text style={[S.gridValue, { color:C.text }]}>{item.v}</Text>
-              </View>
-            ))}
-          </View>
-          {stats.ath > 0 && (
-            <View style={S.athRow}>
-              <View style={S.athItem}>
-                <View style={{ flexDirection:'row', alignItems:'center', gap:4, marginBottom:4 }}>
-                  <Ionicons name="trophy" size={13} color="#FFB800" />
-                  <Text style={[S.athLabel, { color:C.muted }]}>{t('ath')}</Text>
+        {(stats.cap > 0 || stats.volume > 0 || stats.supply > 0) && (
+          <View style={S.card}>
+            <Text style={[S.secTitle, { color:C.text }]}>{t('market_stats')}</Text>
+            <View style={S.tileRow}>
+              {[
+                { k:'tile_cap',    v:fmtBig(stats.cap),       c:C.text },
+                { k:'tile_vol',    v:fmtBig(stats.volume),    c:C.text },
+                { k:'tile_supply', v:fmtSupply(stats.supply), c:C.text },
+                { k:'tile_max',    v:stats.maxSupply>0 ? fmtSupply(stats.maxSupply) : '∞', c:C.text },
+              ].map(item => (
+                <View key={item.k} style={[S.tile, { backgroundColor:C.card, borderColor:C.border }]}>
+                  <Text style={[S.tileLabel, { color:C.muted }]} numberOfLines={1}>{t(item.k)}</Text>
+                  <Text style={[S.tileValue, { color:item.c }]} numberOfLines={1}>{item.v}</Text>
                 </View>
-                <Text style={[S.athVal, { color:C.text }]}>{fmtPrice(stats.ath)}</Text>
-                <Text style={[S.athChg, { color:C.error }]}>{fmtPct(stats.athChg)}</Text>
-              </View>
-              <View style={S.athItem}>
-                <View style={{ flexDirection:'row', alignItems:'center', gap:4, marginBottom:4 }}>
-                  <Ionicons name="flag" size={13} color={C.success} />
-                  <Text style={[S.athLabel, { color:C.muted }]}>{t('atl')}</Text>
-                </View>
-                <Text style={[S.athVal, { color:C.text }]}>{fmtPrice(stats.atl)}</Text>
-              </View>
+              ))}
             </View>
-          )}
-        </View>
+            {(stats.ath > 0 || stats.atl > 0) && (
+              <View style={[S.tileRow, { marginTop:8 }]}>
+                {[
+                  { k:'tile_ath',      v:stats.ath > 0 ? fmtPrice(stats.ath) : 'N/A', c:C.text },
+                  { k:'tile_from_ath', v:stats.ath > 0 ? fmtPct(stats.athChg) : 'N/A', c:stats.ath > 0 ? C.error : C.text },
+                  { k:'tile_atl',      v:stats.atl > 0 ? fmtPrice(stats.atl) : 'N/A', c:C.text },
+                  { k:'tile_rank',     v:(metadata?.rank && metadata.rank !== 'N/A') ? `#${metadata.rank}` : (token.rank ? `#${token.rank}` : 'N/A'), c:C.text },
+                ].map(item => (
+                  <View key={item.k} style={[S.tile, { backgroundColor:C.card, borderColor:C.border }]}>
+                    <Text style={[S.tileLabel, { color:C.muted }]} numberOfLines={1}>{t(item.k)}</Text>
+                    <Text style={[S.tileValue, { color:item.c }]} numberOfLines={1}>{item.v}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
+        )}
 
         {/* ── الوصف ── */}
         {(metadata?.description || token.description) && (
@@ -613,11 +611,10 @@ const S = StyleSheet.create({
   gridItem:   { flexDirection:'row', justifyContent:'space-between', alignItems:'center', paddingVertical:11, borderBottomWidth:StyleSheet.hairlineWidth, borderBottomColor:'#262626' },
   gridLabel:  { fontSize:13 },
   gridValue:  { fontSize:13, fontWeight:'700' },
-  athRow:     { flexDirection:'row', alignItems:'center', marginTop:12 },
-  athItem:    { flex:1, alignItems:'center', gap:2, backgroundColor:'#141414', borderRadius:14, paddingVertical:10, marginHorizontal:4 },
-  athLabel:   { fontSize:11, fontWeight:'600' },
-  athVal:     { fontSize:14, fontWeight:'700' },
-  athChg:     { fontSize:11, fontWeight:'600' },
+  tileRow:    { flexDirection:'row', gap:8 },
+  tile:       { flex:1, minWidth:0, borderWidth:1, borderRadius:12, paddingVertical:9, paddingHorizontal:4, alignItems:'center' },
+  tileLabel:  { fontSize:9.5, marginBottom:4 },
+  tileValue:  { fontSize:12, fontWeight:'700' },
   desc:       { fontSize:13, lineHeight:18 },
   links:      { flexDirection:'row', flexWrap:'wrap', gap:8 },
   linkBtn:    { flexDirection:'row', alignItems:'center', paddingHorizontal:12, paddingVertical:9, borderRadius:999, gap:6 },
