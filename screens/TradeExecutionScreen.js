@@ -69,7 +69,7 @@ export default function TradeExecutionScreen() {
 
   const [side,         setSide]         = useState(initialSide);
   const [quoteTokensList, setQuoteTokensList] = useState(QUOTE_TOKENS);
-  const [quoteToken,   setQuoteToken]   = useState(QUOTE_TOKENS[0]);
+  const [quoteToken,   setQuoteToken]   = useState(QUOTE_TOKENS.find(q => q.mint !== targetToken.mint) || QUOTE_TOKENS[0]);
   const [amount,       setAmount]       = useState('');
   const [quoteModal,   setQuoteModal]   = useState(false);
   const [executing,    setExecuting]    = useState(false);
@@ -414,10 +414,16 @@ export default function TradeExecutionScreen() {
                   {estimatedOutput === null ? '—' : fmtAmount(estimatedOutput)}
                 </Text>
               )}
-              <View style={[S.tokenPill, { backgroundColor: C.card2, borderColor: C.border }]}>
+              <TouchableOpacity
+                style={[S.tokenPill, { backgroundColor: C.card2, borderColor: C.border }]}
+                onPress={() => side === 'sell' ? setQuoteModal(true) : null}
+                disabled={side !== 'sell'}
+                activeOpacity={side === 'sell' ? 0.7 : 1}
+              >
                 <SafeImage uri={outputToken.image} size={20} />
                 <Text style={[S.tokenPillTxt, { color: C.text }]}>{outputToken.symbol}</Text>
-              </View>
+                {side === 'sell' && <Ionicons name="chevron-down" size={13} color={C.muted} />}
+              </TouchableOpacity>
             </View>
           </View>
 
@@ -492,7 +498,7 @@ export default function TradeExecutionScreen() {
               <View style={{ width: 36 }} />
             </View>
 
-            {quoteTokensList.map(qt => (
+            {quoteTokensList.filter(qt => qt.mint !== targetToken.mint).map(qt => (
               <TouchableOpacity
                 key={qt.symbol}
                 style={[
@@ -506,7 +512,7 @@ export default function TradeExecutionScreen() {
                 onPress={() => {
                   setQuoteToken(qt);
                   setQuoteModal(false);
-                  setAmount('');
+                  if (side === 'buy') setAmount('');
                 }}
               >
                 <SafeImage uri={qt.image} size={32} />

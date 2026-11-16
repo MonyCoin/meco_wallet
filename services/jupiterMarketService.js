@@ -85,6 +85,7 @@ const CG_IMAGE_IDS = {
   MEW: ['cat-in-a-dogs-world'],
   TRX: ['tron'], cbLTC: ['coinbase-wrapped-ltc', 'litecoin'], wXRP: ['wrapped-xrp', 'ripple'],
   pSOL: ['phantom-staked-sol'], KMNO: ['kamino'],
+  DOGE: ['dogecoin'], cbADA: ['coinbase-wrapped-ada', 'cardano'],
 };
 const applyImages = (map) => {
   for (const tk of CORE_TOKENS) {

@@ -6,6 +6,7 @@ import {
   Image, RefreshControl, Platform
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { useAppStore } from '../store';
 import { Ionicons } from '@expo/vector-icons';
@@ -13,6 +14,9 @@ import DirIcon from '../components/DirIcon';
 import * as Clipboard from 'expo-clipboard';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getFullChartData } from '../services/priceChartService';
+import { getSolBalance, getTokenBalance } from '../services/heliusService';
+import { CORE_TOKENS } from '../services/jupiterMarketService';
+import { WRAPPED_BY_COINGECKO_ID, GUARDED_TOKENS } from '../services/guardedTokens';
 
 const { width } = Dimensions.get('window');
 const WATCHLIST_KEY = '@meco_watchlist';
@@ -45,6 +49,12 @@ const fetchWT = (url, ms = FETCH_TIMEOUT) => {
     .finally(() => clearTimeout(timer));
 };
 
+// رابط صالح: http/https فقط
+const isValidUrl = (u) => {
+  if (typeof u !== 'string') return false;
+  return /^https?:\/\/[^\s/$.?#][^\s]*\.[^\s]{2,}$/i.test(u.trim());
+};
+
 const fmtPrice = (p) => {
   if (p === undefined || p === null || p === 0) return '$0.00';
   if (p >= 1) return `$${p.toLocaleString('en-US', { minimumFractionDigits:2, maximumFractionDigits:2 })}`;
@@ -67,8 +77,22 @@ export default function TokenDetailsScreen() {
   const navigation   = useNavigation();
   const route        = useRoute();
   const { t }        = useTranslation();
+  const insets       = useSafeAreaInsets();
   const primaryColor = useAppStore(s => s.primaryColor || '#6C63FF');
-  const { token }    = route.params || {};
+  const walletPublicKey = useAppStore(s => s.walletPublicKey);
+  // الشاشة موحّدة: تُفتح بعملة سولانا (token) أو بعملة عالمية (asset)
+  const { token: tokenParam, asset } = route.params || {};
+  const globalId = asset ? (asset.coingeckoId || asset.id) : null;
+  // العملة القابلة للتداول داخل التطبيق (إن وُجدت): نسخة سولانا للعملة العالمية، أو العملة نفسها
+  const tradeToken = asset
+    ? (CORE_TOKENS.find(x => x.symbol === (WRAPPED_BY_COINGECKO_ID[globalId] || [])[0])
+        || CORE_TOKENS.find(x => x.symbol === Object.keys(COINGECKO_IDS).find(k => COINGECKO_IDS[k] === globalId))
+        || null)
+    : (tokenParam ? (CORE_TOKENS.find(x => x.mint === tokenParam.mint) || (tokenParam.swapAvailable !== false ? tokenParam : null)) : null);
+  const token = tokenParam || (asset ? { ...asset } : null);
+  // عملة سولانا التي يُقرأ رصيدها ويُضبط تنبيه سعرها
+  const solToken = tradeToken || (token && token.mint && !token.isExternal ? token : null);
+  const wrappedTk = tradeToken ? GUARDED_TOKENS.find(g => g.symbol === tradeToken.symbol && g.cg && !g.native) : null;
 
   // التطبيق يعمل بالنمط الغامق فقط
   const C = {
@@ -86,6 +110,8 @@ export default function TokenDetailsScreen() {
 
   const [loading,    setLoading]    = useState(true);
   const [descOpen,   setDescOpen]   = useState(false);
+  const [tipOpen,    setTipOpen]    = useState(false);
+  const [balance,    setBalance]    = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const [chartData,  setChartData]  = useState([]);
   const [sparkline,  setSparkline]  = useState([]);
@@ -106,6 +132,22 @@ export default function TokenDetailsScreen() {
       .then(s => { if (s) setWatchlist(JSON.parse(s)); })
       .catch(() => {});
   }, []);
+
+  const loadBalance = useCallback(async () => {
+    if (!walletPublicKey || !solToken) { setBalance(0); return; }
+    try {
+      const b = solToken.symbol === 'SOL'
+        ? await getSolBalance(true, walletPublicKey)
+        : await getTokenBalance(solToken.mint, true, walletPublicKey);
+      setBalance(Number(b) || 0);
+    } catch (_) { setBalance(0); }
+  }, [walletPublicKey, solToken?.mint, solToken?.symbol]);
+
+  useEffect(() => {
+    loadBalance();
+    const unsub = navigation.addListener('focus', loadBalance);
+    return unsub;
+  }, [loadBalance]);
 
   const toggleWatch = async () => {
     const upd = watchlist.includes(token.symbol)
@@ -219,7 +261,7 @@ export default function TokenDetailsScreen() {
     if (token.mint && !token.isExternal) { await Clipboard.setStringAsync(token.mint); Alert.alert(t('success'), t('copied_to_clipboard')); }
   };
   const openExp = () => { if (token.mint && !token.isExternal) Linking.openURL(`https://solscan.io/token/${token.mint}`); };
-  const openUrl = (url) => { if (url) Linking.openURL(url).catch(() => {}); };
+  const openUrl = (url) => { if (isValidUrl(url)) Linking.openURL(url.trim()).catch(() => {}); };
 
   const fmtBig = (n) => {
     if (!n) return 'N/A';
@@ -249,17 +291,26 @@ export default function TokenDetailsScreen() {
   const cRange  = cMax - cMin || 1;
 
   return (
-    <SafeAreaView style={[S.root, { backgroundColor:C.bg }]}>
+    <SafeAreaView style={[S.root, { backgroundColor:C.bg, paddingTop: Platform.OS === 'ios' ? 0 : insets.top }]}>
       <ScrollView
-        contentContainerStyle={S.scroll}
+        contentContainerStyle={[S.scroll, { paddingBottom: Math.max(insets.bottom, 20) + 40 }]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.primary} />}
         showsVerticalScrollIndicator={false}
       >
         {/* ── Header ── */}
         <View style={S.header}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={[S.iconBtn, { backgroundColor:C.card }]}>
+            <DirIcon name="arrow-back" size={18} color={C.text} />
+          </TouchableOpacity>
           <View style={S.tokenHead}>
-            {token.image && <Image source={{ uri:token.image }} style={S.tokenImg} />}
-            <View style={{ alignItems:'flex-start' }}>
+            {token.image ? (
+              <Image source={{ uri:token.image }} style={S.tokenImg} />
+            ) : (
+              <View style={[S.tokenImg, { backgroundColor:C.card2, alignItems:'center', justifyContent:'center' }]}>
+                <Text style={{ color:C.text, fontSize:14, fontWeight:'800' }}>{String(token.symbol || '?').charAt(0)}</Text>
+              </View>
+            )}
+            <View style={{ alignItems:'flex-start', flexShrink:1 }}>
               <Text style={[S.sym, { color:C.text }]}>{token.symbol}</Text>
               <Text style={[S.nam, { color:C.muted }]} numberOfLines={1}>{token.name}</Text>
             </View>
@@ -273,10 +324,11 @@ export default function TokenDetailsScreen() {
                 color={watchlist.includes(token.symbol) ? '#FFB800' : C.text}
               />
             </TouchableOpacity>
-            {!token.isExternal && (
-              <TouchableOpacity onPress={copy}
+            {!!solToken && (
+              <TouchableOpacity
+                onPress={() => navigation.navigate('PriceAlerts', { preselectedToken: solToken })}
                 style={[S.iconBtn, { backgroundColor:C.card }]}>
-                <Ionicons name="copy-outline" size={18} color={C.text} />
+                <Ionicons name="notifications-outline" size={18} color={C.text} />
               </TouchableOpacity>
             )}
           </View>
@@ -295,52 +347,62 @@ export default function TokenDetailsScreen() {
               <Text style={[S.changeTxt, { color: up?C.success:C.error }]}>{fmtPct(stats.change)}</Text>
             </View>
           </View>
-          {/* ✅ زر تنبيه السعر — جديد */}
-          {!token.isExternal && (
-            <TouchableOpacity
-              style={[S.alertBtn, { backgroundColor: primaryColor + '1C' }]}
-              onPress={() => navigation.navigate('PriceAlerts', { preselectedToken: token })}
-              activeOpacity={0.75}
-            >
-              <View style={[S.alertBtnIcon, { backgroundColor: primaryColor + '20' }]}>
-                <Ionicons name="notifications-outline" size={16} color={primaryColor} />
-              </View>
-              <Text style={[S.alertBtnTxt, { color: primaryColor }]}>
-                {t('alerts.token_btn', 'أبلغني عند سعر')}
-              </Text>
-              <DirIcon name="chevron-forward" size={14} color={primaryColor} />
-            </TouchableOpacity>
-          )}
         </View>
 
-        {/* ── أزرار العمليات (غير معروضة للعملات الخارجية) ── */}
-        {!token.isExternal && (
-          <View style={S.actions}>
-            <TouchableOpacity
-              style={[S.actionBtn, { backgroundColor:C.primary }]}
-              onPress={() => navigation.navigate('Send', { preselectedToken:token.symbol })}
-            >
-              <Ionicons name="send" size={15} color="#FFF" />
-              <Text style={S.actionTxt}>{t('send')}</Text>
-            </TouchableOpacity>
-
-            {token.swapAvailable !== false && (
+        {/* ── شراء / بيع ── */}
+        {tradeToken ? (
+          <View style={{ marginBottom:12 }}>
+            <View style={S.actions}>
               <TouchableOpacity
                 style={[S.actionBtn, { backgroundColor:C.success }]}
-                onPress={() => navigation.navigate('QuickTrade', { token })}
+                activeOpacity={0.8}
+                onPress={() => navigation.navigate('TradeExecution', { token: tradeToken, side:'buy' })}
               >
-                <Ionicons name="trending-up" size={15} color="#FFF" />
-                <Text style={S.actionTxt}>{t('buy', 'شراء')}</Text>
+                <Text style={S.actionTxt}>{t('buy')}</Text>
               </TouchableOpacity>
+              <TouchableOpacity
+                style={[S.actionBtn, { backgroundColor:C.error }]}
+                activeOpacity={0.8}
+                onPress={() => navigation.navigate('TradeExecution', { token: tradeToken, side:'sell' })}
+              >
+                <Text style={S.actionTxt}>{t('sell')}</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={S.availRow}>
+              <View style={[S.availDot, { backgroundColor:C.success }]} />
+              <Text style={[S.availTxt, { color:C.success }]}>{t('wrapped_avail')}</Text>
+              {!!wrappedTk && (
+                <TouchableOpacity
+                  style={[S.infoBtn, { borderColor:C.muted }]}
+                  hitSlop={{ top:8, bottom:8, left:8, right:8 }}
+                  onPress={() => setTipOpen(v => !v)}
+                >
+                  <Text style={{ color:C.muted, fontSize:10, fontWeight:'700' }}>i</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+            {tipOpen && !!wrappedTk && (
+              <Text style={[S.tipTxt, { color:C.muted, backgroundColor:C.card2 }]}>{t('wrapped_trade_note')}</Text>
             )}
+          </View>
+        ) : (
+          <View style={[S.followBox, { backgroundColor:C.card, borderColor:C.border }]}>
+            <Text style={[S.followTxt, { color:C.muted }]}>{t('follow_only')}</Text>
+          </View>
+        )}
 
-            <TouchableOpacity
-              style={[S.actionBtn, { backgroundColor:C.card2 }]}
-              onPress={openExp}
-            >
-              <Ionicons name="bar-chart-outline" size={15} color={C.text} />
-              <Text style={[S.actionTxt, { color:C.text }]}>{t('explorer')}</Text>
-            </TouchableOpacity>
+        {/* ── رصيدك ── */}
+        {balance > 0 && !!solToken && (
+          <View style={[S.balCard, { backgroundColor:C.card, borderColor:C.border }]}>
+            <View>
+              <Text style={[S.balLabel, { color:C.muted }]}>{t('coin_your_balance')}</Text>
+              <Text style={[S.balValue, { color:C.text }]}>
+                {balance.toLocaleString('en-US', { maximumFractionDigits: 6 })} {solToken.symbol}
+              </Text>
+            </View>
+            {stats.current > 0 && (
+              <Text style={[S.balUsd, { color:C.muted }]}>≈ {fmtBig(balance * stats.current)}</Text>
+            )}
           </View>
         )}
 
@@ -524,32 +586,20 @@ const S = StyleSheet.create({
   changePill: { flexDirection:'row', alignItems:'center', paddingHorizontal:8, paddingVertical:4, borderRadius:10, gap:3 },
   changeTxt:  { fontSize:11, fontWeight:'700' },
 
-  // ✅ أنماط زر التنبيه — جديد
-  alertBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingVertical: 7,
-    paddingHorizontal: 12,
-    borderRadius: 999,
-    marginTop: 10,
-    alignSelf: 'flex-start',
-  },
-  alertBtnIcon: {
-    width: 24,
-    height: 24,
-    borderRadius: 7,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  alertBtnTxt: {
-    fontSize: 12,
-    fontWeight: '700',
-  },
-
-  actions:    { flexDirection:'row', gap:8, marginBottom:16 },
-  actionBtn:  { flex:1, flexDirection:'row', alignItems:'center', justifyContent:'center', paddingVertical:11, borderRadius:999, gap:6 },
-  actionTxt:  { fontSize:12, fontWeight:'700', color:'#FFF' },
+  actions:    { flexDirection:'row', gap:10 },
+  actionBtn:  { flex:1, alignItems:'center', justifyContent:'center', paddingVertical:12, borderRadius:12 },
+  actionTxt:  { fontSize:14, fontWeight:'700', color:'#FFF' },
+  availRow:   { flexDirection:'row', alignItems:'center', gap:6, marginTop:8, marginHorizontal:2 },
+  availDot:   { width:6, height:6, borderRadius:3 },
+  availTxt:   { fontSize:11, fontWeight:'700' },
+  infoBtn:    { width:18, height:18, borderRadius:9, borderWidth:1.5, alignItems:'center', justifyContent:'center', marginHorizontal:4 },
+  tipTxt:     { fontSize:11, lineHeight:18, marginTop:8, padding:9, borderRadius:10, overflow:'hidden' },
+  followBox:  { borderWidth:1, borderRadius:12, paddingVertical:12, paddingHorizontal:12, marginBottom:12, alignItems:'center' },
+  followTxt:  { fontSize:12, fontWeight:'600', textAlign:'center' },
+  balCard:    { flexDirection:'row', alignItems:'center', justifyContent:'space-between', borderWidth:1, borderRadius:14, padding:12, marginBottom:12 },
+  balLabel:   { fontSize:11, marginBottom:2 },
+  balValue:   { fontSize:14, fontWeight:'700' },
+  balUsd:     { fontSize:13 },
   secTitle:   { fontSize:15, fontWeight:'700', marginBottom:8 },
   tfRow:      { flexDirection:'row', justifyContent:'space-between', width:'100%' },
   tfBtn:      { flex:1, paddingVertical:6, alignItems:'center', borderRadius:999, marginHorizontal:2 },

@@ -34,7 +34,6 @@ import BackupScreen             from './screens/BackupScreen';
 import MarketScreen              from './screens/MarketScreen';
 import AppPortalScreen          from './screens/AppPortalScreen';
 import TokenDetailsScreen       from './screens/TokenDetailsScreen';
-import AssetDetailsScreen       from './screens/AssetDetailsScreen';
 import GlobalCoinsScreen        from './screens/GlobalCoinsScreen';
 import QRScannerScreen          from './screens/QRScannerScreen';
 import SwapScreen               from './screens/SwapScreen';
@@ -300,8 +299,8 @@ export default function AppContainer() {
           <Stack.Screen name="Swap"               component={SwapScreen}               options={{ title: t('swap_title')||'تبادل', headerBackTitle: t('back')||'رجوع' }} />
           <Stack.Screen name="Liquidity"          component={LiquidityScreen}          options={{ title: t('liquidity_title')||'السيولة', headerBackTitle: t('back')||'رجوع' }} />
           <Stack.Screen name="QRScanner"          component={QRScannerScreen}          options={{ headerShown:false }} />
-          <Stack.Screen name="TokenDetails"       component={TokenDetailsScreen}       options={{ title: t('token_details'), headerBackTitle: t('back') }} />
-          <Stack.Screen name="AssetDetails"       component={AssetDetailsScreen}       options={{ headerShown: false }} />
+          <Stack.Screen name="TokenDetails"       component={TokenDetailsScreen}       options={{ headerShown: false }} />
+          <Stack.Screen name="AssetDetails"       component={TokenDetailsScreen}       options={{ headerShown: false }} />
           <Stack.Screen name="GlobalCoins"        component={GlobalCoinsScreen}        options={{ headerShown: false }} />
           <Stack.Screen name="Settings"           component={SettingsScreen}           options={{ headerShown:false }} />
           <Stack.Screen name="Portfolio"          component={PortfolioScreen}          options={{ headerShown:false }} />

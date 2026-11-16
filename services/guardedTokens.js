@@ -27,6 +27,8 @@ export const GUARDED_TOKENS = [
   { symbol:'wXRP',   mint:'6UpQcMAb5xMzxc7ZfPaVMgx3KqsvKZdT5U718BzD5We2', name:'Wrapped XRP (Hex Trust)', dec:6, cg:'ripple' },
   { symbol:'pSOL',   mint:'pSo1f9nQXWgXibFtKf7NWYxb5enAM4qfP6UJSiXRQfL', name:'Phantom Staked SOL',      dec:9, cg:null },
   { symbol:'KMNO',   mint:'KMNo3nJsBXfcpJTVhZcXLW7RmTwTt4GVFE7suUBo9sS', name:'Kamino',                  dec:6, cg:'kamino', native:true },
+  { symbol:'DOGE',   mint:'DoGEV7LASBkQbibMc5k5vKnTZoMg423GpJ5QtJEGfm7R', name:'Dogecoin (Wormhole NTT)', dec:8, cg:'dogecoin' },
+  { symbol:'cbADA',  mint:'cbADAmv9issuPfhFwyQG3xac4DGPd1LDSt1oz7vwJsg', name:'Coinbase Wrapped ADA',    dec:6, cg:'cardano' },
 ];
 
 export const GUARDED_SYMBOLS = GUARDED_TOKENS.map(t => t.symbol);
