@@ -40,9 +40,17 @@ export async function fetchCoinsMarkets(category = 'all', perPage = 150, force =
         'https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc'
         + `&per_page=${perPage}&page=1&sparkline=false&price_change_percentage=24h`
         + (category !== 'all' ? `&category=${category}` : '');
-      const res = await fetch(url, { headers: { Accept: 'application/json' } });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = await res.json();
+      // مهلة 15 ثانية: لا يبقى الطلب معلّقاً إن تأخر الخادم
+      const ctrl  = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 15000);
+      let json;
+      try {
+        const res = await fetch(url, { headers: { Accept: 'application/json' }, signal: ctrl.signal });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        json = await res.json();
+      } finally {
+        clearTimeout(timer);
+      }
       if (!Array.isArray(json)) throw new Error('bad response');
       const rows = json.map(toAsset);
       CACHE[key] = { rows, ts: Date.now() };
