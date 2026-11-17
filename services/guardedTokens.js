@@ -34,6 +34,11 @@ export const GUARDED_TOKENS = [
 export const GUARDED_SYMBOLS = GUARDED_TOKENS.map(t => t.symbol);
 export const GUARDED_MINTS   = GUARDED_TOKENS.map(t => t.mint);
 
+// أزواج تُطبَّق عليها حماية التأثير السعري: العملات الإضافية + MECO (سيولته ضحلة حالياً)
+const MECO_MINT_ADDR = 'A5Ln25cfww33kfUSzBb89bMha7j1PnFQTy7H3FsQHN7W';
+export const IMPACT_GUARD_MINTS   = [...GUARDED_MINTS, MECO_MINT_ADDR];
+export const IMPACT_GUARD_SYMBOLS = [...GUARDED_SYMBOLS, 'MECO'];
+
 export const IMPACT_WARN_PCT  = 2;
 export const IMPACT_BLOCK_PCT = 5;
 

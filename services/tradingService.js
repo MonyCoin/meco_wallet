@@ -5,7 +5,8 @@ import bs58 from 'bs58';
 import { Buffer } from 'buffer';
 import { default as heliusService } from './heliusService';
 import { svcError } from './svcError';
-import { GUARDED_MINTS, IMPACT_BLOCK_PCT } from './guardedTokens';
+import { IMPACT_GUARD_MINTS, IMPACT_BLOCK_PCT } from './guardedTokens';
+import { v2Quote, executeV2Swap, sendServiceFee, markV2Only, isV2Only } from './jupiterV2';
 
 const FEE_COLLECTOR_ADDRESS = 'BkaJsFAJKPQZgreBFLrY2pPUi44fTJzXhmeBc8LeuF5W';
 const SERVICE_FEE_SOL       = 0.0005;
@@ -15,7 +16,6 @@ const MECO_MINT             = 'A5Ln25cfww33kfUSzBb89bMha7j1PnFQTy7H3FsQHN7W';
 // تم حذف quote-api.jup.ag/v6 القديم لأنه يسبب تأخيرًا قبل الرجوع إلى lite-api
 const JUPITER_QUOTE_API = 'https://lite-api.jup.ag/swap/v1/quote';
 const JUPITER_SWAP_API  = 'https://lite-api.jup.ag/swap/v1/swap';
-const JUPITER_LIMIT_API = 'https://api.jup.ag/limit/v2';
 
 // ترويسات الطلبات — بدون مفتاح وبدون انتحال ترويسات الموقع
 const API_HEADERS = {
@@ -56,6 +56,10 @@ async function getQuote(inputMint, outputMint, amount, slippageBps = 50) {
   const extraParams     = isMeco ? '&onlyDirectRoutes=false' : '';
   const effectiveSlippage = isMeco ? Math.max(slippageBps, 300) : slippageBps;
 
+  if (isV2Only(inputMint, outputMint)) {
+    return v2Quote(inputMint, outputMint, amount, effectiveSlippage);
+  }
+
   const endpoints = [
     { name: 'Lite API', url: JUPITER_QUOTE_API },
   ];
@@ -82,6 +86,12 @@ async function getQuote(inputMint, outputMint, amount, slippageBps = 50) {
       return quote;
     } catch (err) { lastError = err; }
   }
+  // احتياطي: Swap V2 عند فشل المسار العادي
+  try {
+    const q = await v2Quote(inputMint, outputMint, amount, effectiveSlippage);
+    if (isMeco) markV2Only(MECO_MINT);
+    return q;
+  } catch (_) {}
   throw lastError || new Error('NO_ROUTE');
 }
 
@@ -185,55 +195,22 @@ export async function executeMarketSwap({
   const keypair    = await getKeypair(activeIndex);
   const connection = await getConnection();
   const quote      = await getQuote(inputMint, outputMint, amount);
-  if ((GUARDED_MINTS.includes(inputMint) || GUARDED_MINTS.includes(outputMint))
+  if ((IMPACT_GUARD_MINTS.includes(inputMint) || IMPACT_GUARD_MINTS.includes(outputMint))
       && parseFloat(quote.priceImpactPct || 0) * 100 > IMPACT_BLOCK_PCT) {
     throw new Error('PRICE_IMPACT_TOO_HIGH');
   }
+  if (quote._v2) {
+    const userPubKey = new web3.PublicKey(walletPublicKey);
+    const r = await executeV2Swap({
+      inputMint, outputMint, amount, slippageBps: quote._slippageBps,
+      quotedOut: quote.outAmount, keypair, userPubKey, connection,
+    });
+    await sendServiceFee({
+      connection, keypair, userPubKey, feeTo: FEE_COLLECTOR_ADDRESS,
+      lamports: Math.floor(SERVICE_FEE_SOL * web3.LAMPORTS_PER_SOL),
+    });
+    return r.signature;
+  }
   const swapTx     = await buildSwapTx(quote, walletPublicKey);
   return executeVersionedTx(swapTx, keypair, connection, walletPublicKey);
-}
-
-// ─── Limit Order ─────────────────────────────────────────────────────────────
-export async function executeLimitOrder({
-  inputMint, outputMint, inAmount, outAmount, walletPublicKey, activeIndex,
-}) {
-  const res = await fetchWT(`${JUPITER_LIMIT_API}/createOrder`, {
-    method: 'POST', headers: API_HEADERS,
-    body: JSON.stringify({
-      owner: walletPublicKey, inputMint, outputMint,
-      inAmount: inAmount.toString(), outAmount: outAmount.toString(), expiredAt: null,
-    }),
-  });
-  if (!res.ok) throw new Error(`Limit order error: ${res.status}`);
-  const data = await res.json();
-  if (!data.tx) throw new Error('No limit order transaction returned');
-  const keypair    = await getKeypair(activeIndex);
-  const connection = await getConnection();
-  return executeVersionedTx(data.tx, keypair, connection, walletPublicKey);
-}
-
-// ─── Cancel Limit Order ───────────────────────────────────────────────────────
-export async function cancelLimitOrder({ orderPubkey, walletPublicKey, activeIndex }) {
-  const res = await fetchWT(`${JUPITER_LIMIT_API}/cancelOrders`, {
-    method: 'POST', headers: API_HEADERS,
-    body: JSON.stringify({ owner: walletPublicKey, orders: [orderPubkey] }),
-  });
-  if (!res.ok) throw new Error(`Cancel error: ${res.status}`);
-  const { txs } = await res.json();
-  if (!txs?.length) throw new Error('No cancel transactions');
-  const keypair    = await getKeypair(activeIndex);
-  const connection = await getConnection();
-  for (const tx of txs) await executeVersionedTx(tx, keypair, connection, walletPublicKey);
-}
-
-// ─── Open Orders ──────────────────────────────────────────────────────────────
-export async function getOpenLimitOrders(walletPublicKey) {
-  try {
-    const res = await fetchWT(
-      `${JUPITER_LIMIT_API}/openOrders?wallet=${walletPublicKey}`,
-      { headers: API_HEADERS }
-    );
-    if (!res.ok) return [];
-    return await res.json() || [];
-  } catch (_) { return []; }
 }

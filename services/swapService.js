@@ -7,7 +7,8 @@ import { getSolBalance, getTokenBalance } from './heliusService';
 import { default as heliusService } from './heliusService';
 import { svcError, svcText } from './svcError';
 import { toBaseUnits } from './pureHelpers';
-import { GUARDED_TOKENS, GUARDED_SYMBOLS, GUARDED_MINTS, IMPACT_BLOCK_PCT } from './guardedTokens';
+import { GUARDED_TOKENS, GUARDED_SYMBOLS, IMPACT_GUARD_MINTS, IMPACT_BLOCK_PCT } from './guardedTokens';
+import { v2Quote, executeV2Swap, sendServiceFee, markV2Only, isV2Only } from './jupiterV2';
 
 // ─── TOKEN_MINTS ──────────────────────────────────────────────────────────────
 export const TOKEN_MINTS = {
@@ -137,6 +138,12 @@ async function decimalsFor(symbol) {
 export async function getSwapQuote(inputMint, outputMint, amount, slippageBps = 100) {
   if (!inputMint || !outputMint) throw svcError('unsupported_token');
 
+  // عملة أخرجتها Metis من التوجيه العادي (مثل MECO) → مباشرة إلى Swap V2
+  if (isV2Only(inputMint, outputMint)) {
+    try { return await v2Quote(inputMint, outputMint, amount, slippageBps); }
+    catch (err) { throw svcError('quote_failed', { msg: err.message || '' }); }
+  }
+
   const isMeco      = inputMint === TOKEN_MINTS.MECO || outputMint === TOKEN_MINTS.MECO;
   const extraParams = isMeco ? '&onlyDirectRoutes=false' : '';
   const url = `${JUPITER_QUOTE_API}?inputMint=${inputMint}&outputMint=${outputMint}&amount=${amount}&slippageBps=${slippageBps}${extraParams}`;
@@ -151,6 +158,15 @@ export async function getSwapQuote(inputMint, outputMint, amount, slippageBps = 
     return quote;
   } catch (err) {
     console.warn('❌ [Quote] فشل:', err.message);
+    // احتياطي: Swap V2 (يُستعمل فقط عند فشل المسار العادي)
+    try {
+      const q = await v2Quote(inputMint, outputMint, amount, slippageBps);
+      const msg = err.message || '';
+      if (msg.includes('not tradable') || msg.includes('TOKEN_NOT_TRADABLE') || err.code === 'SVC_no_route') {
+        [inputMint, outputMint].forEach(m => { if (m === TOKEN_MINTS.MECO) markV2Only(m); });
+      }
+      return q;
+    } catch (_) {}
     throw svcError('quote_failed', { msg: err.message || '' });
   }
 }
@@ -331,18 +347,30 @@ export async function executeSwap(
       );
 
       // حماية احتياطية: أوقف التنفيذ إن كان التأثير السعري > 5% لعملة إضافية
-      const guardedPair = GUARDED_MINTS.includes(TOKEN_MINTS[inputSymbol]) || GUARDED_MINTS.includes(TOKEN_MINTS[outputSymbol]);
+      const guardedPair = IMPACT_GUARD_MINTS.includes(TOKEN_MINTS[inputSymbol]) || IMPACT_GUARD_MINTS.includes(TOKEN_MINTS[outputSymbol]);
       if (guardedPair && parseFloat(quote.priceImpactPct || 0) * 100 > IMPACT_BLOCK_PCT) {
         return { success: false, error: 'PRICE_IMPACT_TOO_HIGH' };
       }
 
-      const { swapSignature } = await executeSwapTransaction(
-        quote, userPubKey, keypair, connection
-      );
+      let swapSignature, outputAmount;
+      if (quote._v2) {
+        const r = await executeV2Swap({
+          inputMint: TOKEN_MINTS[inputSymbol], outputMint: TOKEN_MINTS[outputSymbol],
+          amount: amountInLamports, slippageBps, quotedOut: quote.outAmount,
+          keypair, userPubKey, connection,
+        });
+        swapSignature = r.signature;
+        outputAmount  = r.outAmount / Math.pow(10, outputDecimals);
+        await sendServiceFee({
+          connection, keypair, userPubKey, feeTo: FEE_COLLECTOR_ADDRESS,
+          lamports: Math.floor(SERVICE_FEE_SOL * web3.LAMPORTS_PER_SOL),
+        });
+      } else {
+        ({ swapSignature } = await executeSwapTransaction(quote, userPubKey, keypair, connection));
+        outputAmount = parseInt(quote.outAmount) / Math.pow(10, outputDecimals);
+      }
 
       console.log(`🎉 [Swap] نجاح تام: ${swapSignature}`);
-
-      const outputAmount = parseInt(quote.outAmount) / Math.pow(10, outputDecimals);
 
       return {
         success:      true,
@@ -358,6 +386,7 @@ export async function executeSwap(
     } catch (err) {
       lastError = err;
       console.error(`💥 [Swap] المحاولة ${attempt} فشلت:`, err.message);
+      if (err.noRetry) break;   // حالة غير مؤكدة: لا نكرر التنفيذ
       if (attempt < maxRetries) {
         console.log(`⏳ [Swap] انتظار 3 ثواني قبل المحاولة التالية...`);
         await new Promise(r => setTimeout(r, 3000));

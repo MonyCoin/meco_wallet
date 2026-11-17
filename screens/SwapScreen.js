@@ -14,7 +14,8 @@ import * as Clipboard from 'expo-clipboard';
 import { requireAuth } from '../services/appLock';
 import * as SwapAPI from '../services/swapService';
 import NetInfo from '@react-native-community/netinfo';
-import { CORE_TOKENS, getSolPriceUsd, WRAPPED_SYMBOLS, ensureTokenImages } from '../services/jupiterMarketService';
+import { CORE_TOKENS, getSolPriceUsd, ensureTokenImages } from '../services/jupiterMarketService';
+import { IMPACT_GUARD_SYMBOLS } from '../services/guardedTokens';
 import { getSolBalance, getTokenBalance } from '../services/heliusService';
 import { addNotification, NOTIF_TYPES } from '../services/notificationsService';
 
@@ -216,7 +217,7 @@ export default function SwapScreen() {
   }, [fromAmount, fromToken, toToken]);
 
   // حارس التأثير السعري للعملات المغلّفة: تحذير فوق 2%، وإيقاف التنفيذ فوق 5%
-  const isWrappedSwap  = WRAPPED_SYMBOLS.includes(fromToken.symbol) || WRAPPED_SYMBOLS.includes(toToken.symbol);
+  const isWrappedSwap  = IMPACT_GUARD_SYMBOLS.includes(fromToken.symbol) || IMPACT_GUARD_SYMBOLS.includes(toToken.symbol);
   const impactWarn     = isWrappedSwap && priceImpact > 2 && priceImpact <= 5;
   const impactBlocked  = isWrappedSwap && priceImpact > 5;
 
