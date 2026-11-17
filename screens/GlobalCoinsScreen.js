@@ -13,6 +13,10 @@ import { useAppStore } from '../store';
 import DirIcon from '../components/DirIcon';
 import { getGlobalMarketData } from '../services/marketOverviewService';
 import { WRAPPED_BY_COINGECKO_ID } from '../services/guardedTokens';
+import { CORE_TOKENS } from '../services/jupiterMarketService';
+
+// عملات سولانا الأساسية القابلة للتداول (معرّف CoinGecko) — تُعامل كالعملات المغلّفة في الشارة
+const CORE_TRADABLE_IDS = new Set(CORE_TOKENS.filter(tk => tk.swapAvailable && !tk.guarded).map(tk => tk.id));
 import { fetchCoinsMarkets, getCachedCoins, getCachedAt } from '../services/globalCoinsService';
 
 const PAGE_SIZE = 15;
@@ -72,7 +76,7 @@ const MoverCard = React.memo(({ coin, onPress }) => {
 
 const CoinRow = React.memo(({ coin, onPress, t }) => {
   const up = coin.price_change_percentage_24h >= 0;
-  const tradable = !!WRAPPED_BY_COINGECKO_ID[coin.id];
+  const tradable = !!WRAPPED_BY_COINGECKO_ID[coin.id] || CORE_TRADABLE_IDS.has(coin.id);
   return (
     <TouchableOpacity style={S.row} activeOpacity={0.7} onPress={() => onPress(coin)}>
       <Text style={[S.rank, { color: C.muted }]}>{coin.rank || ''}</Text>

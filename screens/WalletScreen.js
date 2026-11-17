@@ -370,20 +370,19 @@ export default function WalletScreen() {
       } catch (_) { overview = {}; }
 
       const solMint  = coreMint('SOL');
-      const mecoMint = coreMint('MECO');
-      const usdcMint = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
-      const usdtMint = 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB';
 
       for (const acc of others) {
         const ov = overview[acc.publicKey];
         if (!ov || !ov.ok) { balances[acc.publicKey] = 0; continue; }
         const tk = ov.tokens || {};
 
-        let total =
-          ((ov.sol || 0)            * (priceMap[solMint]            || 0)) +
-          ((tk[mecoMint] || 0)      * (priceMap[coreMint('MECO')]   || 0)) +
-          ((tk[usdcMint] || 0)      * (priceMap[coreMint('USDC')]   || 0)) +
-          ((tk[usdtMint] || 0)      * (priceMap[coreMint('USDT')]   || 0));
+        // SOL + كل عملات التطبيق (الأساسية والإضافية) بحسب عنوان العقد
+        let total = (ov.sol || 0) * (priceMap[solMint] || 0);
+        for (const ct of CORE_TOKENS) {
+          if (ct.symbol === 'SOL') continue;
+          const amt = tk[ct.mint] || 0;
+          if (amt > 0) total += amt * (priceMap[ct.mint] || 0);
+        }
 
         // العملات المخصصة التي أضافها المستخدم من شاشة السوق
         for (const ct of customList) {
