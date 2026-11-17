@@ -233,23 +233,79 @@ export default function WalletScreen() {
     }
   }, [accounts, activeAccountIndex]);
 
+  const lastPriceMapRef = useRef({});
+  const loadIdRef       = useRef(0);
   const loadWalletData = useCallback(async (publicKey, silent = false) => {
     try {
       if (!publicKey) { setLoadingInitial(false); setIsSwitchingAccount(false); return; }
       clearBalanceCache();
+      const myLoad = ++loadIdRef.current;
       if (!silent) setIsSwitchingAccount(true);
       const addr = typeof publicKey === 'string' ? publicKey : publicKey.toString();
 
-      const [solBal, tokenAccounts, marketData, customTokensList] = await Promise.all([
+      // الأرصدة أولاً (سريعة)، والأسعار تُجلب بالتوازي ولا تحجب عرض الأرصدة
+      const marketPromise = getJupiterMarketData().catch(() => []);
+      const [solBal, tokenAccounts, customTokensList] = await Promise.all([
         getSolBalance(true, addr).catch(() => 0),
         getTokenAccounts(addr).catch(() => []),
-        getJupiterMarketData().catch(() => []),
         getCustomTokens().catch(() => []),
       ]);
 
-      // التسعير بحسب عنوان العقد (mint) لتفادي تعارض الرموز المتشابهة
+      // رصيد mSOL (إثبات التخزين مع Marinade) — عنوان العقد من وثائق Marinade الرسمية
+      const msolData = tokenAccounts.find(tk => tk.mint === MSOL_MINT);
+      const msolAmount = msolData?.amount || 0;
+      setMsol({ amount: msolAmount, usd: 0 });
+
+      // بناء القائمة والإجمالي بحسب خريطة أسعار معطاة (بعنوان العقد لتفادي تعارض الرموز المتشابهة)
+      const render = (priceMap, updateTotal) => {
+        let calculatedTotalUSD = 0;
+        const allAssets = CORE_TOKENS.map(asset => {
+          let amount = 0;
+          if (asset.symbol === 'SOL') {
+            amount = solBal || 0;
+          } else {
+            const tokenData = tokenAccounts.find(tk => tk.mint === asset.mint);
+            if (tokenData) amount = tokenData.amount || 0;
+          }
+          const price    = priceMap[asset.mint] || 0;
+          const valueUSD = amount * price;
+          calculatedTotalUSD += valueUSD;
+          return { ...asset, amount, price, valueUSD };
+        });
+
+        const filteredAssets = allAssets.filter(
+          asset => asset.symbol === 'SOL' || asset.symbol === 'MECO' || asset.amount > 0
+        );
+
+        for (const customToken of customTokensList) {
+          const tokenData = tokenAccounts.find(tk => tk.mint === customToken.mint);
+          const amount    = tokenData?.amount || 0;
+          if (amount > 0) {
+            const price    = priceMap[customToken.mint] || customToken.current_price || 0;
+            const valueUSD = amount * price;
+            calculatedTotalUSD += valueUSD;
+            filteredAssets.push({ ...customToken, amount, price, valueUSD });
+          }
+        }
+
+        filteredAssets.sort((a, b) => b.valueUSD - a.valueUSD);
+        setAssets(filteredAssets);
+        if (updateTotal) setTotalBalanceUSD(calculatedTotalUSD);
+      };
+
+      if (myLoad !== loadIdRef.current) return;   // طلب أحدث (تبديل حساب) حلّ محلّه
+      // مرحلة 1: عرض الأرصدة فوراً بآخر أسعار معروفة (دون المساس بالإجمالي إن لم تتوفر أسعار)
+      const lastPrices = lastPriceMapRef.current;
+      render(lastPrices, Object.keys(lastPrices).length > 0);
+      setLoadingInitial(false);
+      setIsSwitchingAccount(false);
+
+      // مرحلة 2: الأسعار الحالية
+      const marketData = await marketPromise;
       const priceMap = {};
       marketData.forEach(tk => { if (tk.mint) priceMap[tk.mint] = tk.current_price || 0; });
+      if (Object.keys(priceMap).length > 0) lastPriceMapRef.current = priceMap;
+      if (myLoad !== loadIdRef.current) return;
 
       const tradableList = CORE_TOKENS
         .filter(tk => tk.swapAvailable)
@@ -263,10 +319,6 @@ export default function WalletScreen() {
         });
       setTradableTokens(tradableList);
 
-      // رصيد mSOL (إثبات التخزين مع Marinade) — عنوان العقد من وثائق Marinade الرسمية
-      const msolData = tokenAccounts.find(tk => tk.mint === MSOL_MINT);
-      const msolAmount = msolData?.amount || 0;
-      setMsol({ amount: msolAmount, usd: 0 });
       // السعر يُطلب فقط إن كان لدى المستخدم mSOL (لا طلبات إضافية لغيره)
       if (msolAmount > 0) {
         getMintPriceUsd(MSOL_MINT)
@@ -274,40 +326,7 @@ export default function WalletScreen() {
           .catch(() => {});
       }
 
-      let calculatedTotalUSD = 0;
-
-      const allAssets = CORE_TOKENS.map(asset => {
-        let amount = 0;
-        if (asset.symbol === 'SOL') {
-          amount = solBal || 0;
-        } else {
-          const tokenData = tokenAccounts.find(tk => tk.mint === asset.mint);
-          if (tokenData) amount = tokenData.amount || 0;
-        }
-        const price    = priceMap[asset.mint] || 0;
-        const valueUSD = amount * price;
-        calculatedTotalUSD += valueUSD;
-        return { ...asset, amount, price, valueUSD };
-      });
-
-      const filteredAssets = allAssets.filter(
-        asset => asset.symbol === 'SOL' || asset.symbol === 'MECO' || asset.amount > 0
-      );
-
-      for (const customToken of customTokensList) {
-        const tokenData = tokenAccounts.find(tk => tk.mint === customToken.mint);
-        const amount    = tokenData?.amount || 0;
-        if (amount > 0) {
-          const price    = priceMap[customToken.mint] || customToken.current_price || 0;
-          const valueUSD = amount * price;
-          calculatedTotalUSD += valueUSD;
-          filteredAssets.push({ ...customToken, amount, price, valueUSD });
-        }
-      }
-
-      filteredAssets.sort((a, b) => b.valueUSD - a.valueUSD);
-      setAssets(filteredAssets);
-      setTotalBalanceUSD(calculatedTotalUSD);
+      render(Object.keys(priceMap).length ? priceMap : lastPriceMapRef.current, true);
     } catch (error) {
       console.error('loadWalletData error:', error);
     } finally {

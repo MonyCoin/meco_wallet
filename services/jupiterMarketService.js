@@ -182,7 +182,25 @@ export async function getMintPriceUsd(mint) {
 }
 
 // ─── الدالة الرئيسية ──────────────────────────────────────────────────────────
+// تخزين مؤقت قصير + منع تكرار الطلب نفسه عند استدعائه من أكثر من شاشة في وقت واحد
+const MD_TTL_MS = 15000;
+let MD_CACHE = null;     // { rows, ts }
+let MD_PENDING = null;
+export function clearMarketCache() { MD_CACHE = null; }
 export async function getJupiterMarketData() {
+  if (MD_CACHE && Date.now() - MD_CACHE.ts < MD_TTL_MS) return MD_CACHE.rows;
+  if (MD_PENDING) return MD_PENDING;
+  MD_PENDING = (async () => {
+    try {
+      const rows = await loadJupiterMarketData();
+      MD_CACHE = { rows, ts: Date.now() };
+      return rows;
+    } finally { MD_PENDING = null; }
+  })();
+  return MD_PENDING;
+}
+
+async function loadJupiterMarketData() {
   await applyStoredImages();
   ensureTokenImages();   // تحديث الشعارات في الخلفية دون تأخير العرض
   try {
@@ -191,11 +209,13 @@ export async function getJupiterMarketData() {
     const otherTokens = CORE_TOKENS.filter(t => t.symbol !== 'MECO');
     const otherMints  = otherTokens.map(t => t.mint);
 
-    const [jupMap, dexOthersMap, mecoMap] = await Promise.all([
+    const [jupMap, mecoMap] = await Promise.all([
       fetchJupiterPrices(otherMints),
-      fetchDexScreener(otherMints),
       fetchDexScreener([MECO_MINT]),
     ]);
+    // DexScreener احتياطي فقط: نسأل عن العملات التي لم يُرجع Jupiter سعرها (عادةً لا شيء)
+    const missingMints = otherMints.filter(m => !(jupMap.get(m.toLowerCase())?.price > 0));
+    const dexOthersMap = missingMints.length ? await fetchDexScreener(missingMints) : new Map();
 
     // ── بيانات MECO ───────────────────────────────────────────────────────────
     const mecoData  = mecoMap.get(MECO_MINT.toLowerCase());
@@ -282,6 +302,7 @@ export async function saveCustomToken(token) {
     throw svcError('token_added');
   const updated = [...existing, token];
   await AsyncStorage.setItem(CUSTOM_TOKENS_KEY, JSON.stringify(updated));
+  clearMarketCache();
   return updated;
 }
 
@@ -289,6 +310,7 @@ export async function deleteCustomToken(mintAddress) {
   const existing = await getCustomTokens();
   const updated  = existing.filter(t => t.mint.toLowerCase() !== mintAddress.toLowerCase());
   await AsyncStorage.setItem(CUSTOM_TOKENS_KEY, JSON.stringify(updated));
+  clearMarketCache();
   return updated;
 }
 
