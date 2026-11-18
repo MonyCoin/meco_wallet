@@ -12,7 +12,7 @@ import { useAppStore } from '../store';
 import { requireAuth } from '../services/appLock';
 import { getAllPoolStats, orcaPoolUrl, explorerPoolUrl } from '../services/liquidityService';
 import {
-  listPositions, withdrawPosition, collectPositionFees, SERVICE_FEE_SOL, FEE_COLLECTOR_ADDRESS,
+  listPositions, withdrawPositionPercent, collectPositionFees, SERVICE_FEE_SOL, FEE_COLLECTOR_ADDRESS,
 } from '../services/liquidityActions';
 
 const C = {
@@ -67,6 +67,8 @@ export default function LiquidityScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [busyKey, setBusyKey] = useState(null);
+  const [wdOpen, setWdOpen] = useState(null);   // عنوان المركز الذي فُتحت خيارات سحبه
+  const [wdPct, setWdPct] = useState(50);
   const [tab, setTab] = useState(null);   // لا مجمع افتراضي: يختار المستخدم
   const mounted = useRef(true);
 
@@ -132,18 +134,18 @@ export default function LiquidityScreen() {
     ]);
   };
 
-  const onWithdraw = (pos) => {
-    Alert.alert(
-      S.wd_confirm_title,
-      `${S.wd_confirm_body}\n${amt(pos.mecoAmount)} MECO + ${amt(pos.otherAmount)} ${pos.otherSymbol}` +
-      (pos.feeMeco !== null ? `\n${S.pos_fees}: ${amt(pos.feeMeco)} MECO + ${amt(pos.feeOther)} ${pos.otherSymbol}` : '') +
-      `\n${S.service_fee}: ${SERVICE_FEE_SOL} SOL` +
-      `\n\n${S.manage_note}`,
-      [
-        { text: S.dep_cancel, style: 'cancel' },
-        { text: S.go, style: 'destructive', onPress: () => runAction('w' + pos.address, () => withdrawPosition({ privateKey, positionAddress: pos.address }), S.wd_ok) },
-      ],
-    );
+  const toggleWithdraw = (pos) => {
+    if (wdOpen === pos.address) { setWdOpen(null); return; }
+    setWdPct(50);
+    setWdOpen(pos.address);
+  };
+
+  const confirmWithdraw = (pos) => {
+    const n = wdPct;
+    runAction('w' + pos.address,
+      () => withdrawPositionPercent({ privateKey, positionAddress: pos.address, percent: n }),
+      S.wd_ok);
+    setWdOpen(null);
   };
 
   const onCollect = (pos) => {
@@ -209,13 +211,41 @@ export default function LiquidityScreen() {
               </View>
             ) : (
               <TouchableOpacity style={[st.smallBtn, { backgroundColor: C.card }]} disabled={!!busyKey}
-                onPress={() => onWithdraw(pos)}>
+                onPress={() => toggleWithdraw(pos)}>
                 {busyKey === 'w' + pos.address
                   ? <ActivityIndicator size="small" color={C.error} />
-                  : <Text style={[st.smallTxt, { color: C.error }]}>{S.withdraw}</Text>}
+                  : <Text style={[st.smallTxt, { color: C.error }]}>{S.withdraw_menu} {wdOpen === pos.address ? '▴' : '▾'}</Text>}
               </TouchableOpacity>
             )}
           </View>
+          {!pos.locked && wdOpen === pos.address && (
+            <View style={st.wdPanel}>
+              <View style={st.chips}>
+                {[25, 50, 75, 100].map(n => (
+                  <TouchableOpacity key={n} style={[st.chip, wdPct === n && { backgroundColor: C.error }]}
+                    onPress={() => setWdPct(n)}>
+                    <Text style={[st.chipTxt, wdPct === n && { color: '#fff' }]}>{n}%</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <Text style={st.wdEst}>
+                {S.wd_receive}: {amt((pos.mecoAmount || 0) * wdPct / 100, 0)} MECO + {amt((pos.otherAmount || 0) * wdPct / 100, 4)} {pos.otherSymbol}
+              </Text>
+              <Text style={st.hint}>
+                {wdPct === 100 ? S.wd_note_full : S.wd_note_partial}
+                {`\n${S.service_fee}: ${SERVICE_FEE_SOL} SOL`}
+              </Text>
+              <View style={st.posBtns}>
+                <TouchableOpacity style={[st.smallBtn, { backgroundColor: C.error }]} disabled={!!busyKey}
+                  onPress={() => confirmWithdraw(pos)}>
+                  <Text style={[st.smallTxt, { color: '#fff' }]}>{S.wd_confirm_pct.replace('{n}', String(wdPct))}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[st.smallBtn, { backgroundColor: C.card }]} onPress={() => setWdOpen(null)}>
+                  <Text style={[st.smallTxt, { color: C.muted }]}>{S.dep_cancel}</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
         </View>
       ));
     }
@@ -362,6 +392,11 @@ const st = StyleSheet.create({
   posLine: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginTop: 6, paddingHorizontal: 4 },
   posSym: { color: C.muted, fontSize: 11, fontWeight: '600' },
   posNum: { color: C.text, fontSize: 12.5, fontWeight: '700' },
+  wdPanel: { backgroundColor: C.card, borderRadius: 12, padding: 10, marginTop: 8 },
+  chips: { flexDirection: 'row', gap: 6 },
+  chip: { flex: 1, borderRadius: 16, paddingVertical: 8, alignItems: 'center', backgroundColor: C.card2 },
+  chipTxt: { color: C.text, fontSize: 13, fontWeight: '700' },
+  wdEst: { color: C.text, fontSize: 12.5, fontWeight: '600', marginTop: 10 },
   posBtns: { flexDirection: 'row', gap: 8, marginTop: 8 },
   smallBtn: { flex: 1, borderRadius: 20, paddingVertical: 10, alignItems: 'center', justifyContent: 'center' },
   smallTxt: { fontSize: 13, fontWeight: '700' },

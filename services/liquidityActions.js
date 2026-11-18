@@ -242,6 +242,47 @@ export async function withdrawPosition({ privateKey, positionAddress }) {
   return { signatures, feeCharged: fee.ok, feeError: fee.error || null };
 }
 
+/**
+ * سحب نسبة من سيولة المركز (25/50/75) مع بقاء المركز مفتوحًا بالباقي.
+ * 100% = إغلاق كامل عبر withdrawPosition (مع جمع الرسوم).
+ */
+export async function withdrawPositionPercent({ privateKey, positionAddress, percent }) {
+  const pctInt = Math.round(Number(percent));
+  if (!(pctInt >= 1 && pctInt <= 100)) throw new Error('BAD_PERCENT');
+  if (pctInt === 100) return withdrawPosition({ privateKey, positionAddress });
+
+  const { orca, common } = loadLibs();
+  const kp = getKeypairFromStore(privateKey);
+  const owner = kp.publicKey;
+  const found = await assertOwnPosition(owner.toBase58(), positionAddress);
+  if (found.locked) throw new Error('POSITION_LOCKED');
+
+  const { ctx, client, connection } = await makeContext(signerWallet(kp));
+  const position = await client.getPosition(positionAddress, orca.IGNORE_CACHE);
+  const pool = await client.getPool(position.getData().whirlpool, orca.IGNORE_CACHE);
+
+  const liquidity = position.getData().liquidity;
+  const part = liquidity.muln(pctInt).divn(100);
+  if (part.isZero()) throw new Error('NO_LIQUIDITY');
+
+  const tokenExtensionCtx = await orca.TokenExtensionUtil.buildTokenExtensionContext(
+    ctx.fetcher, pool.getData(), orca.IGNORE_CACHE,
+  );
+  const quote = orca.decreaseLiquidityQuoteByLiquidity(
+    part, common.Percentage.fromFraction(SLIPPAGE_PCT, 100), position, pool, tokenExtensionCtx,
+  );
+  const tx = await position.decreaseLiquidity(
+    { liquidityAmount: quote.liquidityAmount, tokenMinA: quote.tokenMinA, tokenMinB: quote.tokenMinB },
+    true, owner, owner, owner,
+  );
+  const signature = await tx.buildAndExecute();
+
+  const fee = await chargeServiceFee(connection, kp);
+  clearBalanceCache();
+  invalidateCaches();
+  return { signatures: [signature], feeCharged: fee.ok, feeError: fee.error || null };
+}
+
 /** جمع الرسوم فقط (يبقى المركز مفتوحًا) */
 export async function collectPositionFees({ privateKey, positionAddress }) {
   const { orca } = loadLibs();
