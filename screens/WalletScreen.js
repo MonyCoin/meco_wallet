@@ -16,6 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getSolBalance, getTokenAccounts, getAccountsOverview, clearBalanceCache } from '../services/heliusService';
 import { CORE_TOKENS, getJupiterMarketData, getCustomTokens, getMintPriceUsd } from '../services/jupiterMarketService';
+import { findReclaimableAccounts } from '../services/rentReclaimService';
 import { listPositions } from '../services/liquidityActions';
 import { getUnreadCount } from '../services/notificationsService';
 import { WCEvents, getConnectedSites, disconnectSite, disconnectAllSites } from '../services/walletConnectService';
@@ -104,6 +105,7 @@ export default function WalletScreen() {
   const [totalBalanceUSD,       setTotalBalanceUSD]       = useState(0);
   const [assets,                setAssets]                = useState([]);
   const [msol,                  setMsol]                  = useState({ amount: 0, usd: 0 });
+  const [reclaim,               setReclaim]               = useState(null);   // { count, sol, usd } أو null
   const [tradableTokens,        setTradableTokens]        = useState([]);
   const [liqSummary,            setLiqSummary]            = useState(null);   // null | { count, meco, fees }
   const liqOwner = useAppStore(state => state.accounts?.[state.activeAccountIndex]?.publicKey || null);
@@ -327,6 +329,21 @@ export default function WalletScreen() {
       }
 
       render(Object.keys(priceMap).length ? priceMap : lastPriceMapRef.current, true);
+
+      // استرداد الإيجار: نسأل الشبكة فقط إن وُجد لدى الحساب حساب عملة فارغ (لا طلبات إضافية لغيره)
+      if (tokenAccounts.some(a => !a.amount)) {
+        findReclaimableAccounts(addr)
+          .then(r => {
+            if (myLoad !== loadIdRef.current) return;
+            if (r.accounts.length === 0) { setReclaim(null); return; }
+            const sol = r.totalLamports / 1e9;
+            const solPrice = (Object.keys(priceMap).length ? priceMap : lastPriceMapRef.current)[CORE_TOKENS.find(t => t.symbol === 'SOL')?.mint] || 0;
+            setReclaim({ count: r.accounts.length, sol, usd: sol * solPrice });
+          })
+          .catch(() => {});
+      } else {
+        setReclaim(null);
+      }
     } catch (error) {
       console.error('loadWalletData error:', error);
     } finally {
@@ -904,6 +921,39 @@ export default function WalletScreen() {
             </TouchableOpacity>
             )}
           </View>
+
+          {reclaim && (
+            <View style={styles.activitySection}>
+              <View style={[styles.assetsHeader, { paddingHorizontal: 20 - CARD_SIDE }]}>
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                  {t('reclaim.card_title')}
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={[styles.activityCard, { backgroundColor: colors.card }]}
+                onPress={() => navigation.navigate('ReclaimRent')}
+                activeOpacity={0.75}
+              >
+                <View style={[styles.activityIconWrap, { backgroundColor: '#10B98115' }]}>
+                  <Ionicons name="refresh-circle-outline" size={22} color="#10B981" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.activityLabel, { color: colors.text }]}>
+                    {t('reclaim.card_found', { count: reclaim.count })}
+                  </Text>
+                  <Text style={[styles.activitySub, { color: colors.textSecondary }]}>
+                    {t('reclaim.card_sub', { sol: reclaim.sol.toFixed(4), usd: reclaim.usd > 0 ? ` (≈ $${reclaim.usd.toFixed(2)})` : '' })}
+                  </Text>
+                </View>
+                <View style={[styles.viewPill, { backgroundColor: primaryColor + '15' }]}>
+                  <Text style={[styles.viewPillTxt, { color: primaryColor }]}>
+                    {t('reclaim.card_btn')}
+                  </Text>
+                  <DirIcon name="arrow-forward" size={12} color={primaryColor} />
+                </View>
+              </TouchableOpacity>
+            </View>
+          )}
 
           <View style={styles.activitySection}>
             <View style={[styles.assetsHeader, { paddingHorizontal: 20 - CARD_SIDE }]}>

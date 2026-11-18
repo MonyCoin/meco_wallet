@@ -21,7 +21,8 @@ import { addNotification, NOTIF_TYPES } from '../services/notificationsService';
 
 const { height, width } = Dimensions.get('window');
 
-const SOL_FEE_RESERVE  = 0.001;
+// يتوافق مع شرط swapService.checkBalance (رسوم المنصة 0.0005 + هامش الشبكة 0.001) ليعمل زر «الحد الأقصى» دون فشل
+const SOL_FEE_RESERVE  = 0.0015;
 const PLATFORM_FEE_SOL = 0.0005;
 
 const ERROR_TYPE = {
@@ -239,6 +240,10 @@ export default function SwapScreen() {
     const fromBalance = balances[fromToken.symbol] || 0;
     if (parseFloat(fromAmount) > fromBalance) {
       Alert.alert(t('error'), t('swap_insufficient_balance'));
+      return;
+    }
+    if (fromToken.symbol === 'SOL' && parseFloat(fromAmount) > fromBalance - SOL_FEE_RESERVE) {
+      Alert.alert(t('error'), t('sol_reserve_msg', { reserve: SOL_FEE_RESERVE }));
       return;
     }
 

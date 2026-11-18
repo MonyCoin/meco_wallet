@@ -45,6 +45,7 @@ import AddressBookScreen        from './screens/AddressBookScreen';
 import QuickTradeScreen         from './screens/QuickTradeScreen';
 import TradeExecutionScreen     from './screens/TradeExecutionScreen';
 import ActivityHistoryScreen    from './screens/ActivityHistoryScreen';
+import ReclaimRentScreen        from './screens/ReclaimRentScreen';
 import { checkBalanceChanges }  from './services/balanceMonitorService';
 import { checkPriceAlerts }     from './services/priceAlertService';
 
@@ -310,6 +311,7 @@ export default function AppContainer() {
           <Stack.Screen name="QuickTrade"         component={QuickTradeScreen}         options={{ headerShown:false }} />
           <Stack.Screen name="TradeExecution"     component={TradeExecutionScreen}     options={{ headerShown:false }} />
           <Stack.Screen name="ActivityHistory"    component={ActivityHistoryScreen}    options={{ headerShown:false }} />
+          <Stack.Screen name="ReclaimRent"        component={ReclaimRentScreen}        options={{ headerShown:false }} />
         </Stack.Navigator>
         <WalletConnectSignModal locked={locked} />
       </NavigationContainer>

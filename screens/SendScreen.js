@@ -27,6 +27,19 @@ import { toBaseUnits, friendlySendError } from '../services/pureHelpers';
 
 const FEE_COLLECTOR_ADDRESS = 'BkaJsFAJKPQZgreBFLrY2pPUi44fTJzXhmeBc8LeuF5W';
 const SERVICE_FEE_SOL       = 0.0005;
+// المعاملة تُرسَل بلا رسوم أولوية، فرسم الشبكة الفعلي ثابت: 5000 lamports لتوقيع واحد
+const BASE_FEE_LAMPORTS     = 5000;
+const SERVICE_FEE_LAMPORTS  = Math.round(SERVICE_FEE_SOL * 1e9);
+// الحد الأدنى الذي تقبله الشبكة لبقاء حساب SOL مفعّلاً (حساب بلا بيانات): إما صفر تماماً أو هذا المبلغ فأكثر
+const RENT_EXEMPT_MIN_LAMPORTS = 890880;
+// إيجار حساب عملة (165 بايت) يدفعه المرسل إن لم يكن للمستلم حساب لهذه العملة
+const TOKEN_ACCOUNT_RENT_LAMPORTS = 2039280;
+const toLamports = (sol) => Math.round((Number(sol) || 0) * 1e9);
+// أقصى مبلغ SOL يمكن إرساله فيصبح الرصيد صفراً بعد الرسوم (مقرّب للأسفل، 9 خانات)
+const maxSendableSolString = (balanceSol) => {
+  const lam = toLamports(balanceSol) - BASE_FEE_LAMPORTS - SERVICE_FEE_LAMPORTS;
+  return lam > 0 ? (lam / 1e9).toFixed(9) : '0';
+};
 
 const AB_CATEGORIES = [
   { id: 'family',    icon: 'people-outline',    color: '#EF4444' },
@@ -141,7 +154,7 @@ export default function SendScreen() {
     () => CORE_TOKENS.find(tk => tk.symbol === state.currency) || CORE_TOKENS[0],
     [state.currency]
   );
-  const totalFees = useMemo(() => state.networkFee + SERVICE_FEE_SOL, [state.networkFee]);
+  const totalFees = SERVICE_FEE_SOL + BASE_FEE_LAMPORTS / 1e9;   // رسوم فعلية لا تقديرية
   const currentBalance = useMemo(() => {
     return state.currency === 'SOL' ? (balances.sol || 0) : (balances.tokens[state.currency] || 0);
   }, [state.currency, balances]);
@@ -269,17 +282,57 @@ export default function SendScreen() {
       return Alert.alert(t('error'), t('sendScreen.alerts.insufficientBalance'));
     }
 
-    const requiredSol = state.currency === 'SOL' ? amountNum + totalFees : totalFees;
-    if (balances.sol < requiredSol) {
+    // مستلم جديد لهذه العملة؟ ينشئ المرسل حسابه بإيجار ≈ 0.00204 SOL (نفس اشتقاق العنوان المستعمل عند الإرسال)
+    let ataRentLam = 0;
+    if (state.currency !== 'SOL' && currentToken.mint) {
+      try {
+        const toATA = await splToken.getAssociatedTokenAddress(new web3.PublicKey(currentToken.mint), new web3.PublicKey(recipient));
+        const info  = await heliusRpcRequest('getAccountInfo', [toATA.toBase58()]);
+        if (!info) ataRentLam = TOKEN_ACCOUNT_RENT_LAMPORTS;
+      } catch (_) { /* تعذّر الفحص: نكمل دون إضافة */ }
+    }
+
+    // الحساب بوحدة lamports لتفادي أخطاء الفاصلة العشرية
+    const balanceLam = toLamports(balances.sol);
+    const feeLam     = BASE_FEE_LAMPORTS + SERVICE_FEE_LAMPORTS;
+    const sendLam    = state.currency === 'SOL' ? toLamports(state.amount) : 0;
+    const requiredLam = sendLam + feeLam + ataRentLam;
+    if (balanceLam < requiredLam) {
       return Alert.alert(
         t('error'),
-        t('sendScreen.alerts.insufficientSolForFees', {
-          needed:  requiredSol.toFixed(5),
-          balance: balances.sol.toFixed(5),
-        })
+        ataRentLam > 0
+          ? t('sendScreen.alerts.ata_needs_sol', {
+              rent:    (ataRentLam / 1e9).toFixed(5),
+              needed:  (requiredLam / 1e9).toFixed(5),
+              balance: (balanceLam / 1e9).toFixed(5),
+            })
+          : t('sendScreen.alerts.insufficientSolForFees', {
+              needed:  (requiredLam / 1e9).toFixed(5),
+              balance: (balanceLam / 1e9).toFixed(5),
+            })
       );
     }
 
+    // المتبقي من SOL بعد العملية: إما صفر أو لا يقل عن الحد الأدنى للشبكة، وإلا تفشل المعاملة
+    const leftoverLam = balanceLam - requiredLam;
+    if (leftoverLam > 0 && leftoverLam < RENT_EXEMPT_MIN_LAMPORTS) {
+      if (state.currency === 'SOL') {
+        return Alert.alert(
+          t('sendScreen.alerts.leftover_title'),
+          t('sendScreen.alerts.leftover_sol', { min: (RENT_EXEMPT_MIN_LAMPORTS / 1e9).toFixed(5) }),
+          [
+            { text: t('cancel'), style: 'cancel' },
+            { text: t('sendScreen.alerts.send_all'), onPress: () => setState(prev => ({ ...prev, amount: maxSendableSolString(balances.sol) })) },
+          ]
+        );
+      }
+      return Alert.alert(
+        t('sendScreen.alerts.leftover_title'),
+        t('sendScreen.alerts.leftover_token', { min: (RENT_EXEMPT_MIN_LAMPORTS / 1e9).toFixed(5) })
+      );
+    }
+
+    const willBeZero = state.currency === 'SOL' && leftoverLam === 0;
     const feeUsdText = state.solPriceUsd > 0 ? ` (≈ $${(totalFees * state.solPriceUsd).toFixed(2)})` : '';
     const recipientShort = `${recipient.slice(0, 6)}...${recipient.slice(-4)}`;
 
@@ -293,7 +346,8 @@ export default function SendScreen() {
         feeUsd:      feeUsdText,
         platformFee: SERVICE_FEE_SOL,
         defaultValue: `سيتم إرسال {{amount}} {{symbol}} إلى {{recipient}}\n\nإجمالي الرسوم: {{totalFee}} SOL{{feeUsd}}\n(رسوم شبكة سولانا + رسوم منصة ثابتة قدرها {{platformFee}} SOL)`,
-      }),
+      }) + (willBeZero ? '\n\n' + t('sendScreen.alerts.will_be_zero') : '')
+        + (ataRentLam > 0 ? '\n\n' + t('sendScreen.alerts.ata_note', { rent: (ataRentLam / 1e9).toFixed(5) }) : ''),
       [
         { text: t('cancel'), style: 'cancel' },
         {
@@ -425,15 +479,12 @@ export default function SendScreen() {
   }, [state.networkFee, loadInitialBalance, t]);
 
   const handleMaxAmount = useCallback(() => {
-    let maxAmount = 0;
-    if (state.currency === 'SOL') {
-      const MIN_KEEP_ALIVE = 0.001;
-      maxAmount = Math.max(0, currentBalance - totalFees - MIN_KEEP_ALIVE);
-    } else {
-      maxAmount = currentBalance;
-    }
-    setState(prev => ({ ...prev, amount: maxAmount > 0 ? maxAmount.toFixed(6) : '0' }));
-  }, [currentBalance, state.currency, totalFees]);
+    // SOL: كل الرصيد بعد الرسوم (يصبح الرصيد صفراً). العملات الأخرى: كامل رصيدها.
+    const maxAmount = state.currency === 'SOL'
+      ? maxSendableSolString(currentBalance)
+      : (currentBalance > 0 ? currentBalance.toFixed(6) : '0');
+    setState(prev => ({ ...prev, amount: maxAmount }));
+  }, [currentBalance, state.currency]);
 
   const handlePasteAddress = useCallback(async () => {
     const text = await Clipboard.getStringAsync();

@@ -178,7 +178,7 @@ export default function TradeExecutionScreen() {
     if (amt > inputBalance) { Alert.alert(t('error'), t('trading_errors.insufficient_balance')); return null; }
     if (!walletPublicKey)  { Alert.alert(t('error'), t('no_wallet')); return null; }
     if (inputToken.symbol === 'SOL' && amt + SOL_RESERVE > inputBalance) {
-      Alert.alert(t('error'), t('trading_errors.insufficient_balance'));
+      Alert.alert(t('error'), t('sol_reserve_msg', { reserve: SOL_RESERVE }));
       return null;
     }
     return amt;
