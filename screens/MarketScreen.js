@@ -252,16 +252,19 @@ const MarketHeroBanner = React.memo(({ token, primaryColor, onPress, onTrade }) 
   useEffect(() => {
     let alive = true;
     getOHLCData('MECO', 1)
-      .then(r => { if (alive) setCandles(r && Array.isArray(r.data) && r.data.length >= 2 ? r.data : null); })
+      .then(r => {
+        if (!alive) return;
+        // شموع آخر 24 ساعة فقط (المجمع قليل التداول قد يُرجع شموعًا أقدم)
+        const since = Date.now() - 86400000;
+        const rows  = r && Array.isArray(r.data) ? r.data.filter(c => c.timestamp >= since) : [];
+        setCandles(rows.length >= 2 ? rows : null);
+      })
       .catch(() => { if (alive) setCandles(null); });
     return () => { alive = false; };
   }, [price]);
 
-  // التغير واللون من الشموع نفسها حين تتوفر، حتى يتطابق البانر مع شاشة التفاصيل
-  const candleChange = candles && candles[0].open > 0
-    ? ((candles[candles.length - 1].close - candles[0].open) / candles[0].open) * 100
-    : null;
-  const change = candleChange !== null ? candleChange : (token?.price_change_percentage_24h || 0);
+  // النسبة من مصدر واحد موحّد مع كل الشاشات (price_change_percentage_24h للرمز)
+  const change = token?.price_change_percentage_24h || 0;
   const up     = change >= 0;
   const accent = up ? HERO_GREEN : HERO_RED;
 
