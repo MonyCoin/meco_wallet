@@ -275,10 +275,20 @@ export default function AddressBookScreen() {
               </Text>
             </View>
           )}
-          {isSelectionMode
-            ? <DirIcon name="chevron-forward" size={16} color={C.muted} />
-            : <Ionicons name="create-outline" size={16} color={C.muted} />
-          }
+          <View style={S.itemActions}>
+            <TouchableOpacity
+              style={[S.itemDelBtn, { backgroundColor: C.error + '14' }]}
+              onPress={() => handleDelete(item)}
+              hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="trash-outline" size={15} color={C.error} />
+            </TouchableOpacity>
+            {isSelectionMode
+              ? <DirIcon name="chevron-forward" size={16} color={C.muted} />
+              : <Ionicons name="create-outline" size={16} color={C.muted} />
+            }
+          </View>
         </View>
       </TouchableOpacity>
     );
@@ -660,6 +670,8 @@ const S = StyleSheet.create({
   itemAddress: { fontSize: 11, fontFamily: 'monospace', marginBottom: 2 },
   itemNote:    { fontSize: 10, fontStyle: 'italic' },
   itemRight:   { alignItems: 'flex-end', gap: 6 },
+  itemActions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  itemDelBtn:  { width: 30, height: 30, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   useBadge: {
     flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: 6, paddingVertical: 2,
