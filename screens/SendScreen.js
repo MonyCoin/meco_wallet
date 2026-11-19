@@ -11,7 +11,7 @@ import { useTranslation } from 'react-i18next';
 import { useRoute, useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
-  getSolBalance, getTokenBalance, validateSolanaAddress,
+  getSolBalance, getTokenBalance, getTokenAccounts, validateSolanaAddress,
   getCurrentNetworkFee, getLatestBlockhash, clearBalanceCache, heliusRpcRequest
 } from '../services/heliusService';
 import heliusService from '../services/heliusService'; 
@@ -189,15 +189,21 @@ export default function SendScreen() {
     try {
       const publicKey       = activeAccount.publicKey;
       const newTokenBalances= { ...balances.tokens };
-      const solBalance      = await getSolBalance(false, publicKey);
 
-      const tokensToFetch = CORE_TOKENS.filter(tk => tk.mint && tk.symbol !== 'SOL');
-      for (const token of tokensToFetch) {
-        try {
-          newTokenBalances[token.symbol] = await getTokenBalance(token.mint, false, publicKey);
-          await new Promise(r => setTimeout(r, 100));
-        } catch (_) {
-          newTokenBalances[token.symbol] = 0;
+      // SOL والرموز بالتوازي: طلبان للرموز (SPL + Token-2022) بدل طلبين-ثلاثة لكل رمز بالتسلسل
+      const solPromise = getSolBalance(false, publicKey);
+      const accPromise = getTokenAccounts(publicKey).catch(() => null);
+
+      // يظهر رصيد SOL فور وصوله دون انتظار بقية الرموز
+      const solBalance = await solPromise;
+      if (isMounted.current) setBalances(prev => ({ ...prev, sol: solBalance }));
+
+      const accounts = await accPromise;
+      if (accounts) {
+        const byMint = {};
+        for (const acc of accounts) byMint[acc.mint] = (byMint[acc.mint] || 0) + (Number(acc.amount) || 0);
+        for (const token of CORE_TOKENS.filter(tk => tk.mint && tk.symbol !== 'SOL')) {
+          newTokenBalances[token.symbol] = byMint[token.mint] || 0;
         }
       }
       if (isMounted.current) setBalances({ sol: solBalance, tokens: newTokenBalances, lastUpdated: Date.now() });

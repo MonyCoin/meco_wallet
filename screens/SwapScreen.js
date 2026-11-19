@@ -16,7 +16,7 @@ import * as SwapAPI from '../services/swapService';
 import NetInfo from '@react-native-community/netinfo';
 import { CORE_TOKENS, getSolPriceUsd, ensureTokenImages } from '../services/jupiterMarketService';
 import { IMPACT_GUARD_SYMBOLS } from '../services/guardedTokens';
-import { getSolBalance, getTokenBalance } from '../services/heliusService';
+import { getSolBalance, getTokenAccounts } from '../services/heliusService';
 import { addNotification, NOTIF_TYPES } from '../services/notificationsService';
 
 const { height, width } = Dimensions.get('window');
@@ -135,24 +135,26 @@ export default function SwapScreen() {
   const loadBalances = async () => {
     if (!activeAccount?.publicKey) return;
     try {
-      const pubKey      = activeAccount.publicKey;
-      const newBalances = {};
+      const pubKey = activeAccount.publicKey;
 
-      try {
-        const solBal = await getSolBalance(true, pubKey);
-        newBalances['SOL'] = solBal || 0;
-      } catch (_) {
-        newBalances['SOL'] = 0;
+      // SOL والرموز بالتوازي: طلبان للرموز (SPL + Token-2022) بدل طلبين-ثلاثة لكل رمز بالتسلسل
+      const solPromise = getSolBalance(true, pubKey).catch(() => 0);
+      const accPromise = getTokenAccounts(pubKey).catch(() => []);
+
+      // يظهر رصيد SOL فور وصوله دون انتظار بقية الرموز
+      const solBal = (await solPromise) || 0;
+      setBalances(prev => ({ ...prev, SOL: solBal }));
+
+      const accounts = await accPromise;
+      const byMint = {};
+      for (const acc of accounts) {
+        byMint[acc.mint] = (byMint[acc.mint] || 0) + (Number(acc.amount) || 0);
       }
 
+      const newBalances = { SOL: solBal };
       for (const token of CORE_TOKENS) {
         if (!token.swapAvailable || token.symbol === 'SOL') continue;
-        try {
-          const tokenBal = await getTokenBalance(token.mint, true, pubKey);
-          newBalances[token.symbol] = tokenBal || 0;
-        } catch (_) {
-          newBalances[token.symbol] = 0;
-        }
+        newBalances[token.symbol] = byMint[token.mint] || 0;
       }
 
       setBalances(newBalances);
