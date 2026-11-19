@@ -18,6 +18,7 @@ import {
 } from '../services/jupiterMarketService';
 import { getGlobalMarketData } from '../services/marketOverviewService';
 import { getForexRates } from '../services/marketDataService';
+import { getOHLCData } from '../services/priceChartService';
 import { fetchCoinsMarkets } from '../services/globalCoinsService';
 
 const REFRESH_MS    = 60000;
@@ -202,7 +203,7 @@ const ForexTicker = ({ data, isDark }) => {
 
 // ═════════════════════════════════════════════════════════════════════════════
 // ✅ بانر MECO المباشر — رسوم متحركة بالكود (SVG + Animated الأصلي بمحرك native)
-// ملاحظة: المنحنى زخرفي وليس بيانات تاريخية حقيقية، يميل صعودًا أو هبوطًا بحسب إشارة تغير MECO خلال 24 ساعة
+// المنحنى مبني من شموع MECO الحقيقية لآخر 24 ساعة (نفس مصدر شاشة التفاصيل)؛ إن تعذّر جلبها يُخفى المنحنى ولا يُرسم بديل وهمي
 // ═════════════════════════════════════════════════════════════════════════════
 const MECO_MINT_ADDR = 'A5Ln25cfww33kfUSzBb89bMha7j1PnFQTy7H3FsQHN7W';
 const HERO_W      = width - CARD_SIDE * 2; // عرض البانر: هامش البطاقات 12 على الجانبين
@@ -211,15 +212,26 @@ const HERO_N      = 48;                    // عدد نقاط المنحنى
 const HERO_GREEN  = '#10B981';
 const HERO_RED    = '#EF4444';
 
-const buildHeroCurve = (up) => {
-  const pts = [];
+const heroPointsFromCloses = (closes) => {
+  // إعادة أخذ عينات إلى HERO_N+1 نقطة، ثم تحويل السعر إلى إحداثي رأسي ضمن نطاق البانر
+  const n = closes.length;
+  const sampled = [];
   for (let i = 0; i <= HERO_N; i++) {
-    const t     = i / HERO_N;
-    const wave  = Math.sin(t * 9.4) * 0.07 + Math.sin(t * 21 + 1.3) * 0.035 + Math.sin(t * 4.1 + 0.6) * 0.05;
-    const trend = (up ? 1 : -1) * (t - 0.5) * 0.55;
-    const v     = Math.min(0.95, Math.max(0.05, 0.5 + trend + wave));
-    pts.push({ x: t * HERO_W, y: 186 - v * 48 });
+    sampled.push(closes[Math.min(n - 1, Math.round((i / HERO_N) * (n - 1)))]);
   }
+  const lo = Math.min(...sampled), hi = Math.max(...sampled);
+  const span = hi - lo;
+  return sampled.map((c, i) => {
+    const v = span > 0 ? 0.05 + ((c - lo) / span) * 0.9 : 0.5;
+    return { x: (i / HERO_N) * HERO_W, y: 186 - v * 48 };
+  });
+};
+
+const buildHeroCurve = (closes) => {
+  const real = Array.isArray(closes) && closes.length >= 2;
+  const pts = real
+    ? heroPointsFromCloses(closes)
+    : Array.from({ length: HERO_N + 1 }, (_, i) => ({ x: (i / HERO_N) * HERO_W, y: 186 }));
   // مسار سلس عبر نقاط المنتصف (Quadratic)
   let line = `M ${pts[0].x.toFixed(1)} ${pts[0].y.toFixed(1)}`;
   for (let i = 1; i < pts.length - 1; i++) {
@@ -230,17 +242,30 @@ const buildHeroCurve = (up) => {
   const last = pts[pts.length - 1];
   line += ` L ${last.x.toFixed(1)} ${last.y.toFixed(1)}`;
   const area = `${line} L ${HERO_W} ${HERO_H} L 0 ${HERO_H} Z`;
-  return { pts, line, area };
+  return { pts, line, area, real };
 };
 
 const MarketHeroBanner = React.memo(({ token, primaryColor, onPress, onTrade }) => {
   const { t } = useTranslation();
   const price  = token?.current_price || 0;
-  const change = token?.price_change_percentage_24h || 0;
+  const [candles, setCandles] = useState(null);   // شموع حقيقية (24 ساعة) أو null إن تعذّرت
+  useEffect(() => {
+    let alive = true;
+    getOHLCData('MECO', 1)
+      .then(r => { if (alive) setCandles(r && Array.isArray(r.data) && r.data.length >= 2 ? r.data : null); })
+      .catch(() => { if (alive) setCandles(null); });
+    return () => { alive = false; };
+  }, [price]);
+
+  // التغير واللون من الشموع نفسها حين تتوفر، حتى يتطابق البانر مع شاشة التفاصيل
+  const candleChange = candles && candles[0].open > 0
+    ? ((candles[candles.length - 1].close - candles[0].open) / candles[0].open) * 100
+    : null;
+  const change = candleChange !== null ? candleChange : (token?.price_change_percentage_24h || 0);
   const up     = change >= 0;
   const accent = up ? HERO_GREEN : HERO_RED;
 
-  const curve = useMemo(() => buildHeroCurve(up), [up]);
+  const curve = useMemo(() => buildHeroCurve(candles ? candles.map(c => c.close) : null), [candles]);
 
   const drift  = useRef(new Animated.Value(0)).current;
   const travel = useRef(new Animated.Value(0)).current;
@@ -327,15 +352,15 @@ const MarketHeroBanner = React.memo(({ token, primaryColor, onPress, onTrade }) 
 
       {/* المنحنى */}
       <Svg width={HERO_W} height={HERO_H} style={StyleSheet.absoluteFill} pointerEvents="none">
-        <Path d={curve.area} fill="url(#heroArea)" />
-        <Path d={curve.line} fill="none" stroke="url(#heroLine)" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" />
+        {curve.real && <Path d={curve.area} fill="url(#heroArea)" />}
+        {curve.real && <Path d={curve.line} fill="none" stroke="url(#heroLine)" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" />}
       </Svg>
 
       {/* نقطة مضيئة تسير على المنحنى */}
-      <Animated.View pointerEvents="none" style={[S.heroDotWrap, { transform: [{ translateX: dotX }, { translateY: dotY }] }]}>
+      {curve.real && <Animated.View pointerEvents="none" style={[S.heroDotWrap, { transform: [{ translateX: dotX }, { translateY: dotY }] }]}>
         <Animated.View style={[S.heroDotRing, { backgroundColor: accent, opacity: ringOpacity, transform: [{ scale: ringScale }] }]} />
         <View style={[S.heroDotCore, { backgroundColor: accent, shadowColor: accent }]} />
-      </Animated.View>
+      </Animated.View>}
 
       {/* المحتوى */}
       <View style={S.heroTop}>

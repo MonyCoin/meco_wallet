@@ -602,7 +602,7 @@ const S = StyleSheet.create({
   tfRow:      { flexDirection:'row', justifyContent:'space-between', width:'100%' },
   tfBtn:      { flex:1, paddingVertical:6, alignItems:'center', borderRadius:999, marginHorizontal:2 },
   tfTxt:      { fontSize:12, fontWeight:'700' },
-  chartArea:  { flexDirection:'row', justifyContent:'space-between', paddingHorizontal:4, overflow:'hidden' },
+  chartArea:  { flexDirection:'row', justifyContent:'space-between', paddingHorizontal:4, overflow:'hidden', direction:'ltr' },   // الزمن دائمًا من اليسار (الأقدم) إلى اليمين (الأحدث) حتى في الواجهة العربية
   chartLoad:  { alignItems:'center', justifyContent:'center', height:180, gap:8 },
   candle:     { flex:1, height:'100%', alignItems:'center' },
   wick:       { position:'absolute', width:1 },
