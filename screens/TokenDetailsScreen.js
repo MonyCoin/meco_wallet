@@ -483,9 +483,7 @@ export default function TokenDetailsScreen() {
                 { k:'tile_max',    v:stats.maxSupply>0 ? fmtSupply(stats.maxSupply) : '∞', c:C.text },
                 ...((stats.ath > 0 || stats.atl > 0) ? [
                   { k:'tile_ath',      v:stats.ath > 0 ? fmtPrice(stats.ath) : 'N/A', c:C.text },
-                  { k:'tile_from_ath', v:stats.ath > 0 ? fmtPct(stats.athChg) : 'N/A', c:stats.ath > 0 ? C.error : C.text },
                   { k:'tile_atl',      v:stats.atl > 0 ? fmtPrice(stats.atl) : 'N/A', c:C.text },
-                  { k:'tile_rank',     v:(metadata?.rank && metadata.rank !== 'N/A') ? `#${metadata.rank}` : (token.rank ? `#${token.rank}` : 'N/A'), c:C.text },
                 ] : []),
               ].map(item => (
                 <View key={item.k} style={[S.tile, { backgroundColor:C.card, borderColor:C.border }]}>
