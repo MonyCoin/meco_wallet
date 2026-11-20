@@ -661,7 +661,7 @@ export default function WalletScreen() {
                     style={[
                       styles.walletIconWrapper,
                       {
-                        backgroundColor: primaryColor + '18',
+                        backgroundColor: colors.background,
                       },
                     ]}
                     activeOpacity={0.7}
@@ -714,7 +714,7 @@ export default function WalletScreen() {
 
               <View style={styles.balanceSection}>
                 <View style={styles.balanceLabelRow}>
-                  <Text style={[styles.balanceLabel, { color: colors.textSecondary }]}>{t('total_balance')}</Text>
+                  <Text style={[styles.balanceLabel, { color: '#FFFFFF' }]}>{t('total_balance')}</Text>
                   <TouchableOpacity onPress={toggleHideBalance} style={styles.eyeBtn}>
                     <Ionicons
                       name={hideBalance ? 'eye-off-outline' : 'eye-outline'}
@@ -1228,9 +1228,9 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
 
-  headerCard:   { paddingHorizontal:20, paddingBottom:20 },
+  headerCard:   { paddingHorizontal:20, paddingBottom:34 },
 
-  topBar:       { flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:18 },
+  topBar:       { flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:26 },
   walletInfoRow:{ flexDirection:'row', alignItems:'center', gap:10, flex: 1 },
   walletIconWrapper: { width:40, height:40, borderRadius:12, justifyContent:'center', alignItems:'center' },
   walletIconEmoji:   { fontSize:22 },
@@ -1247,9 +1247,9 @@ const styles = StyleSheet.create({
 
   balanceSection: { alignItems:'center' },
   balanceLabelRow:{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 },
-  balanceLabel:   { fontSize:13, fontWeight:'500' },
+  balanceLabel:   { fontSize:13, fontWeight:'600' },
   eyeBtn:         { padding: 2 },
-  balanceAmount:  { fontSize:36, fontWeight:'800', letterSpacing:-0.5 },
+  balanceAmount:  { fontSize:38, fontWeight:'800', letterSpacing:-0.5 },
   loadingBalance: { height:40, justifyContent:'center' },
 
   actionsGrid:  { flexDirection:'row', justifyContent:'space-around', width: '100%', paddingHorizontal: 4, marginTop: 16, marginBottom: 12 },

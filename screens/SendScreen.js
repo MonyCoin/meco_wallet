@@ -633,9 +633,17 @@ export default function SendScreen() {
       <View style={styles.headerNew}>
         <View style={styles.headerTitleContainer}>
           {activeAccount && (
-            <Text style={[styles.headerSubText, { color: colors.textSecondary }]} numberOfLines={1}>
-              {activeAccount.name} ({activeAccount.publicKey.slice(0, 4)}...{activeAccount.publicKey.slice(-4)})
-            </Text>
+            <View style={[styles.sendAccountBar, { backgroundColor: colors.card }]}>
+              <View style={[styles.sendAccountIcon, { backgroundColor: primaryColor + '12' }]}>
+                <Ionicons name="wallet-outline" size={16} color={primaryColor} />
+              </View>
+              <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 6 }}>
+                <Text style={[styles.sendAccountName, { color: colors.text }]} numberOfLines={1}>{activeAccount.name}</Text>
+                <Text style={[styles.sendAccountAddr, { color: colors.textSecondary }]} numberOfLines={1}>
+                  {activeAccount.publicKey.slice(0, 4)}...{activeAccount.publicKey.slice(-4)}
+                </Text>
+              </View>
+            </View>
           )}
         </View>
 
@@ -938,7 +946,11 @@ const styles = StyleSheet.create({
   container:           { flex: 1, padding: 20 },
   headerNew:           { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 10, paddingBottom: 2, paddingHorizontal: 20, gap: 10 },
 
-  headerTitleContainer:{ flex: 1, alignItems: 'flex-start' },
+  headerTitleContainer:{ flex: 1 },
+  sendAccountBar:      { flexDirection: 'row', alignItems: 'center', borderRadius: 14, padding: 10, gap: 10 },
+  sendAccountIcon:     { width: 32, height: 32, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
+  sendAccountName:     { fontSize: 14, fontWeight: '700', flexShrink: 1 },
+  sendAccountAddr:     { fontSize: 12, fontWeight: '500' },
   headerSubText:       { fontSize: 12 },
 
   addressBookButton: {
