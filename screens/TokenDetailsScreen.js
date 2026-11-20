@@ -456,7 +456,7 @@ export default function TokenDetailsScreen() {
         {/* ── OHLC ── */}
         <View style={S.card}>
           <Text style={[S.secTitle, { color:C.text }]}>{t('ohlc_stats')}</Text>
-          <View style={S.tileRow}>
+          <View style={S.tileGrid}>
             {[
               { k:'ohlc_open',  v:fmtPrice(stats.open),    c:C.text    },
               { k:'ohlc_high',  v:fmtPrice(stats.high),    c:C.success },
@@ -465,7 +465,7 @@ export default function TokenDetailsScreen() {
             ].map(item => (
               <View key={item.k} style={[S.tile, { backgroundColor:C.card, borderColor:C.border }]}>
                 <Text style={[S.tileLabel, { color:C.muted }]} numberOfLines={1}>{t(item.k)}</Text>
-                <Text style={[S.tileValue, { color:item.c }]} numberOfLines={1}>{item.v}</Text>
+                <Text style={[S.tileValue, { color:item.c }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{item.v}</Text>
               </View>
             ))}
           </View>
@@ -475,34 +475,25 @@ export default function TokenDetailsScreen() {
         {(stats.cap > 0 || stats.volume > 0 || stats.supply > 0) && (
           <View style={S.card}>
             <Text style={[S.secTitle, { color:C.text }]}>{t('market_stats')}</Text>
-            <View style={S.tileRow}>
+            <View style={S.tileGrid}>
               {[
                 { k:'tile_cap',    v:fmtBig(stats.cap),       c:C.text },
                 { k:'tile_vol',    v:fmtBig(stats.volume),    c:C.text },
                 { k:'tile_supply', v:fmtSupply(stats.supply), c:C.text },
                 { k:'tile_max',    v:stats.maxSupply>0 ? fmtSupply(stats.maxSupply) : '∞', c:C.text },
-              ].map(item => (
-                <View key={item.k} style={[S.tile, { backgroundColor:C.card, borderColor:C.border }]}>
-                  <Text style={[S.tileLabel, { color:C.muted }]} numberOfLines={1}>{t(item.k)}</Text>
-                  <Text style={[S.tileValue, { color:item.c }]} numberOfLines={1}>{item.v}</Text>
-                </View>
-              ))}
-            </View>
-            {(stats.ath > 0 || stats.atl > 0) && (
-              <View style={[S.tileRow, { marginTop:8 }]}>
-                {[
+                ...((stats.ath > 0 || stats.atl > 0) ? [
                   { k:'tile_ath',      v:stats.ath > 0 ? fmtPrice(stats.ath) : 'N/A', c:C.text },
                   { k:'tile_from_ath', v:stats.ath > 0 ? fmtPct(stats.athChg) : 'N/A', c:stats.ath > 0 ? C.error : C.text },
                   { k:'tile_atl',      v:stats.atl > 0 ? fmtPrice(stats.atl) : 'N/A', c:C.text },
                   { k:'tile_rank',     v:(metadata?.rank && metadata.rank !== 'N/A') ? `#${metadata.rank}` : (token.rank ? `#${token.rank}` : 'N/A'), c:C.text },
-                ].map(item => (
-                  <View key={item.k} style={[S.tile, { backgroundColor:C.card, borderColor:C.border }]}>
-                    <Text style={[S.tileLabel, { color:C.muted }]} numberOfLines={1}>{t(item.k)}</Text>
-                    <Text style={[S.tileValue, { color:item.c }]} numberOfLines={1}>{item.v}</Text>
-                  </View>
-                ))}
-              </View>
-            )}
+                ] : []),
+              ].map(item => (
+                <View key={item.k} style={[S.tile, { backgroundColor:C.card, borderColor:C.border }]}>
+                  <Text style={[S.tileLabel, { color:C.muted }]} numberOfLines={1}>{t(item.k)}</Text>
+                  <Text style={[S.tileValue, { color:item.c }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{item.v}</Text>
+                </View>
+              ))}
+            </View>
           </View>
         )}
 
@@ -611,10 +602,10 @@ const S = StyleSheet.create({
   gridItem:   { flexDirection:'row', justifyContent:'space-between', alignItems:'center', paddingVertical:11, borderBottomWidth:StyleSheet.hairlineWidth, borderBottomColor:'#262626' },
   gridLabel:  { fontSize:13 },
   gridValue:  { fontSize:13, fontWeight:'700' },
-  tileRow:    { flexDirection:'row', gap:8 },
-  tile:       { flex:1, minWidth:0, borderWidth:1, borderRadius:12, paddingVertical:9, paddingHorizontal:4, alignItems:'center' },
-  tileLabel:  { fontSize:9.5, marginBottom:4 },
-  tileValue:  { fontSize:12, fontWeight:'700' },
+  tileGrid:   { flexDirection:'row', flexWrap:'wrap', gap:8 },
+  tile:       { width:'48.5%', flexGrow:1, minWidth:0, height:44, borderWidth:1, borderRadius:12, paddingHorizontal:10, flexDirection:'row', alignItems:'center', justifyContent:'space-between', gap:6 },
+  tileLabel:  { fontSize:10.5 },
+  tileValue:  { fontSize:12.5, fontWeight:'800', flexShrink:1, textAlign:'left' },
   desc:       { fontSize:13, lineHeight:18 },
   links:      { flexDirection:'row', flexWrap:'wrap', gap:8 },
   linkBtn:    { flexDirection:'row', alignItems:'center', paddingHorizontal:12, paddingVertical:9, borderRadius:999, gap:6 },
