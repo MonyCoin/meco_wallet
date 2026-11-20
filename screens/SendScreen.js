@@ -340,7 +340,15 @@ export default function SendScreen() {
 
     const willBeZero = state.currency === 'SOL' && leftoverLam === 0;
     const feeUsdText = state.solPriceUsd > 0 ? ` (≈ $${(totalFees * state.solPriceUsd).toFixed(2)})` : '';
-    const recipientShort = `${recipient.slice(0, 6)}...${recipient.slice(-4)}`;
+    // اسم المستلم من دفتر العناوين إن كان محفوظًا، وإلا يُعرض العنوان كاملًا للتحقق الدقيق
+    const savedRecipient = (addressBook || []).find(a => a.address === recipient);
+    const recipientShort = savedRecipient
+      ? `${savedRecipient.name} (${recipient.slice(0, 6)}...${recipient.slice(-4)})`
+      : recipient;
+    // حماية من عناوين التزوير: عنوان مختلف يطابق أول وآخر 4 أحرف من عنوان محفوظ
+    const lookalike = savedRecipient ? null : (addressBook || []).find(a =>
+      a.address && a.address !== recipient &&
+      a.address.slice(0, 4) === recipient.slice(0, 4) && a.address.slice(-4) === recipient.slice(-4));
 
     Alert.alert(
       t('sendScreen.confirm_title', { defaultValue: 'تأكيد عملية الإرسال' }),
@@ -353,7 +361,9 @@ export default function SendScreen() {
         platformFee: SERVICE_FEE_SOL,
         defaultValue: `سيتم إرسال {{amount}} {{symbol}} إلى {{recipient}}\n\nإجمالي الرسوم: {{totalFee}} SOL{{feeUsd}}\n(رسوم شبكة سولانا + رسوم منصة ثابتة قدرها {{platformFee}} SOL)`,
       }) + (willBeZero ? '\n\n' + t('sendScreen.alerts.will_be_zero') : '')
-        + (ataRentLam > 0 ? '\n\n' + t('sendScreen.alerts.ata_note', { rent: (ataRentLam / 1e9).toFixed(5) }) : ''),
+        + (ataRentLam > 0 ? '\n\n' + t('sendScreen.alerts.ata_note', { rent: (ataRentLam / 1e9).toFixed(5) }) : '')
+        + (!savedRecipient ? '\n\n' + t('sendScreen.alerts.unsaved_recipient') : '')
+        + (lookalike ? '\n\n' + t('sendScreen.alerts.lookalike_recipient', { name: lookalike.name }) : ''),
       [
         { text: t('cancel'), style: 'cancel' },
         {
@@ -372,7 +382,7 @@ export default function SendScreen() {
         },
       ]
     );
-  }, [state, currentBalance, balances.sol, totalFees, currentToken, t, activeAccount]);
+  }, [state, currentBalance, balances.sol, totalFees, currentToken, t, activeAccount, addressBook]);
 
   const executeTransaction = useCallback(async (amount, recipient, token) => {
     try {
