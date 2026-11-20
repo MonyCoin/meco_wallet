@@ -170,7 +170,8 @@ export default function QuickTradeScreen() {
         open:    result.stats?.openPrice || 0,
         high:    result.stats?.high || 0,
         low:     result.stats?.low || 0,
-        volume:  result.stats?.volume24h || 0,
+        // حجم 24س: من إحصاءات المصدر، وإلا آخر قيمة في سلسلة الأحجام (CoinGecko لا يُرجعه ضمن الشموع)
+        volume:  result.stats?.volume24h || result.volumeData?.[result.volumeData.length - 1]?.volume || 0,
         change:  prev.change || result.stats?.periodChange || 0,
       }));
 
@@ -285,21 +286,19 @@ export default function QuickTradeScreen() {
         </View>
 
         {/* Market Stats */}
-        <View style={[S.statsCard, { backgroundColor: C.card, borderColor: C.border, borderWidth: 1 }]}>
-          <Text style={[S.statsTitle, { color: C.text }]}>{t('market_stats')}</Text>
-          <View style={S.statsGrid}>
-            {[
-              { label: t('ohlc_high'),       value: fmtPrice(priceStats.high) },
-              { label: t('ohlc_low'),        value: fmtPrice(priceStats.low)  },
-              { label: t('volume_24h_label'),value: fmtBig(priceStats.volume) },
-              { label: t('ohlc_open'),       value: fmtPrice(priceStats.open) },
-            ].map(item => (
-              <View key={item.label} style={[S.statItem, { backgroundColor: C.card2, borderColor: C.border, borderWidth: 1 }]}>
-                <Text style={[S.statL, { color: C.muted }]}>{item.label}</Text>
-                <Text style={[S.statV, { color: C.text }]}>{item.value}</Text>
-              </View>
-            ))}
-          </View>
+        <Text style={[S.statsTitle, { color: C.text }]}>{t('market_stats')}</Text>
+        <View style={S.statsGrid}>
+          {[
+            { label: t('ohlc_high'),        value: fmtPrice(priceStats.high),   color: C.success },
+            { label: t('ohlc_low'),         value: fmtPrice(priceStats.low),    color: C.error   },
+            { label: t('ohlc_open'),        value: fmtPrice(priceStats.open),   color: C.text    },
+            { label: t('volume_24h_label'), value: fmtBig(priceStats.volume),   color: C.text    },
+          ].map(item => (
+            <View key={item.label} style={[S.statItem, { backgroundColor: C.card, borderColor: C.border }]}>
+              <Text style={[S.statL, { color: C.muted }]} numberOfLines={1}>{item.label}</Text>
+              <Text style={[S.statV, { color: item.color }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{item.value}</Text>
+            </View>
+          ))}
         </View>
 
         {/* Buy / Sell */}
@@ -350,12 +349,12 @@ const S = StyleSheet.create({
   tfBtn:{ paddingHorizontal:14, paddingVertical:7, borderRadius:10 },
   tfTxt:{ fontSize:12, fontWeight:'700' },
 
-  statsCard:{ margin:16, borderRadius:18, padding:16 },
-  statsTitle:{ fontSize:14, fontWeight:'800', marginBottom:12 },
-  statsGrid:{ flexDirection:'row', flexWrap:'wrap', justifyContent:'space-between', rowGap:10 },
-  statItem:{ width:'48.5%', padding:14, borderRadius:12 },
-  statL:{ fontSize:11, marginBottom:4 },
-  statV:{ fontSize:13, fontWeight:'700' },
+  statsTitle:{ fontSize:15, fontWeight:'800', marginTop:16, marginBottom:10, marginHorizontal:16 },
+  statsGrid:{ flexDirection:'row', flexWrap:'wrap', gap:8, paddingHorizontal:16, marginBottom:16 },
+  statItem:{ width:'48.5%', flexGrow:1, height:44, borderWidth:1, borderRadius:12, paddingHorizontal:12,
+             flexDirection:'row', alignItems:'center', justifyContent:'space-between', gap:6 },
+  statL:{ fontSize:11 },
+  statV:{ fontSize:13, fontWeight:'800', flexShrink:1, textAlign:'left' },
 
   actionRow:{ flexDirection:'row', gap:12, paddingHorizontal:16, marginTop:4 },
   actionBtn:{ flex:1, flexDirection:'row', alignItems:'center', justifyContent:'center',
