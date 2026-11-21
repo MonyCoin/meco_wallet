@@ -24,6 +24,41 @@ import AccountsScreen from '../components/AccountsScreen';
 
 const { width, height } = Dimensions.get('window');
 
+// ✅ ظهور تدريجي للبطاقات + لمعة الزر (حركة خفيفة بلا حزم جديدة)
+function FadeIn({ delay = 0, children }) {
+  const v = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.timing(v, { toValue: 1, duration: 420, delay, useNativeDriver: true }).start();
+  }, [v, delay]);
+  return (
+    <Animated.View style={{ opacity: v, transform: [{ translateY: v.interpolate({ inputRange: [0, 1], outputRange: [14, 0] }) }] }}>
+      {children}
+    </Animated.View>
+  );
+}
+
+function ShineBar({ children }) {
+  const x = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const loop = Animated.loop(Animated.sequence([
+      Animated.delay(2200),
+      Animated.timing(x, { toValue: 1, duration: 900, useNativeDriver: true }),
+      Animated.timing(x, { toValue: 0, duration: 0, useNativeDriver: true }),
+    ]));
+    loop.start();
+    return () => loop.stop();
+  }, [x]);
+  return (
+    <View style={styles.rewardBtn}>
+      {children}
+      <Animated.View
+        pointerEvents="none"
+        style={[styles.rewardShine, { transform: [{ translateX: x.interpolate({ inputRange: [0, 1], outputRange: [-120, 420] }) }, { skewX: '-20deg' }] }]}
+      />
+    </View>
+  );
+}
+
 // ✅ Quick Trade — بطاقتان بالضبط مع محاذاة بطاقة الهيرو
 const CARD_SIDE          = 12;   // هامش موحّد لكل بطاقات الشاشة (أقرب لعرض Solflare)
 const TRADE_CARD_PADDING = CARD_SIDE;
@@ -798,6 +833,105 @@ export default function WalletScreen() {
             </View>
           </View>
 
+          {reclaim && (
+            <FadeIn delay={0}>
+            <View style={styles.stakingSection}>
+              <View style={[styles.assetsHeader, { paddingHorizontal: 20 - CARD_SIDE }]}>
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                  {t('reclaim.card_title')}
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={[styles.rewardCard, { backgroundColor: colors.card, borderColor: '#10B98140' }]}
+                onPress={() => navigation.navigate('ReclaimRent')}
+                activeOpacity={0.85}
+              >
+                <View style={styles.rewardTop}>
+                  <View style={[styles.stakingEmptyIcon, { backgroundColor: '#10B98118', borderColor: '#10B98133' }]}>
+                    <Ionicons name="refresh-circle-outline" size={24} color="#10B981" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.stakingEmptyTitle, { color: colors.text }]}>{t('reclaim.card_hero_title')}</Text>
+                    <Text style={[styles.stakingEmptySub, { color: colors.textSecondary }]}>{t('reclaim.card_hero_sub')}</Text>
+                  </View>
+                  <View style={styles.rewardCount}>
+                    <Text style={styles.rewardCountTxt}>{t('reclaim.card_count', { count: reclaim.count })}</Text>
+                  </View>
+                </View>
+                <View style={styles.rewardAmtRow}>
+                  <Text style={[styles.rewardAmt, { color: colors.text }]}>{reclaim.sol.toFixed(4)}</Text>
+                  <Text style={styles.rewardUnit}>SOL</Text>
+                </View>
+                {reclaim.usd > 0 && (
+                  <Text style={[styles.stakingEmptySub, { color: colors.textSecondary }]}>≈ ${reclaim.usd.toFixed(2)}</Text>
+                )}
+                <ShineBar>
+                  <Text style={styles.rewardBtnTxt}>{t('reclaim.card_cta')}</Text>
+                  <DirIcon name="arrow-forward" size={16} color="#04140D" />
+                </ShineBar>
+              </TouchableOpacity>
+            </View>
+            </FadeIn>
+          )}
+
+          <FadeIn delay={80}>
+          <View style={styles.stakingSection}>
+            <View style={[styles.assetsHeader, { paddingHorizontal: 20 - CARD_SIDE }]}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                {t('staking_card.section')}
+              </Text>
+            </View>
+            {msol.amount > 0.000001 ? (
+              <TouchableOpacity
+                style={[styles.stakingCard, { backgroundColor: colors.card }]}
+                onPress={openMarinade}
+                activeOpacity={0.85}
+              >
+                <View style={styles.stakingRow}>
+                  <View style={styles.stakingCol}>
+                    <Text style={[styles.stakingLabel, { color: colors.textSecondary }]}>
+                      {t('staking_card.your_stake')}
+                    </Text>
+                    <Text style={[styles.stakingEmptyTitle, { color: colors.text }]}>
+                      {msol.amount.toLocaleString('en-US', { maximumFractionDigits: 4 })} mSOL
+                    </Text>
+                    {msol.usd > 0 && (
+                      <Text style={[styles.stakingEmptySub, { color: colors.textSecondary }]}>
+                        ≈ ${msol.usd.toLocaleString('en-US', { maximumFractionDigits: 2 })}
+                      </Text>
+                    )}
+                  </View>
+                  <DirIcon name="chevron-forward" size={16} color={colors.textSecondary} />
+                </View>
+                <Text style={[styles.stakingEmptySub, { color: colors.textSecondary, marginTop: 8 }]}>
+                  {t('staking_card.manage')}
+                </Text>
+              </TouchableOpacity>
+            ) : (
+            <TouchableOpacity
+              style={[styles.stakingEmptyCard, styles.cardClip, { backgroundColor: colors.card }]}
+              onPress={openMarinade}
+              activeOpacity={0.85}
+            >
+              <View style={[styles.cardStripe, { backgroundColor: '#8B5CF6' }]} />
+              <View style={[styles.stakingEmptyIcon, { backgroundColor: '#8B5CF618', borderColor: '#8B5CF633' }]}>
+                <Ionicons name="layers-outline" size={22} color="#8B5CF6" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.stakingEmptyTitle, { color: colors.text }]}>
+                  {t('staking_card.cta_title')}
+                </Text>
+                <View style={styles.extBadge}>
+                  <Text style={styles.extBadgeTxt}>{t('staking_card.badge')}</Text>
+                </View>
+              </View>
+              <DirIcon name="chevron-forward" size={16} color={colors.textSecondary} />
+            </TouchableOpacity>
+            )}
+          </View>
+          </FadeIn>
+
+          <FadeIn delay={160}>
           <View style={styles.stakingSection}>
             <View style={[styles.assetsHeader, { paddingHorizontal: 20 - CARD_SIDE }]}>
               <Text style={[styles.sectionTitle, { color: colors.text }]}>
@@ -848,11 +982,12 @@ export default function WalletScreen() {
               </View>
             ) : (
               <TouchableOpacity
-                style={[styles.stakingEmptyCard, { backgroundColor: colors.card }]}
+                style={[styles.stakingEmptyCard, styles.cardClip, { backgroundColor: colors.card }]}
                 onPress={() => navigation.navigate('Liquidity')}
                 activeOpacity={0.85}
               >
-                <View style={[styles.stakingEmptyIcon, { backgroundColor: primaryColor + '15' }]}>
+                <View style={[styles.cardStripe, { backgroundColor: primaryColor }]} />
+                <View style={[styles.stakingEmptyIcon, { backgroundColor: primaryColor + '18', borderColor: primaryColor + '33' }]}>
                   <Ionicons name="water-outline" size={22} color={primaryColor} />
                 </View>
                 <View style={{ flex: 1 }}>
@@ -867,108 +1002,17 @@ export default function WalletScreen() {
               </TouchableOpacity>
             )}
           </View>
+          </FadeIn>
 
-          <View style={styles.stakingSection}>
-            <View style={[styles.assetsHeader, { paddingHorizontal: 20 - CARD_SIDE }]}>
-              <Text style={[styles.sectionTitle, { color: colors.text }]}>
-                {t('staking_card.section')}
-              </Text>
-            </View>
-            {msol.amount > 0.000001 ? (
-              <TouchableOpacity
-                style={[styles.stakingCard, { backgroundColor: colors.card }]}
-                onPress={openMarinade}
-                activeOpacity={0.85}
-              >
-                <View style={styles.stakingRow}>
-                  <View style={styles.stakingCol}>
-                    <Text style={[styles.stakingLabel, { color: colors.textSecondary }]}>
-                      {t('staking_card.your_stake')}
-                    </Text>
-                    <Text style={[styles.stakingEmptyTitle, { color: colors.text }]}>
-                      {msol.amount.toLocaleString('en-US', { maximumFractionDigits: 4 })} mSOL
-                    </Text>
-                    {msol.usd > 0 && (
-                      <Text style={[styles.stakingEmptySub, { color: colors.textSecondary }]}>
-                        ≈ ${msol.usd.toLocaleString('en-US', { maximumFractionDigits: 2 })}
-                      </Text>
-                    )}
-                  </View>
-                  <DirIcon name="chevron-forward" size={16} color={colors.textSecondary} />
-                </View>
-                <Text style={[styles.stakingEmptySub, { color: colors.textSecondary, marginTop: 8 }]}>
-                  {t('staking_card.manage')}
-                </Text>
-              </TouchableOpacity>
-            ) : (
-            <TouchableOpacity
-              style={[styles.stakingEmptyCard, { backgroundColor: colors.card }]}
-              onPress={openMarinade}
-              activeOpacity={0.85}
-            >
-              <View style={[styles.stakingEmptyIcon, { backgroundColor: primaryColor + '15' }]}>
-                <Ionicons name="layers-outline" size={22} color={primaryColor} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.stakingEmptyTitle, { color: colors.text }]}>
-                  {t('staking_card.cta_title')}
-                </Text>
-                <Text style={[styles.stakingEmptySub, { color: colors.textSecondary }]}>
-                  {t('staking_card.cta_sub')}
-                </Text>
-              </View>
-              <DirIcon name="chevron-forward" size={16} color={colors.textSecondary} />
-            </TouchableOpacity>
-            )}
-          </View>
-
-          {reclaim && (
-            <View style={styles.activitySection}>
-              <View style={[styles.assetsHeader, { paddingHorizontal: 20 - CARD_SIDE }]}>
-                <Text style={[styles.sectionTitle, { color: colors.text }]}>
-                  {t('reclaim.card_title')}
-                </Text>
-              </View>
-              <TouchableOpacity
-                style={[styles.activityCard, { backgroundColor: colors.card }]}
-                onPress={() => navigation.navigate('ReclaimRent')}
-                activeOpacity={0.75}
-              >
-                <View style={[styles.activityIconWrap, { backgroundColor: '#10B98115' }]}>
-                  <Ionicons name="refresh-circle-outline" size={22} color="#10B981" />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.activityLabel, { color: colors.text }]}>
-                    {t('reclaim.card_found', { count: reclaim.count })}
-                  </Text>
-                  <Text style={[styles.activitySub, { color: colors.textSecondary }]}>
-                    {t('reclaim.card_sub', { sol: reclaim.sol.toFixed(4), usd: reclaim.usd > 0 ? ` (≈ $${reclaim.usd.toFixed(2)})` : '' })}
-                  </Text>
-                </View>
-                <View style={[styles.viewPill, { backgroundColor: primaryColor + '15' }]}>
-                  <Text style={[styles.viewPillTxt, { color: primaryColor }]}>
-                    {t('reclaim.card_btn')}
-                  </Text>
-                  <DirIcon name="arrow-forward" size={12} color={primaryColor} />
-                </View>
-              </TouchableOpacity>
-            </View>
-          )}
-
+          <FadeIn delay={240}>
           <View style={styles.activitySection}>
-            <View style={[styles.assetsHeader, { paddingHorizontal: 20 - CARD_SIDE }]}>
-              <Text style={[styles.sectionTitle, { color: colors.text }]}>
-                {t('activity.section_title')}
-              </Text>
-            </View>
-
             <TouchableOpacity
-              style={[styles.activityCard, { backgroundColor: colors.card }]}
+              style={[styles.activityRow, { borderTopColor: colors.border }]}
               onPress={() => navigation.navigate('ActivityHistory')}
               activeOpacity={0.75}
             >
-              <View style={[styles.activityIconWrap, { backgroundColor: primaryColor + '15' }]}>
-                <Ionicons name="time-outline" size={20} color={primaryColor} />
+              <View style={[styles.activityDot, { backgroundColor: colors.card }]}>
+                <Ionicons name="time-outline" size={18} color={colors.textSecondary} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.activityLabel, { color: colors.text }]}>
@@ -978,14 +1022,10 @@ export default function WalletScreen() {
                   {t('activity.subtitle')}
                 </Text>
               </View>
-              <View style={[styles.viewPill, { backgroundColor: primaryColor + '15' }]}>
-                <Text style={[styles.viewPillTxt, { color: primaryColor }]}>
-                  {t('activity.view')}
-                </Text>
-                <DirIcon name="arrow-forward" size={12} color={primaryColor} />
-              </View>
+              <DirIcon name="chevron-forward" size={16} color={colors.textSecondary} />
             </TouchableOpacity>
           </View>
+          </FadeIn>
         </ScrollView>
 
         <Modal visible={menuVisible} transparent animationType="fade" onRequestClose={() => setMenuVisible(false)}>
@@ -1344,13 +1384,29 @@ const styles = StyleSheet.create({
   stakingBtn:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 14, paddingVertical: 11, borderRadius: 12 },
   stakingBtnTxt:  { color: '#FFF', fontSize: 13, fontWeight: '700' },
   stakingEmptyCard: { flexDirection: 'row', alignItems: 'center', borderRadius: 18, padding: 14, gap: 12 },
-  stakingEmptyIcon: { width: 44, height: 44, borderRadius: 13, justifyContent: 'center', alignItems: 'center' },
+  stakingEmptyIcon: { width: 44, height: 44, borderRadius: 22, borderWidth: 1, borderColor: 'transparent', justifyContent: 'center', alignItems: 'center' },
   stakingEmptyTitle:{ fontSize: 14, fontWeight: '700', marginBottom: 2 },
   stakingEmptySub:  { fontSize: 11 },
 
   activitySection:  { paddingHorizontal: CARD_SIDE, paddingTop: 8, paddingBottom: 20 },
   activityCard:     { flexDirection: 'row', alignItems: 'center', padding: 14, borderRadius: 18, gap: 12 },
   activityIconWrap: { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+  cardClip:   { overflow: 'hidden' },
+  cardStripe: { position: 'absolute', start: 0, top: 14, bottom: 14, width: 3, borderRadius: 3 },
+  extBadge:   { alignSelf: 'flex-start', backgroundColor: '#8B5CF61A', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8, marginTop: 4 },
+  extBadgeTxt:{ color: '#A78BFA', fontSize: 10, fontWeight: '600' },
+  rewardCard: { borderRadius: 18, padding: 16, borderWidth: 1, overflow: 'hidden' },
+  rewardTop:  { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  rewardCount:{ backgroundColor: '#10B9811F', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
+  rewardCountTxt:{ color: '#10B981', fontSize: 11, fontWeight: '700' },
+  rewardAmtRow:{ flexDirection: 'row', alignItems: 'baseline', gap: 6, marginTop: 14, marginBottom: 2, alignSelf: 'flex-start' },
+  rewardAmt:  { fontSize: 30, fontWeight: '800' },
+  rewardUnit: { fontSize: 14, fontWeight: '700', color: '#10B981' },
+  rewardBtn:  { marginTop: 14, height: 46, borderRadius: 14, backgroundColor: '#10B981', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, overflow: 'hidden' },
+  rewardBtnTxt:{ color: '#04140D', fontSize: 14, fontWeight: '800' },
+  rewardShine:{ position: 'absolute', top: 0, bottom: 0, width: 50, backgroundColor: 'rgba(255,255,255,0.35)' },
+  activityRow:{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, paddingHorizontal: 4, borderTopWidth: StyleSheet.hairlineWidth, marginTop: 4 },
+  activityDot:{ width: 34, height: 34, borderRadius: 17, justifyContent: 'center', alignItems: 'center' },
   activityLabel:    { fontSize: 14, fontWeight: '700' },
   activitySub:      { fontSize: 11, marginTop: 3 },
   viewPill:         { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12 },
