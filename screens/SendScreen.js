@@ -502,6 +502,12 @@ export default function SendScreen() {
     setState(prev => ({ ...prev, amount: maxAmount }));
   }, [currentBalance, state.currency]);
 
+  const handlePercent = useCallback((pct) => {
+    if (pct >= 1) { handleMaxAmount(); return; }
+    const v = currentBalance * pct;
+    setState(prev => ({ ...prev, amount: v > 0 ? v.toFixed(6) : '0' }));
+  }, [currentBalance, handleMaxAmount]);
+
   const handlePasteAddress = useCallback(async () => {
     const text = await Clipboard.getStringAsync();
     if (text) setState(prev => ({ ...prev, recipient: text.trim() }));
@@ -663,13 +669,13 @@ export default function SendScreen() {
 
           {/* ── حقل المبلغ ── */}
           <View style={[styles.inputSection, { marginBottom: 20 }]}>
-            <View style={styles.amountHeader}>
-              <Text style={[styles.inputLabel, { color: colors.text }]}>{t('sendScreen.inputs.amount')}</Text>
-              <TouchableOpacity onPress={handleMaxAmount}>
-                <Text style={[styles.maxButton, { color: primaryColor }]}>{t('sendScreen.inputs.maxButton')}</Text>
-              </TouchableOpacity>
+            <View style={styles.amountHeaderCenter}>
+              <Text style={[styles.inputLabel, { color: colors.text, marginBottom: 4 }]}>{t('sendScreen.inputs.amount')}</Text>
+              <Text style={[styles.balanceHintCenter, { color: colors.textSecondary }]}>
+                {t('sendScreen.balance.short')}: {currentBalance.toFixed(6)} {state.currency}
+              </Text>
             </View>
-            
+
             <View style={[styles.inputContainerNew, { backgroundColor: colors.card, height: 64 }]}>
               <TextInput
                 style={[styles.inputNew, { color: colors.text, fontSize: 24, fontWeight: '800', paddingVertical: 0 }]}
@@ -680,21 +686,25 @@ export default function SendScreen() {
                 onChangeText={text => setState(prev => ({ ...prev, amount: text.replace(/,/g, '.') }))}
                 autoCorrect={false}
               />
-              
+
               <TouchableOpacity style={[styles.tokenSelectorPill, { backgroundColor: colors.background }]} onPress={handleOpenTokenModal}>
                 <Image source={{ uri: currentToken.image }} style={styles.selectedTokenIcon} />
                 <Text style={[styles.tokenSymbolText, { color: colors.text }]}>{state.currency}</Text>
                 <Ionicons name="chevron-down" size={13} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
-            
-            <Text style={[styles.balanceHintText, { color: colors.textSecondary }]}>
-              {t('sendScreen.balance.available')}: {currentBalance.toFixed(6)} {state.currency}
-            </Text>
-            <Text style={[styles.balanceHintText, { color: colors.textSecondary }]}>
-              {t('sendScreen.total_fees_label', { defaultValue: 'إجمالي الرسوم' })}: {totalFees.toFixed(5)} SOL
-              {state.solPriceUsd > 0 ? ` (≈ $${(totalFees * state.solPriceUsd).toFixed(2)})` : ''}
-            </Text>
+
+            <View style={styles.quickRow}>
+              {[0.25, 0.5, 0.75, 1].map(pct => (
+                <TouchableOpacity
+                  key={pct}
+                  style={[styles.quickBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
+                  onPress={() => handlePercent(pct)}
+                >
+                  <Text style={[styles.quickBtnTxt, { color: colors.text }]}>{Math.round(pct * 100)}%</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
           </View>
 
           {/* ── حقل المستلم ── */}
@@ -975,6 +985,11 @@ const styles = StyleSheet.create({
   inputNew:            { fontSize: 15, flex: 1, height: '100%' },
   inputActions:        { flexDirection: 'row', alignItems: 'center', gap: 4 },
   iconBtn:             { width: 32, height: 32, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
+  amountHeaderCenter:  { alignItems: 'center', marginBottom: 12 },
+  balanceHintCenter:   { fontSize: 12, fontWeight: '600' },
+  quickRow:            { flexDirection: 'row', gap: 8, marginTop: 14 },
+  quickBtn:            { flex: 1, paddingVertical: 10, borderRadius: 12, borderWidth: 1, alignItems: 'center' },
+  quickBtnTxt:         { fontSize: 12, fontWeight: '700' },
   amountHeader:        { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
   maxButton:           { fontSize: 12, fontWeight: '700' },
 

@@ -370,6 +370,14 @@ export default function SwapScreen() {
     if (balance > 0) setFromAmount(balance.toString());
   };
 
+  const handlePercent = (pct) => {
+    if (pct >= 1) { useMaxBalance(); return; }
+    let balance = balances[fromToken.symbol] || 0;
+    if (fromToken.symbol === 'SOL') balance = Math.max(0, balance - SOL_FEE_RESERVE);
+    const v = balance * pct;
+    if (v > 0) setFromAmount(v.toFixed(6));
+  };
+
   const copyMintAddress = async (address) => {
     if (!address) return;
     await Clipboard.setStringAsync(address);
@@ -479,8 +487,7 @@ export default function SwapScreen() {
             </View>
           )}
 
-          <View style={[styles.unifiedSwapContainer, { backgroundColor: colors.card }]}>
-
+          <View style={{ backgroundColor: colors.card, borderRadius: 20 }}>
             <View style={styles.swapInputRow}>
               <View style={styles.swapInputLeft}>
                 <Text style={[styles.rowLabel, { color: colors.textSecondary }]}>{t('swap_from')}</Text>
@@ -498,9 +505,6 @@ export default function SwapScreen() {
                 </Text>
               </View>
               <View style={styles.swapInputRight}>
-                <TouchableOpacity onPress={useMaxBalance} style={[styles.maxBtn, { backgroundColor: primaryColor + '12' }]}>
-                  <Text style={{ color: primaryColor, fontWeight: '700', fontSize: 11 }}>{t('swap_max')}</Text>
-                </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.tokenSelectorPill, { backgroundColor: colors.background }]}
                   onPress={() => setFromModalVisible(true)}
@@ -512,18 +516,33 @@ export default function SwapScreen() {
               </View>
             </View>
 
-            <View style={[styles.swapDivider, { backgroundColor: colors.border }]}>
+          </View>
+
+          <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
+            {[0.25, 0.5, 0.75, 1].map(pct => (
+              <TouchableOpacity
+                key={pct}
+                style={[styles.quickBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
+                onPress={() => handlePercent(pct)}
+              >
+                <Text style={[styles.quickBtnTxt, { color: colors.text }]}>{Math.round(pct * 100)}%</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <View style={{ alignItems: 'center', marginVertical: 10 }}>
               <TouchableOpacity
                 onPress={swapTokens}
-                style={[styles.swapButtonCircle, { backgroundColor: colors.background }]}
+                style={[styles.swapButtonCircle, { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }]}
                 activeOpacity={0.8}
               >
                 <Animated.View style={{ transform: [{ rotate: rotateInterpolate }] }}>
                   <Ionicons name="swap-vertical" size={18} color={primaryColor} />
                 </Animated.View>
               </TouchableOpacity>
-            </View>
+          </View>
 
+          <View style={{ backgroundColor: colors.card, borderRadius: 20 }}>
             <View style={styles.swapInputRow}>
               <View style={styles.swapInputLeft}>
                 <Text style={[styles.rowLabel, { color: colors.textSecondary }]}>{t('swap_to')}</Text>
@@ -667,6 +686,8 @@ const styles = StyleSheet.create({
   amountInput: { fontSize: 26, fontWeight: '800', padding: 0, height: 36, width: '100%' },
   amountOutput: { fontSize: 26, fontWeight: '800', height: 36, paddingVertical: 0 },
   balanceHint: { fontSize: 11, marginTop: 6, fontWeight: '600' },
+  quickBtn: { flex: 1, paddingVertical: 10, borderRadius: 12, borderWidth: 1, alignItems: 'center' },
+  quickBtnTxt: { fontSize: 12, fontWeight: '700' },
   maxBtn: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10 },
   tokenSelectorPill: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 14, gap: 6 },
   tokenImage: { width: 22, height: 22, borderRadius: 11 },
@@ -674,7 +695,7 @@ const styles = StyleSheet.create({
   copyPill: { width: 32, height: 32, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
 
   swapDivider: { height: 1, position: 'relative', alignItems: 'center', justifyContent: 'center', zIndex: 10 },
-  swapButtonCircle: { width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center', position: 'absolute' },
+  swapButtonCircle: { width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center' },
 
   loadingCard: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 12, borderRadius: 16, marginTop: 14, gap: 8 },
   loadingText: { fontSize: 13, fontWeight: '600' },
