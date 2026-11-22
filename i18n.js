@@ -651,6 +651,7 @@ const resources = {
         },
         balance: {
           available: "الرصيد المتاح",
+          short: "الرصيد",
         },
         buttons: {
           send: "إرسال",
@@ -1456,6 +1457,7 @@ const resources = {
         },
         balance: {
           available: "Available Balance",
+          short: "Balance",
         },
         buttons: {
           send: "Send",
