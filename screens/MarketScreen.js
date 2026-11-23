@@ -1231,7 +1231,7 @@ const S = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
+    gap: 14,
     maxWidth: '100%',
   },
   extPrice:      { fontSize: 12, fontWeight: '600', flexShrink: 1 },

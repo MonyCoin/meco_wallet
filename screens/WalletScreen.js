@@ -630,18 +630,20 @@ export default function WalletScreen() {
         <Text style={[styles.tradeCardSymbol, { color: colors.text }]} numberOfLines={1}>
           {item.symbol}
         </Text>
-        <Text style={[styles.tradeCardPrice, { color: colors.text }]} numberOfLines={1}>
-          {fmtTradePrice(item.current_price)}
-        </Text>
-        <View style={styles.tradeCardChangeRow}>
-          <Ionicons
-            name={up ? 'trending-up' : 'trending-down'}
-            size={14}
-            color={up ? colors.success : colors.error}
-          />
-          <Text style={[styles.tradeCardChange, { color: up ? colors.success : colors.error }]}>
-            {Math.abs(item.price_change_percentage_24h || 0).toFixed(2)}%
+        <View style={styles.tradeCardBottomRow}>
+          <Text style={[styles.tradeCardPrice, { color: colors.text }]} numberOfLines={1}>
+            {fmtTradePrice(item.current_price)}
           </Text>
+          <View style={styles.tradeCardChangeRow}>
+            <Ionicons
+              name={up ? 'trending-up' : 'trending-down'}
+              size={12}
+              color={up ? colors.success : colors.error}
+            />
+            <Text style={[styles.tradeCardChange, { color: up ? colors.success : colors.error }]}>
+              {Math.abs(item.price_change_percentage_24h || 0).toFixed(2)}%
+            </Text>
+          </View>
         </View>
       </TouchableOpacity>
     );
@@ -1299,34 +1301,43 @@ const styles = StyleSheet.create({
   tradingList:    { paddingHorizontal: TRADE_CARD_PADDING, gap: TRADE_CARD_GAP },
   tradeCard: {
     width: TRADE_CARD_WIDTH,
-    paddingVertical: 12,
+    height: 122,
     paddingHorizontal: 14,
     borderRadius: 18,
-    alignItems: 'flex-start',
-    gap: 3,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
   },
   tradeCardIcon: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    marginBottom: 2,
   },
   tradeCardSymbol: {
     fontSize: 18,
     fontWeight: '800',
+    textAlign: 'center',
+  },
+  tradeCardBottomRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 14,
+    maxWidth: '100%',
   },
   tradeCardPrice: {
     fontSize: 13,
     fontWeight: '600',
-    maxWidth: '100%',
+    flexShrink: 1,
   },
   tradeCardChangeRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 2,
+    flexShrink: 0,
   },
   tradeCardChange: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '700',
   },
 
