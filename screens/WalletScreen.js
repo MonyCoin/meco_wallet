@@ -37,7 +37,7 @@ function FadeIn({ delay = 0, children }) {
   );
 }
 
-function ShineBar({ children }) {
+function ShineBar({ children, color }) {
   const x = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     const loop = Animated.loop(Animated.sequence([
@@ -49,7 +49,7 @@ function ShineBar({ children }) {
     return () => loop.stop();
   }, [x]);
   return (
-    <View style={styles.rewardBtn}>
+    <View style={[styles.rewardBtn, { backgroundColor: color }]}>
       {children}
       <Animated.View
         pointerEvents="none"
@@ -684,8 +684,8 @@ export default function WalletScreen() {
                 styles.headerCard,
                 {
                   backgroundColor: colors.card,
-                  borderRadius: 22,
-                  paddingTop: 18,
+                  borderRadius: 18,
+                  paddingTop: 16,
                 },
               ]}
             >
@@ -842,30 +842,30 @@ export default function WalletScreen() {
                 </Text>
               </View>
               <TouchableOpacity
-                style={[styles.rewardCard, { backgroundColor: colors.card, borderColor: '#10B98140' }]}
+                style={[styles.rewardCard, { backgroundColor: colors.card, borderColor: primaryColor + '40' }]}
                 onPress={() => navigation.navigate('ReclaimRent')}
                 activeOpacity={0.85}
               >
                 <View style={styles.rewardTop}>
-                  <View style={[styles.stakingEmptyIcon, { backgroundColor: '#10B98118', borderColor: '#10B98133' }]}>
-                    <Ionicons name="refresh-circle-outline" size={24} color="#10B981" />
+                  <View style={[styles.stakingEmptyIcon, { backgroundColor: primaryColor + '18', borderColor: primaryColor + '33' }]}>
+                    <Ionicons name="refresh-circle-outline" size={24} color={primaryColor} />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.stakingEmptyTitle, { color: colors.text }]}>{t('reclaim.card_hero_title')}</Text>
                     <Text style={[styles.stakingEmptySub, { color: colors.textSecondary }]}>{t('reclaim.card_hero_sub')}</Text>
                   </View>
-                  <View style={styles.rewardCount}>
-                    <Text style={styles.rewardCountTxt}>{t('reclaim.card_count', { count: reclaim.count })}</Text>
+                  <View style={[styles.rewardCount, { backgroundColor: primaryColor + '1F' }]}>
+                    <Text style={[styles.rewardCountTxt, { color: primaryColor }]}>{t('reclaim.card_count', { count: reclaim.count })}</Text>
                   </View>
                 </View>
                 <View style={styles.rewardAmtRow}>
                   <Text style={[styles.rewardAmt, { color: colors.text }]}>{reclaim.sol.toFixed(4)}</Text>
-                  <Text style={styles.rewardUnit}>SOL</Text>
+                  <Text style={[styles.rewardUnit, { color: primaryColor }]}>SOL</Text>
                 </View>
                 {reclaim.usd > 0 && (
                   <Text style={[styles.stakingEmptySub, { color: colors.textSecondary }]}>≈ ${reclaim.usd.toFixed(2)}</Text>
                 )}
-                <ShineBar>
+                <ShineBar color={primaryColor}>
                   <Text style={styles.rewardBtnTxt}>{t('reclaim.card_cta')}</Text>
                   <DirIcon name="arrow-forward" size={16} color="#04140D" />
                 </ShineBar>
@@ -1268,11 +1268,11 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
 
-  headerCard:   { paddingHorizontal:20, paddingBottom:34 },
+  headerCard:   { paddingHorizontal:16, paddingBottom:32 },
 
-  topBar:       { flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:26 },
+  topBar:       { flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:28 },
   walletInfoRow:{ flexDirection:'row', alignItems:'center', gap:10, flex: 1 },
-  walletIconWrapper: { width:40, height:40, borderRadius:12, justifyContent:'center', alignItems:'center' },
+  walletIconWrapper: { width:44, height:44, borderRadius:22, justifyContent:'center', alignItems:'center' },
   walletIconEmoji:   { fontSize:22 },
   walletNameRow:{ flexDirection:'row', alignItems:'center', gap:4 },
   walletName:   { fontSize:18, fontWeight:'800' },
