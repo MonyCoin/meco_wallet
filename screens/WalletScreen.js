@@ -627,24 +627,21 @@ export default function WalletScreen() {
         activeOpacity={0.85}
       >
         <Image source={{ uri: item.image }} style={styles.tradeCardIcon} />
-
-        <View style={styles.tradeCardInfo}>
-          <Text style={[styles.tradeCardSymbol, { color: colors.text }]} numberOfLines={1}>
-            {item.symbol}
+        <Text style={[styles.tradeCardSymbol, { color: colors.text }]} numberOfLines={1}>
+          {item.symbol}
+        </Text>
+        <Text style={[styles.tradeCardPrice, { color: colors.text }]} numberOfLines={1}>
+          {fmtTradePrice(item.current_price)}
+        </Text>
+        <View style={styles.tradeCardChangeRow}>
+          <Ionicons
+            name={up ? 'trending-up' : 'trending-down'}
+            size={14}
+            color={up ? colors.success : colors.error}
+          />
+          <Text style={[styles.tradeCardChange, { color: up ? colors.success : colors.error }]}>
+            {Math.abs(item.price_change_percentage_24h || 0).toFixed(2)}%
           </Text>
-          <Text style={[styles.tradeCardPrice, { color: colors.text }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
-            {fmtTradePrice(item.current_price)}
-          </Text>
-          <View style={[styles.tradeCardChangePill, { backgroundColor: (up ? colors.success : colors.error) + '1F' }]}>
-            <Ionicons
-              name={up ? 'trending-up' : 'trending-down'}
-              size={11}
-              color={up ? colors.success : colors.error}
-            />
-            <Text style={[styles.tradeCardChange, { color: up ? colors.success : colors.error }]}>
-              {Math.abs(item.price_change_percentage_24h || 0).toFixed(2)}%
-            </Text>
-          </View>
         </View>
       </TouchableOpacity>
     );
@@ -1302,26 +1299,20 @@ const styles = StyleSheet.create({
   tradingList:    { paddingHorizontal: TRADE_CARD_PADDING, gap: TRADE_CARD_GAP },
   tradeCard: {
     width: TRADE_CARD_WIDTH,
-    minHeight: 92,
-    paddingVertical: 14,
+    paddingVertical: 12,
     paddingHorizontal: 14,
     borderRadius: 18,
-    flexDirection: 'row',
-    alignItems: 'center',   // الأيقونة في منتصف ارتفاع البطاقة
-    gap: 12,
-  },
-  tradeCardIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-  },
-  tradeCardInfo: {
-    flex: 1,
-    alignItems: 'flex-end',   // النص في الجهة المقابلة للأيقونة
+    alignItems: 'flex-start',
     gap: 3,
   },
+  tradeCardIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    marginBottom: 2,
+  },
   tradeCardSymbol: {
-    fontSize: 15,
+    fontSize: 18,
     fontWeight: '800',
   },
   tradeCardPrice: {
@@ -1329,17 +1320,13 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     maxWidth: '100%',
   },
-  tradeCardChangePill: {
+  tradeCardChangeRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 3,
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    borderRadius: 8,
-    marginTop: 1,
+    gap: 4,
   },
   tradeCardChange: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '700',
   },
 
