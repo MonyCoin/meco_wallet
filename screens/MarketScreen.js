@@ -543,7 +543,7 @@ const GlobalMarketCard = ({ item, isDark, onPress }) => {
       activeOpacity={0.85}
     >
       {renderIcon()}
-      <Text style={[S.extSym, { color: C.text }]} numberOfLines={1}>{item.symbol}</Text>
+      <Text style={[S.extSym, { color: C.text, textAlign: 'center' }]} numberOfLines={1}>{item.symbol}</Text>
       <View style={S.extBottomRow}>
         <Text style={[S.extPrice, { color: C.text }]} numberOfLines={1}>{fmtPrice(price)}</Text>
         <View style={S.extChg}>
@@ -1220,6 +1220,7 @@ const S = StyleSheet.create({
     paddingHorizontal: 14,
     borderRadius: 18,
     gap: 10,
+    alignItems: 'center',
   },
   extEmojiIcon: {
     width: 32, height: 32, borderRadius: 16,
@@ -1229,8 +1230,9 @@ const S = StyleSheet.create({
   extBottomRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 6,
+    justifyContent: 'center',
+    gap: 8,
+    maxWidth: '100%',
   },
   extPrice:      { fontSize: 12, fontWeight: '600', flexShrink: 1 },
   extChg:        { flexDirection: 'row', alignItems: 'center', gap: 2, flexShrink: 0 },
