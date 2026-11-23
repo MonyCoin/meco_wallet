@@ -16,6 +16,9 @@ on:
       - '.github/workflows/i18n-check.yml'
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   i18n:
     name: Verify translations

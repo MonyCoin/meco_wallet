@@ -9,6 +9,9 @@ on:
       - '.gitignore'
       - 'LICENSE'
 
+permissions:
+  contents: read
+
 jobs:
   update:
     name: Build and Publish OTA Update
@@ -36,7 +39,8 @@ jobs:
         run: npm install -g eas-cli
 
       - name: Publish OTA Update
-        run: |
-          eas update --branch production --environment production --platform android --message "${{ github.event.head_commit.message }}" --non-interactive
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+        run: |
+          eas update --branch production --environment production --platform android --message "$COMMIT_MESSAGE" --non-interactive
